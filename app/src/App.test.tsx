@@ -1,7 +1,20 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "./App";
 
 describe("BabyLog UI shell", () => {
+  beforeEach(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("babylog-local");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => resolve();
+    });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:babylog-backup");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+  });
+
   it("renders the pregnancy home workspace", () => {
     render(<App />);
 
@@ -16,7 +29,7 @@ describe("BabyLog UI shell", () => {
 
     expect(screen.queryByText(/iOS 优先验证/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Android 紧跟回归/i)).not.toBeInTheDocument();
-    expect(screen.getByText("上次胎动")).toBeInTheDocument();
+    expect(screen.getByText("今日记录")).toBeInTheDocument();
   });
 
   it("shows primary bottom navigation labels", () => {
@@ -63,5 +76,39 @@ describe("BabyLog UI shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
 
     expect(screen.getByText(/后端未配置/i)).toBeInTheDocument();
+  });
+
+  it("records quick actions locally and exposes pending sync state", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /喂养/ }));
+
+    expect(await screen.findByText(/喂养已保存到本机/)).toBeInTheDocument();
+    expect(await screen.findByText("1 条")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "时间线" }));
+
+    expect(await screen.findByText("喂养")).toBeInTheDocument();
+    expect(screen.getByText(/快捷记录/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+
+    expect(await screen.findByText("待同步记录")).toBeInTheDocument();
+    expect(screen.getByText("1 条待上传")).toBeInTheDocument();
+  });
+
+  it("exports local records as a JSON backup", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /尿布/ }));
+    await screen.findByText(/尿布已保存到本机/);
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "导出" }));
+
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    expect(await screen.findByText(/备份已生成/)).toBeInTheDocument();
   });
 });

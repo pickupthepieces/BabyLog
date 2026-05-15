@@ -1,4 +1,12 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { estimateStorageUsage } from "./adapters/storage";
+import type { BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
+import { createBackup } from "./storage/backup";
+import { formatStorageEstimate } from "./storage/attachments";
+import { createLocalRepository } from "./storage/localRepository";
+import { listPendingSyncChanges } from "./storage/syncQueue";
+import { listRecentEvents, recordLocalEvent, summarizeEventDay } from "./services/logService";
+import type { EventDaySummary } from "./services/logService";
 import "./styles.css";
 
 type TabKey = "home" | "timeline" | "library" | "settings";
@@ -10,49 +18,82 @@ type QuickAction = {
   hint: string;
   asset: string;
   tone: ToneKey;
+  eventType: EventType;
+  summary: string;
 };
 
-const assetBase = "/assets/kindergarten-vivid";
-
-const quickActions: QuickAction[] = [
-  { label: "喂养", hint: "母乳 / 奶瓶 / 辅食", asset: "feeding-bottle.png", tone: "peach" },
-  { label: "睡眠", hint: "开始 / 结束 / 地点", asset: "sleep-moon.png", tone: "blue" },
-  { label: "尿布", hint: "尿 / 便 / 性状", asset: "diaper.png", tone: "yellow" },
-  { label: "体温", hint: "温度 / 测量方式", asset: "thermometer.png", tone: "green" },
-  { label: "用药", hint: "药名 / 剂量 / 时间", asset: "icon-pill.png", tone: "violet" },
-  { label: "B超", hint: "指标 / 照片 / OCR占位", asset: "ultrasound-sheet.png", tone: "rose" }
-];
-
-const todayHighlights: Array<{ label: string; value: string; sub: string }> = [
-  { label: "上次胎动", value: "1h 20m 前", sub: "2 小时内 32 次" },
-  { label: "上次产检", value: "5 月 14 日", sub: "下次 2 周后" },
-  { label: "孕妈体重", value: "60.4 kg", sub: "较孕前 +8.6 kg" }
-];
-
-const recentRecords: Array<{
-  time: string;
-  type: string;
-  body: string;
-  tone: ToneKey;
-  attachmentCount?: number;
-}> = [
-  { time: "16:20", type: "胎动", body: "2 小时内 32 次", tone: "violet" },
-  { time: "09:30", type: "B 超", body: "28+3 周 · EFW 1320 g · BPD 71 mm", tone: "rose", attachmentCount: 2 },
-  { time: "08:00", type: "孕妈体重", body: "60.4 kg · 较孕前 +8.6 kg", tone: "green" }
-];
-
-const timelineItems: Array<{
+type TimelineItem = {
+  id?: string;
   day?: string;
   time: string;
   type: string;
   body: string;
   tone: ToneKey;
   attachmentCount?: number;
-}> = [
-  { day: "今天", time: "16:20", type: "胎动", body: "2 小时内 32 次，状态稳定", tone: "violet" },
-  { day: "今天", time: "09:30", type: "B 超", body: "EFW 1320 g · BPD 71 mm · HC 258 mm", tone: "rose", attachmentCount: 2 },
-  { day: "昨天", time: "20:10", type: "体温", body: "36.6 °C · 腋温", tone: "green" },
-  { day: "昨天", time: "08:40", type: "产检", body: "下次复查 2 周后；医生备注已拍照保存", tone: "blue", attachmentCount: 1 }
+};
+
+type DashboardState = {
+  recentEvents: BabyLogEvent[];
+  summary: EventDaySummary | null;
+  pendingSyncCount: number;
+  storageUsage: string;
+  isLoading: boolean;
+};
+
+const assetBase = "/assets/kindergarten-vivid";
+const localDbName = "babylog-local";
+const localFamilyId = "family_local";
+const localChildId = "child_singleton";
+
+const quickActions: QuickAction[] = [
+  {
+    label: "喂养",
+    hint: "母乳 / 奶瓶 / 辅食",
+    asset: "feeding-bottle.png",
+    tone: "peach",
+    eventType: "feed",
+    summary: "快捷记录 · 待补充奶量/方式"
+  },
+  {
+    label: "睡眠",
+    hint: "开始 / 结束 / 地点",
+    asset: "sleep-moon.png",
+    tone: "blue",
+    eventType: "sleep",
+    summary: "快捷记录 · 待补充睡眠时长"
+  },
+  {
+    label: "尿布",
+    hint: "尿 / 便 / 性状",
+    asset: "diaper.png",
+    tone: "yellow",
+    eventType: "diaper",
+    summary: "快捷记录 · 待补充尿/便细节"
+  },
+  {
+    label: "体温",
+    hint: "温度 / 测量方式",
+    asset: "thermometer.png",
+    tone: "green",
+    eventType: "temperature",
+    summary: "快捷记录 · 待补充温度数值"
+  },
+  {
+    label: "用药",
+    hint: "药名 / 剂量 / 时间",
+    asset: "icon-pill.png",
+    tone: "violet",
+    eventType: "medication",
+    summary: "快捷记录 · 待补充药名/剂量"
+  },
+  {
+    label: "B超",
+    hint: "指标 / 照片 / OCR占位",
+    asset: "ultrasound-sheet.png",
+    tone: "rose",
+    eventType: "ultrasound",
+    summary: "B 超快捷记录 · 待补指标/照片"
+  }
 ];
 
 const trendCards = [
@@ -61,7 +102,7 @@ const trendCards = [
 ];
 
 const libraryItems: Array<{ title: string; count: string; asset: string; note: string }> = [
-  { title: "B 超单", count: "2 张", asset: "ultrasound-sheet.png", note: "已保存本机；OCR 待接入" },
+  { title: "B 超单", count: "0 张", asset: "ultrasound-sheet.png", note: "已保存本机；OCR 待接入" },
   { title: "检查单", count: "0 张", asset: "baby-diary-notebook.png", note: "孕期常规检查、血检报告" },
   { title: "出生证明", count: "0 张", asset: "vaccine-card.png", note: "出生后启用" },
   { title: "疫苗本", count: "0 张", asset: "vaccine-card.png", note: "出生后启用" }
@@ -74,19 +115,149 @@ const navItems: Array<{ key: TabKey; label: string; asset: string }> = [
   { key: "settings", label: "设置", asset: "icon-settings.png" }
 ];
 
+const eventLabels: Record<EventType, string> = {
+  pregnancy_checkup: "产检",
+  ultrasound: "B 超",
+  fetal_movement: "胎动",
+  contraction: "宫缩",
+  birth: "出生",
+  feed: "喂养",
+  sleep: "睡眠",
+  diaper: "尿布",
+  temperature: "体温",
+  medication: "用药",
+  illness: "不适",
+  growth: "成长",
+  vaccine: "疫苗",
+  milestone: "里程碑",
+  note: "备注"
+};
+
+const eventTones: Record<EventType, ToneKey> = {
+  pregnancy_checkup: "blue",
+  ultrasound: "rose",
+  fetal_movement: "violet",
+  contraction: "rose",
+  birth: "peach",
+  feed: "peach",
+  sleep: "blue",
+  diaper: "yellow",
+  temperature: "green",
+  medication: "violet",
+  illness: "rose",
+  growth: "green",
+  vaccine: "yellow",
+  milestone: "violet",
+  note: "blue"
+};
+
 function App() {
+  const repository = useMemo(() => createLocalRepository(localDbName), []);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [isQuickSheetOpen, setQuickSheetOpen] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [dashboard, setDashboard] = useState<DashboardState>({
+    recentEvents: [],
+    summary: null,
+    pendingSyncCount: 0,
+    storageUsage: "读取中",
+    isLoading: true
+  });
+
+  const refreshLocalData = useCallback(() => {
+    setRefreshVersion((version) => version + 1);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLocalData() {
+      const { startIso, endIso } = getLocalDayRange(new Date());
+      const [recentEvents, summary, pendingChanges, storageEstimate] = await Promise.all([
+        listRecentEvents(repository, localFamilyId, 20),
+        summarizeEventDay(repository, localFamilyId, startIso, endIso),
+        listPendingSyncChanges(repository, localFamilyId),
+        estimateStorageUsage()
+      ]);
+
+      if (!cancelled) {
+        setDashboard({
+          recentEvents,
+          summary,
+          pendingSyncCount: pendingChanges.length,
+          storageUsage: formatStorageEstimateForUi(storageEstimate),
+          isLoading: false
+        });
+      }
+    }
+
+    loadLocalData().catch((error) => {
+      if (!cancelled) {
+        setDashboard((current) => ({ ...current, isLoading: false }));
+        setToast(`本地数据读取失败：${getErrorMessage(error)}`);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [repository, refreshVersion]);
+
+  async function handleQuickRecord(action: QuickAction) {
+    setBusyAction(action.label);
+    try {
+      await recordLocalEvent(repository, createQuickEventInput(action));
+      setQuickSheetOpen(false);
+      setToast(`${action.label}已保存到本机，等待同步`);
+      refreshLocalData();
+    } catch (error) {
+      setToast(`保存失败：${getErrorMessage(error)}`);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleExportBackup() {
+    try {
+      const [familyProfiles, childProfiles, events, attachments, syncChanges] = await Promise.all([
+        repository.listByFamily("familyProfiles", localFamilyId),
+        repository.listByFamily("childProfiles", localFamilyId),
+        repository.listByFamily("events", localFamilyId),
+        repository.listByFamily("attachments", localFamilyId),
+        repository.listByFamily("syncChanges", localFamilyId)
+      ]);
+      const backup = createBackup({ familyProfiles, childProfiles, events, attachments, syncChanges });
+
+      downloadJson(`babylog-backup-${formatDateForFilename(new Date())}.json`, backup);
+      setToast(`备份已生成：${events.length} 条记录`);
+    } catch (error) {
+      setToast(`备份失败：${getErrorMessage(error)}`);
+    }
+  }
 
   return (
     <main className="app-shell">
       <section className="phone-frame" aria-label="BabyLog PWA 工作区">
         <AppHeader activeTab={activeTab} />
         <div className="content-scroll">
-          {activeTab === "home" && <HomeView />}
-          {activeTab === "timeline" && <TimelineView />}
+          {toast && <div className="toast" role="status">{toast}</div>}
+          {activeTab === "home" && (
+            <HomeView
+              dashboard={dashboard}
+              onShowTimeline={() => setActiveTab("timeline")}
+            />
+          )}
+          {activeTab === "timeline" && <TimelineView events={dashboard.recentEvents} />}
           {activeTab === "library" && <LibraryView />}
-          {activeTab === "settings" && <SettingsView />}
+          {activeTab === "settings" && (
+            <SettingsView
+              pendingSyncCount={dashboard.pendingSyncCount}
+              storageUsage={dashboard.storageUsage}
+              onExportBackup={handleExportBackup}
+            />
+          )}
         </div>
         <BottomNav
           activeTab={activeTab}
@@ -95,7 +266,13 @@ function App() {
         />
       </section>
 
-      {isQuickSheetOpen && <QuickSheet onClose={() => setQuickSheetOpen(false)} />}
+      {isQuickSheetOpen && (
+        <QuickSheet
+          busyAction={busyAction}
+          onClose={() => setQuickSheetOpen(false)}
+          onRecord={handleQuickRecord}
+        />
+      )}
     </main>
   );
 }
@@ -114,7 +291,16 @@ function AppHeader({ activeTab }: { activeTab: TabKey }) {
   );
 }
 
-function HomeView() {
+function HomeView({
+  dashboard,
+  onShowTimeline
+}: {
+  dashboard: DashboardState;
+  onShowTimeline: () => void;
+}) {
+  const highlights = buildTodayHighlights(dashboard);
+  const recentRows = dashboard.recentEvents.slice(0, 3).map(eventToTimelineItem);
+
   return (
     <div className="view-stack">
       <section className="week-panel" aria-label="当前阶段">
@@ -134,7 +320,7 @@ function HomeView() {
           <span>00:00 起算</span>
         </div>
         <div className="today-grid">
-          {todayHighlights.map((item) => (
+          {highlights.map((item) => (
             <article className="today-card" key={item.label}>
               <span className="today-label">{item.label}</span>
               <strong className="today-value num">{item.value}</strong>
@@ -147,14 +333,16 @@ function HomeView() {
       <section aria-label="最近记录">
         <div className="section-title">
           <h2>最近记录</h2>
-          <button className="text-button" type="button">
+          <button className="text-button" type="button" onClick={onShowTimeline}>
             全部记录
           </button>
         </div>
         <div className="timeline-list compact">
-          {recentRecords.map((record) => (
-            <TimelineRow key={`${record.time}-${record.type}`} {...record} />
-          ))}
+          {recentRows.length > 0 ? (
+            recentRows.map((record) => <TimelineRow key={record.id} {...record} />)
+          ) : (
+            <EmptyState text={dashboard.isLoading ? "正在读取本机记录" : "暂无本地记录，点 + 开始记录。"} />
+          )}
         </div>
       </section>
 
@@ -173,7 +361,9 @@ function HomeView() {
   );
 }
 
-function TimelineView() {
+function TimelineView({ events }: { events: BabyLogEvent[] }) {
+  const rows = events.map(eventToTimelineItem);
+
   return (
     <div className="view-stack">
       <section className="filter-panel" aria-label="时间线筛选">
@@ -191,9 +381,11 @@ function TimelineView() {
       </section>
 
       <section className="timeline-list" aria-label="时间线记录">
-        {timelineItems.map((item) => (
-          <TimelineRow key={`${item.day}-${item.time}-${item.type}`} {...item} />
-        ))}
+        {rows.length > 0 ? (
+          rows.map((item) => <TimelineRow key={item.id} {...item} />)
+        ) : (
+          <EmptyState text="暂无本地记录。快捷记录会先保存到本机，再等待同步上传。" />
+        )}
       </section>
     </div>
   );
@@ -224,7 +416,15 @@ function LibraryView() {
   );
 }
 
-function SettingsView() {
+function SettingsView({
+  pendingSyncCount,
+  storageUsage,
+  onExportBackup
+}: {
+  pendingSyncCount: number;
+  storageUsage: string;
+  onExportBackup: () => void;
+}) {
   return (
     <div className="view-stack">
       <section className="settings-panel" aria-label="档案">
@@ -237,8 +437,8 @@ function SettingsView() {
 
       <section className="settings-panel" aria-label="数据">
         <h2>数据</h2>
-        <BackupRow />
-        <QuotaRow />
+        <BackupRow onExportBackup={onExportBackup} />
+        <QuotaRow storageUsage={storageUsage} />
         <SettingRow label="从备份导入" value="JSON" interactive />
         <SettingRow label="清空本地数据" value="" interactive destructive />
       </section>
@@ -246,13 +446,14 @@ function SettingsView() {
       <section className="settings-panel" aria-label="同步">
         <h2>同步</h2>
         <SettingRow label="后端" value="后端未配置" />
+        <SettingRow label="待同步记录" value={`${pendingSyncCount} 条待上传`} />
         <SettingRow label="服务端地域" value="—" />
         <SettingRow label="最近健康检查" value="—" />
         <button className="primary-button outline" type="button">
           配置同步
         </button>
         <p className="settings-hint">
-          启用同步会将胎儿、孕期、育儿记录上传到你选定的服务器（可能位于境外）；启用前需要单独勾选确认。
+          当前所有记录先保存到本机 IndexedDB；启用同步后，再把 pending 队列上传到你选定的服务器。
         </p>
       </section>
 
@@ -266,29 +467,29 @@ function SettingsView() {
   );
 }
 
-function BackupRow() {
+function BackupRow({ onExportBackup }: { onExportBackup: () => void }) {
   return (
     <div className="backup-row">
       <div>
         <strong>本地备份</strong>
-        <span className="num">距上次导出 0 天</span>
+        <span className="num">导出 JSON，附件二进制后续单独打包</span>
       </div>
-      <button className="primary-button" type="button">
+      <button className="primary-button" type="button" onClick={onExportBackup}>
         导出
       </button>
     </div>
   );
 }
 
-function QuotaRow() {
+function QuotaRow({ storageUsage }: { storageUsage: string }) {
   return (
     <div className="quota-row" aria-label="存储用量">
       <div className="quota-line">
         <span>本机用量</span>
-        <strong className="num">5.0 MB / 10.0 MB</strong>
+        <strong className="num">{storageUsage}</strong>
       </div>
       <div className="quota-bar">
-        <span style={{ width: "50%" }} />
+        <span style={{ width: storageUsage.includes("(") ? storageUsage.match(/\((\d+)%\)/)?.[1] + "%" : "4%" }} />
       </div>
     </div>
   );
@@ -339,7 +540,15 @@ function NavButton({
   );
 }
 
-function QuickSheet({ onClose }: { onClose: () => void }) {
+function QuickSheet({
+  busyAction,
+  onClose,
+  onRecord
+}: {
+  busyAction: string | null;
+  onClose: () => void;
+  onRecord: (action: QuickAction) => void;
+}) {
   return (
     <div className="sheet-layer">
       <button className="sheet-scrim" type="button" aria-label="关闭快捷记录" onClick={onClose} />
@@ -353,9 +562,15 @@ function QuickSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="sheet-grid">
           {quickActions.map((action) => (
-            <button className={`sheet-action tone-${action.tone}`} type="button" key={action.label}>
+            <button
+              className={`sheet-action tone-${action.tone}`}
+              type="button"
+              key={action.label}
+              disabled={busyAction !== null}
+              onClick={() => onRecord(action)}
+            >
               <img src={`${assetBase}/${action.asset}`} alt="" />
-              <span>{action.label}</span>
+              <span>{busyAction === action.label ? "保存中" : action.label}</span>
               <small>{action.hint}</small>
             </button>
           ))}
@@ -372,14 +587,7 @@ function TimelineRow({
   body,
   tone,
   attachmentCount
-}: {
-  day?: string;
-  time: string;
-  type: string;
-  body: string;
-  tone: ToneKey;
-  attachmentCount?: number;
-}) {
+}: TimelineItem) {
   return (
     <article className={`timeline-row tone-${tone}`}>
       <span className="timeline-dot" />
@@ -390,7 +598,7 @@ function TimelineRow({
           <strong>{type}</strong>
           {attachmentCount ? (
             <span className="tag attachment-tag" aria-label={`含 ${attachmentCount} 张附件`}>
-              📎 {attachmentCount}
+              附件 {attachmentCount}
             </span>
           ) : null}
         </div>
@@ -450,6 +658,146 @@ function SettingRow({
       {interactive && <em aria-hidden="true">›</em>}
     </div>
   );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <p className="empty-state">{text}</p>;
+}
+
+function createQuickEventInput(action: QuickAction): CreateEventInput {
+  return {
+    familyId: localFamilyId,
+    childId: localChildId,
+    eventType: action.eventType,
+    occurredAt: new Date().toISOString(),
+    payload: {
+      summary: action.summary,
+      quickAction: action.label
+    }
+  };
+}
+
+function buildTodayHighlights(dashboard: DashboardState): Array<{ label: string; value: string; sub: string }> {
+  const total = dashboard.summary ? Object.values(dashboard.summary.counts).reduce((sum, count) => sum + count, 0) : 0;
+  const latest = dashboard.recentEvents[0];
+
+  return [
+    { label: "今日记录", value: `${total} 条`, sub: "已保存到本机" },
+    {
+      label: "上次记录",
+      value: latest ? formatRelativeTime(latest.occurredAt) : "暂无",
+      sub: latest ? eventLabels[latest.eventType] : "点 + 开始"
+    },
+    {
+      label: "待同步",
+      value: dashboard.pendingSyncCount > 0 ? `待同步 ${dashboard.pendingSyncCount} 条` : "0 条",
+      sub: "服务器未配置"
+    }
+  ];
+}
+
+function eventToTimelineItem(event: BabyLogEvent): TimelineItem {
+  return {
+    id: event.id,
+    day: formatEventDay(event.occurredAt),
+    time: formatEventTime(event.occurredAt),
+    type: eventLabels[event.eventType],
+    body: getEventSummary(event),
+    tone: eventTones[event.eventType],
+    attachmentCount: event.attachmentIds.length || undefined
+  };
+}
+
+function getEventSummary(event: BabyLogEvent): string {
+  if (typeof event.payload.summary === "string") {
+    return event.payload.summary;
+  }
+
+  return "手动记录 · 待补充详情";
+}
+
+function getLocalDayRange(date: Date): { startIso: string; endIso: string } {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function formatEventTime(iso: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(new Date(iso));
+}
+
+function formatEventDay(iso: string): string {
+  const event = new Date(iso);
+  const now = new Date();
+  const eventStart = new Date(event.getFullYear(), event.getMonth(), event.getDate()).getTime();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayDiff = Math.round((todayStart - eventStart) / 86_400_000);
+
+  if (dayDiff === 0) {
+    return "今天";
+  }
+  if (dayDiff === 1) {
+    return "昨天";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(event);
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Math.max(0, Date.now() - Date.parse(iso));
+  const diffMinutes = Math.floor(diffMs / 60_000);
+
+  if (diffMinutes < 1) {
+    return "刚刚";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m 前`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h 前`;
+  }
+
+  return formatEventDay(iso);
+}
+
+function formatStorageEstimateForUi(estimate: StorageEstimate | null): string {
+  const formatted = formatStorageEstimate(estimate);
+
+  return formatted === "Storage estimate unavailable" ? "浏览器未提供估算" : formatted;
+}
+
+function downloadJson(filename: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatDateForFilename(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}${month}${day}-${hour}${minute}`;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export default App;
