@@ -139,9 +139,9 @@ describe("BabyLog UI shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "时间线" }));
 
     const timeline = await screen.findByLabelText("时间线记录");
-    expect(within(timeline).getByText("B 超")).toBeInTheDocument();
-    expect(within(timeline).getByText("28+3 周 · EFW 1320 g · BPD 71 mm")).toBeInTheDocument();
-    expect(within(timeline).getByLabelText("含 1 张附件")).toBeInTheDocument();
+    expect(await within(timeline).findByText("B 超")).toBeInTheDocument();
+    expect(await within(timeline).findByText("28+3 周 · EFW 1320 g · BPD 71 mm")).toBeInTheDocument();
+    expect(await within(timeline).findByLabelText("含 1 张附件")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
 
@@ -151,6 +151,26 @@ describe("BabyLog UI shell", () => {
 
     const library = await screen.findByLabelText("资料分类");
     expect(within(library).getByText("B 超单")).toBeInTheDocument();
-    expect(within(library).getByText("1 张")).toBeInTheDocument();
+    expect(await within(library).findByText("1 张")).toBeInTheDocument();
+  });
+
+  it("keeps an invalid ultrasound form from creating pending records", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /B超/ }));
+
+    expect(await screen.findByRole("dialog", { name: "B 超记录" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("孕周"), { target: { value: "28+x" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存 B 超记录" }));
+
+    expect(await screen.findByText(/请填写有效孕周/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "B 超记录" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+
+    expect(await screen.findByText("0 条待上传")).toBeInTheDocument();
   });
 });

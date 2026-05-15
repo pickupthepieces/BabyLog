@@ -260,6 +260,12 @@ function App() {
   }
 
   async function handleSaveUltrasound() {
+    const validationError = validateUltrasoundForm(ultrasoundForm);
+    if (validationError) {
+      setToast(validationError);
+      return;
+    }
+
     setSavingUltrasound(true);
     try {
       await recordLocalUltrasound(repository, {
@@ -880,13 +886,34 @@ function buildUltrasoundFields(form: UltrasoundFormState): LocalUltrasoundFields
   };
 }
 
+function validateUltrasoundForm(form: UltrasoundFormState): string | null {
+  if (!isValidDateInput(form.examDate)) {
+    return "请填写检查日期";
+  }
+
+  if (parseGestationalAgeDays(form.gestationalAge) === undefined) {
+    return "请填写有效孕周，例如 28+3";
+  }
+
+  return null;
+}
+
 function parseGestationalAgeDays(value: string): number | undefined {
-  const match = value.trim().match(/^(\d{1,2})(?:\s*\+\s*(\d))?/);
+  const match = value.trim().match(/^(\d{1,2})(?:\s*\+\s*([0-6]))?$/);
   if (!match) {
     return undefined;
   }
 
   return Number(match[1]) * 7 + Number(match[2] ?? 0);
+}
+
+function isValidDateInput(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isFinite(parsed.getTime());
 }
 
 function parseOptionalNumber(value: string): number | undefined {
