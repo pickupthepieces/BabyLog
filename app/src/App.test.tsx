@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createAttachmentRecord, createEvent } from "./domain/types";
 import App from "./App";
+import { createAttachmentBlobRecord } from "./storage/attachments";
+import { createCompleteBackup } from "./storage/backup";
 
 describe("BabyLog UI shell", () => {
   beforeEach(async () => {
@@ -143,6 +146,58 @@ describe("BabyLog UI shell", () => {
         dataBase64: "c2Nhbi1pbWFnZQ=="
       })
     ]);
+  });
+
+  it("imports a JSON backup with ultrasound records and image blobs", async () => {
+    const attachment = createAttachmentRecord({
+      familyId: "family_local",
+      childId: "child_singleton",
+      kind: "ultrasound_image",
+      originalName: "imported-scan.jpg",
+      mimeType: "image/jpeg",
+      byteSize: 11,
+      localBlobKey: "blob/family_local/imported-scan.jpg"
+    });
+    const event = createEvent({
+      familyId: "family_local",
+      childId: "child_singleton",
+      eventType: "ultrasound",
+      occurredAt: "2026-05-15T09:30:00+08:00",
+      attachmentIds: [attachment.id],
+      payload: {
+        summary: "导入 B 超记录",
+        efwGram: 1280
+      }
+    });
+    const backup = await createCompleteBackup({
+      events: [event],
+      attachments: [attachment],
+      attachmentBlobs: [
+        createAttachmentBlobRecord({
+          familyId: "family_local",
+          attachmentId: attachment.id,
+          blob: new Blob(["import-scan"], { type: "image/jpeg" })
+        })
+      ]
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.change(screen.getByLabelText("导入备份 JSON"), {
+      target: {
+        files: [new File([JSON.stringify(backup)], "babylog-backup.json", { type: "application/json" })]
+      }
+    });
+
+    expect(await screen.findByText(/导入完成：1 条记录/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "时间线" }));
+    expect(await screen.findByText("导入 B 超记录")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "资料" }));
+    const library = await screen.findByLabelText("资料分类");
+    expect(await within(library).findByText("1 张")).toBeInTheDocument();
   });
 
   it("records ultrasound measurements and a scan image locally", async () => {

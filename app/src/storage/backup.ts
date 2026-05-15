@@ -1,11 +1,12 @@
 import type { AttachmentRecord, BabyLogEvent, ChildProfile, FamilyProfile, SyncChange } from "../domain/types";
 import type { AttachmentBlobRecord } from "./attachments";
-import { blobToBase64 } from "./attachments";
+import { base64ToBlob, blobToBase64 } from "./attachments";
 
 export const BACKUP_FORMAT = "babylog.backup";
 export const BACKUP_VERSION = 1;
 
 export type BackupAttachmentBlob = {
+  familyId: string;
   attachmentId: string;
   mimeType: string;
   byteSize: number;
@@ -113,8 +114,22 @@ export function parseBackup(rawJson: string): BabyLogBackup {
   };
 }
 
+export function restoreAttachmentBlobRecord(record: BackupAttachmentBlob): AttachmentBlobRecord {
+  return {
+    id: `blob_${record.attachmentId}`,
+    familyId: record.familyId,
+    attachmentId: record.attachmentId,
+    blob: base64ToBlob(record.dataBase64, record.mimeType),
+    dataBase64: record.dataBase64,
+    mimeType: record.mimeType,
+    byteSize: record.byteSize,
+    createdAt: record.createdAt
+  };
+}
+
 async function serializeAttachmentBlob(record: AttachmentBlobRecord): Promise<BackupAttachmentBlob> {
   return {
+    familyId: record.familyId,
     attachmentId: record.attachmentId,
     mimeType: record.mimeType,
     byteSize: record.byteSize,

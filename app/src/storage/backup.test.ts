@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createAttachmentRecord, createChildProfile, createEvent, createFamilyProfile, createSyncChange } from "../domain/types";
 import { createAttachmentBlobRecord } from "./attachments";
 import { createBackup, createCompleteBackup, parseBackup } from "./backup";
+import { restoreAttachmentBlobRecord } from "./backup";
 
 describe("backup format", () => {
   it("exports a versioned backup payload", () => {
@@ -80,12 +81,35 @@ describe("backup format", () => {
     expect(backup.data.attachmentBlobs).toEqual([
       expect.objectContaining({
         attachmentId: "att_1",
+        familyId: "family-1",
         mimeType: "image/jpeg",
         byteSize: blob.size,
         dataBase64: "c2Nhbi1kYXRh"
       })
     ]);
     expect(parseBackup(JSON.stringify(backup)).data.attachmentBlobs).toHaveLength(1);
+  });
+
+  it("restores attachment blob records from backup payloads", async () => {
+    const record = restoreAttachmentBlobRecord({
+      familyId: "family-1",
+      attachmentId: "att_1",
+      mimeType: "image/jpeg",
+      byteSize: 9,
+      createdAt: "2026-05-15T00:00:00.000Z",
+      dataBase64: "c2Nhbi1kYXRh"
+    });
+
+    expect(record).toMatchObject({
+      id: "blob_att_1",
+      familyId: "family-1",
+      attachmentId: "att_1",
+      mimeType: "image/jpeg",
+      byteSize: 9,
+      dataBase64: "c2Nhbi1kYXRh",
+      createdAt: "2026-05-15T00:00:00.000Z"
+    });
+    await expect(readBlobText(record.blob)).resolves.toBe("scan-data");
   });
 
   it("keeps old event-only backups importable", () => {
@@ -109,3 +133,16 @@ describe("backup format", () => {
     expect(() => parseBackup(JSON.stringify({ ...backup, version: 99 }))).toThrow(/unsupported backup version/i);
   });
 });
+
+function readBlobText(blob: Blob): Promise<string> {
+  if ("text" in blob && typeof blob.text === "function") {
+    return blob.text();
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}

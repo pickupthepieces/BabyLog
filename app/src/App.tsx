@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { estimateStorageUsage } from "./adapters/storage";
 import type { AttachmentKind, AttachmentRecord, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
-import { createCompleteBackup } from "./storage/backup";
+import { createCompleteBackup, parseBackup, restoreAttachmentBlobRecord } from "./storage/backup";
 import { base64ToBlob, formatStorageEstimate, isBlobLike } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
 import type { LocalRepository } from "./storage/localRepository";
@@ -321,6 +321,27 @@ function App() {
     }
   }
 
+  async function handleImportBackup(file: File) {
+    try {
+      const backup = parseBackup(await readFileText(file));
+      await Promise.all([
+        ...backup.data.familyProfiles.map((record) => repository.put("familyProfiles", record)),
+        ...backup.data.childProfiles.map((record) => repository.put("childProfiles", record)),
+        ...backup.data.events.map((record) => repository.put("events", record)),
+        ...backup.data.attachments.map((record) => repository.put("attachments", record)),
+        ...backup.data.attachmentBlobs.map((record) =>
+          repository.put("attachmentBlobs", restoreAttachmentBlobRecord(record))
+        ),
+        ...backup.data.syncChanges.map((record) => repository.put("syncChanges", record))
+      ]);
+
+      setToast(`导入完成：${backup.data.events.length} 条记录`);
+      refreshLocalData();
+    } catch (error) {
+      setToast(`导入失败：${getErrorMessage(error)}`);
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="phone-frame" aria-label="BabyLog PWA 工作区">
@@ -346,6 +367,7 @@ function App() {
               pendingSyncCount={dashboard.pendingSyncCount}
               storageUsage={dashboard.storageUsage}
               onExportBackup={handleExportBackup}
+              onImportBackup={handleImportBackup}
             />
           )}
         </div>
@@ -593,11 +615,13 @@ function LibraryView({
 function SettingsView({
   pendingSyncCount,
   storageUsage,
-  onExportBackup
+  onExportBackup,
+  onImportBackup
 }: {
   pendingSyncCount: number;
   storageUsage: string;
   onExportBackup: () => void;
+  onImportBackup: (file: File) => void;
 }) {
   return (
     <div className="view-stack">
@@ -613,7 +637,7 @@ function SettingsView({
         <h2>数据</h2>
         <BackupRow onExportBackup={onExportBackup} />
         <QuotaRow storageUsage={storageUsage} />
-        <SettingRow label="从备份导入" value="JSON" interactive />
+        <ImportBackupRow onImportBackup={onImportBackup} />
         <SettingRow label="清空本地数据" value="" interactive destructive />
       </section>
 
@@ -652,6 +676,29 @@ function BackupRow({ onExportBackup }: { onExportBackup: () => void }) {
         导出
       </button>
     </div>
+  );
+}
+
+function ImportBackupRow({ onImportBackup }: { onImportBackup: (file: File) => void }) {
+  return (
+    <label className="setting-row interactive import-row">
+      <span>从备份导入</span>
+      <strong>JSON</strong>
+      <input
+        className="file-import-input"
+        type="file"
+        aria-label="导入备份 JSON"
+        accept="application/json,.json"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) {
+            onImportBackup(file);
+          }
+          event.currentTarget.value = "";
+        }}
+      />
+      <em aria-hidden="true">›</em>
+    </label>
   );
 }
 
@@ -1309,6 +1356,19 @@ function downloadJson(filename: string, data: unknown) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function readFileText(file: File): Promise<string> {
+  if ("text" in file && typeof file.text === "function") {
+    return file.text();
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
 }
 
 function formatDateForFilename(date: Date): string {

@@ -721,6 +721,17 @@ p {
   cursor: pointer;
 }
 
+.import-row {
+  position: relative;
+}
+
+.file-import-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .setting-row.destructive span {
   color: var(--danger);
 }
