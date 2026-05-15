@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAttachmentRecord, createChildProfile, createEvent, createFamilyProfile, createSyncChange } from "../domain/types";
-import { createBackup, parseBackup } from "./backup";
+import { createAttachmentBlobRecord } from "./attachments";
+import { createBackup, createCompleteBackup, parseBackup } from "./backup";
 
 describe("backup format", () => {
   it("exports a versioned backup payload", () => {
@@ -58,8 +59,33 @@ describe("backup format", () => {
     expect(backup.data.familyProfiles).toEqual([]);
     expect(backup.data.childProfiles).toEqual([]);
     expect(backup.data.attachments).toEqual([]);
+    expect(backup.data.attachmentBlobs).toEqual([]);
     expect(backup.data.syncChanges).toEqual([]);
     expect(parseBackup(JSON.stringify(backup))).toEqual(backup);
+  });
+
+  it("exports attachment blobs as base64 in complete backups", async () => {
+    const blob = new Blob(["scan-data"], { type: "image/jpeg" });
+    const backup = await createCompleteBackup({
+      events: [],
+      attachmentBlobs: [
+        createAttachmentBlobRecord({
+          familyId: "family-1",
+          attachmentId: "att_1",
+          blob
+        })
+      ]
+    });
+
+    expect(backup.data.attachmentBlobs).toEqual([
+      expect.objectContaining({
+        attachmentId: "att_1",
+        mimeType: "image/jpeg",
+        byteSize: blob.size,
+        dataBase64: "c2Nhbi1kYXRh"
+      })
+    ]);
+    expect(parseBackup(JSON.stringify(backup)).data.attachmentBlobs).toHaveLength(1);
   });
 
   it("keeps old event-only backups importable", () => {
@@ -71,6 +97,7 @@ describe("backup format", () => {
     };
 
     expect(parseBackup(JSON.stringify(oldBackup)).data.attachments).toEqual([]);
+    expect(parseBackup(JSON.stringify(oldBackup)).data.attachmentBlobs).toEqual([]);
     expect(parseBackup(JSON.stringify(oldBackup)).data.familyProfiles).toEqual([]);
     expect(parseBackup(JSON.stringify(oldBackup)).data.childProfiles).toEqual([]);
     expect(parseBackup(JSON.stringify(oldBackup)).data.syncChanges).toEqual([]);

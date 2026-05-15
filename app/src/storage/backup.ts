@@ -1,7 +1,17 @@
 import type { AttachmentRecord, BabyLogEvent, ChildProfile, FamilyProfile, SyncChange } from "../domain/types";
+import type { AttachmentBlobRecord } from "./attachments";
+import { blobToBase64 } from "./attachments";
 
 export const BACKUP_FORMAT = "babylog.backup";
 export const BACKUP_VERSION = 1;
+
+export type BackupAttachmentBlob = {
+  attachmentId: string;
+  mimeType: string;
+  byteSize: number;
+  createdAt: string;
+  dataBase64: string;
+};
 
 export type BabyLogBackup = {
   format: typeof BACKUP_FORMAT;
@@ -12,6 +22,7 @@ export type BabyLogBackup = {
     childProfiles: ChildProfile[];
     events: BabyLogEvent[];
     attachments: AttachmentRecord[];
+    attachmentBlobs: BackupAttachmentBlob[];
     syncChanges: SyncChange[];
   };
 };
@@ -21,7 +32,12 @@ export type BabyLogBackupInput = {
   childProfiles?: ChildProfile[];
   events: BabyLogEvent[];
   attachments?: AttachmentRecord[];
+  attachmentBlobs?: BackupAttachmentBlob[];
   syncChanges?: SyncChange[];
+};
+
+export type BabyLogCompleteBackupInput = Omit<BabyLogBackupInput, "attachmentBlobs"> & {
+  attachmentBlobs?: AttachmentBlobRecord[];
 };
 
 export function createBackup(data: BabyLogBackupInput): BabyLogBackup {
@@ -34,9 +50,19 @@ export function createBackup(data: BabyLogBackupInput): BabyLogBackup {
       childProfiles: data.childProfiles ?? [],
       events: data.events,
       attachments: data.attachments ?? [],
+      attachmentBlobs: data.attachmentBlobs ?? [],
       syncChanges: data.syncChanges ?? []
     }
   };
+}
+
+export async function createCompleteBackup(data: BabyLogCompleteBackupInput): Promise<BabyLogBackup> {
+  const attachmentBlobs = await Promise.all((data.attachmentBlobs ?? []).map(serializeAttachmentBlob));
+
+  return createBackup({
+    ...data,
+    attachmentBlobs
+  });
 }
 
 export function parseBackup(rawJson: string): BabyLogBackup {
@@ -58,6 +84,10 @@ export function parseBackup(rawJson: string): BabyLogBackup {
     throw new Error("Invalid BabyLog backup attachments");
   }
 
+  if (parsed.data.attachmentBlobs !== undefined && !Array.isArray(parsed.data.attachmentBlobs)) {
+    throw new Error("Invalid BabyLog backup attachment blobs");
+  }
+
   if (parsed.data.familyProfiles !== undefined && !Array.isArray(parsed.data.familyProfiles)) {
     throw new Error("Invalid BabyLog backup family profiles");
   }
@@ -77,7 +107,18 @@ export function parseBackup(rawJson: string): BabyLogBackup {
       childProfiles: parsed.data.childProfiles ?? [],
       events: parsed.data.events,
       attachments: parsed.data.attachments ?? [],
+      attachmentBlobs: parsed.data.attachmentBlobs ?? [],
       syncChanges: parsed.data.syncChanges ?? []
     }
+  };
+}
+
+async function serializeAttachmentBlob(record: AttachmentBlobRecord): Promise<BackupAttachmentBlob> {
+  return {
+    attachmentId: record.attachmentId,
+    mimeType: record.mimeType,
+    byteSize: record.byteSize,
+    createdAt: record.createdAt,
+    dataBase64: record.dataBase64 ?? (await blobToBase64(record.blob))
   };
 }

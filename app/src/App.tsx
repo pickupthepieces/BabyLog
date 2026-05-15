@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { estimateStorageUsage } from "./adapters/storage";
 import type { AttachmentKind, AttachmentRecord, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
-import { createBackup } from "./storage/backup";
-import { formatStorageEstimate } from "./storage/attachments";
+import { createCompleteBackup } from "./storage/backup";
+import { base64ToBlob, formatStorageEstimate, isBlobLike } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
 import type { LocalRepository } from "./storage/localRepository";
 import { listPendingSyncChanges } from "./storage/syncQueue";
@@ -297,14 +297,22 @@ function App() {
 
   async function handleExportBackup() {
     try {
-      const [familyProfiles, childProfiles, events, attachments, syncChanges] = await Promise.all([
+      const [familyProfiles, childProfiles, events, attachments, attachmentBlobs, syncChanges] = await Promise.all([
         repository.listByFamily("familyProfiles", localFamilyId),
         repository.listByFamily("childProfiles", localFamilyId),
         repository.listByFamily("events", localFamilyId),
         repository.listByFamily("attachments", localFamilyId),
+        repository.listByFamily("attachmentBlobs", localFamilyId),
         repository.listByFamily("syncChanges", localFamilyId)
       ]);
-      const backup = createBackup({ familyProfiles, childProfiles, events, attachments, syncChanges });
+      const backup = await createCompleteBackup({
+        familyProfiles,
+        childProfiles,
+        events,
+        attachments,
+        attachmentBlobs,
+        syncChanges
+      });
 
       downloadJson(`babylog-backup-${formatDateForFilename(new Date())}.json`, backup);
       setToast(`备份已生成：${events.length} 条记录`);
@@ -519,7 +527,17 @@ function LibraryView({
         return;
       }
 
-      setPreview({ attachment, imageUrl: URL.createObjectURL(savedBlob.blob), error: null });
+      const previewBlob = isBlobLike(savedBlob.blob)
+        ? savedBlob.blob
+        : savedBlob.dataBase64
+          ? base64ToBlob(savedBlob.dataBase64, savedBlob.mimeType)
+          : null;
+
+      setPreview({
+        attachment,
+        imageUrl: previewBlob ? URL.createObjectURL(previewBlob) : null,
+        error: previewBlob ? null : "本机图片数据暂时无法读取"
+      });
     } catch (error) {
       setPreview({ attachment, imageUrl: null, error: getErrorMessage(error) });
     }
@@ -628,7 +646,7 @@ function BackupRow({ onExportBackup }: { onExportBackup: () => void }) {
     <div className="backup-row">
       <div>
         <strong>本地备份</strong>
-        <span className="num">导出 JSON，附件二进制后续单独打包</span>
+        <span className="num">导出 JSON，含本机附件图片</span>
       </div>
       <button className="primary-button" type="button" onClick={onExportBackup}>
         导出

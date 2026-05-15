@@ -1,7 +1,7 @@
 import { createAttachmentRecord, createEvent, createSyncChange, EVENT_TYPES } from "../domain/types";
 import type { BabyLogEvent, CreateEventInput, EventType } from "../domain/types";
 import type { UltrasoundFieldKey } from "../domain/ultrasound";
-import { createAttachmentBlobRecord } from "../storage/attachments";
+import { blobToBase64, createAttachmentBlobRecord } from "../storage/attachments";
 import type { LocalRepository } from "../storage/localRepository";
 
 export type EventDaySummary = {
@@ -59,6 +59,7 @@ export async function recordLocalUltrasound(
       attachmentId: attachment.id,
       blob: input.imageFile
     });
+    blob.dataBase64 = await blobToBase64(input.imageFile);
     const attachmentChange = createSyncChange({
       familyId: input.familyId,
       childId: input.childId,

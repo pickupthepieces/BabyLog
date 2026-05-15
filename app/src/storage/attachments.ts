@@ -11,6 +11,7 @@ export type AttachmentBlobRecord = {
   familyId: string;
   attachmentId: string;
   blob: Blob;
+  dataBase64?: string;
   mimeType: string;
   byteSize: number;
   createdAt: string;
@@ -61,6 +62,39 @@ export function createAttachmentBlobRecord(input: CreateAttachmentBlobRecordInpu
   };
 }
 
+export async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blobToArrayBuffer(blob));
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary);
+}
+
+export function base64ToBlob(dataBase64: string, mimeType: string): Blob {
+  const binary = atob(dataBase64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+}
+
+export function isBlobLike(value: unknown): value is Blob {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    "type" in value &&
+    (("arrayBuffer" in value && typeof value.arrayBuffer === "function") ||
+      typeof FileReader !== "undefined")
+  );
+}
+
 export function createImageCompressionPlan(
   image: ImageCandidate,
   policy = DEFAULT_IMAGE_COMPRESSION_POLICY
@@ -109,4 +143,17 @@ function formatBytes(bytes: number): string {
   const megabytes = bytes / 1024 / 1024;
 
   return `${megabytes.toFixed(1)} MB`;
+}
+
+function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  if ("arrayBuffer" in blob && typeof blob.arrayBuffer === "function") {
+    return blob.arrayBuffer();
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
 }

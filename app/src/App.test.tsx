@@ -4,6 +4,7 @@ import App from "./App";
 
 describe("BabyLog UI shell", () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.deleteDatabase("babylog-local");
       request.onsuccess = () => resolve();
@@ -112,6 +113,38 @@ describe("BabyLog UI shell", () => {
     expect(await screen.findByText(/备份已生成/)).toBeInTheDocument();
   });
 
+  it("exports ultrasound image blobs in the local backup", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /B超/ }));
+
+    await screen.findByRole("dialog", { name: "B 超记录" });
+    fireEvent.change(screen.getByLabelText("B 超单照片"), {
+      target: {
+        files: [new File(["scan-image"], "scan.jpg", { type: "image/jpeg" })]
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存 B 超记录" }));
+    await screen.findByText(/B 超已保存到本机/);
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "导出" }));
+
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    const lastCreateUrlCall = vi.mocked(URL.createObjectURL).mock.calls.at(-1);
+    const backupBlob = lastCreateUrlCall?.[0] as Blob;
+    const backup = JSON.parse(await readBlobText(backupBlob));
+
+    expect(backup.data.attachmentBlobs).toEqual([
+      expect.objectContaining({
+        attachmentId: expect.stringMatching(/^att_/),
+        mimeType: "image/jpeg",
+        dataBase64: "c2Nhbi1pbWFnZQ=="
+      })
+    ]);
+  });
+
   it("records ultrasound measurements and a scan image locally", async () => {
     render(<App />);
 
@@ -187,3 +220,16 @@ describe("BabyLog UI shell", () => {
     expect(await screen.findByText("0 条待上传")).toBeInTheDocument();
   });
 });
+
+function readBlobText(blob: Blob): Promise<string> {
+  if ("text" in blob && typeof blob.text === "function") {
+    return blob.text();
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
