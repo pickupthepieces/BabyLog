@@ -2,20 +2,27 @@ package app.babylog.nativeapp;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Color;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -40,6 +47,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CAPTURE_ULTRASOUND = 1201;
@@ -48,6 +57,28 @@ public final class MainActivity extends AppCompatActivity {
     private static final int REQUEST_IMPORT_BACKUP = 1204;
     private static final int REQUEST_PERMISSION_CAMERA = 2201;
     private static final int REQUEST_PERMISSION_IMAGES = 2202;
+    private static final String META_PREFS_NAME = "babylog_native_meta_v1";
+    private static final String LAST_BACKUP_EXPORT_MS = "lastBackupExportMs";
+    private static final String STATE_ACTIVE_TAB = "activeTab";
+    private static final String STATE_TIMELINE_FILTER = "timelineFilter";
+    private static final String STATE_OPEN_FORM = "openForm";
+    private static final String STATE_BABY_CARE_EVENT = "babyCareEvent";
+    private static final String STATE_PRIMARY = "primary";
+    private static final String STATE_SECONDARY = "secondary";
+    private static final String STATE_TERTIARY = "tertiary";
+    private static final String STATE_NOTE = "note";
+    private static final String STATE_EXAM_DATE = "examDate";
+    private static final String STATE_GESTATIONAL_AGE = "gestationalAge";
+    private static final String STATE_BPD = "bpd";
+    private static final String STATE_HC = "hc";
+    private static final String STATE_AC = "ac";
+    private static final String STATE_FL = "fl";
+    private static final String STATE_EFW = "efw";
+    private static final String STATE_PHOTO_PATH = "photoPath";
+    private static final String STATE_PHOTO_NAME = "photoName";
+    private static final String STATE_RANGE_CONFIRMED = "rangeConfirmed";
+    private static final String FORM_BABY_CARE = "babyCare";
+    private static final String FORM_ULTRASOUND = "ultrasound";
 
     private int BG;
     private int SURFACE;
@@ -70,12 +101,23 @@ public final class MainActivity extends AppCompatActivity {
 
     private BabyLogRepository repository;
     private BabyLogService service;
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private String activeTab = "home";
+    private String selectedTimelineFilter = "all";
+    private BabyLogService.DashboardSnapshot dashboardSnapshot;
+    private List<BabyLogDomain.BabyLogEvent> timelineEvents;
+    private List<BabyLogDomain.AttachmentRecord> libraryAttachments;
+    private boolean dashboardLoading;
+    private boolean timelineLoading;
+    private boolean attachmentsLoading;
+    private int dataVersion;
     private String pendingBackupJson;
     private String currentPhotoPath = "";
     private String currentPhotoName = "";
     private File pendingCameraFile;
     private Uri pendingCameraUri;
+    private boolean ultrasoundRangeWarningConfirmed;
     private ImageView photoPreview;
     private EditText examDateInput;
     private EditText gestationalAgeInput;
@@ -86,6 +128,13 @@ public final class MainActivity extends AppCompatActivity {
     private EditText efwInput;
     private EditText syncUrlInput;
     private EditText syncRegionInput;
+    private AlertDialog activeBabyCareDialog;
+    private String activeBabyCareEventType = "";
+    private EditText babyCarePrimaryInput;
+    private EditText babyCareSecondaryInput;
+    private EditText babyCareTertiaryInput;
+    private EditText babyCareNoteInput;
+    private AlertDialog activeUltrasoundDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -95,7 +144,71 @@ public final class MainActivity extends AppCompatActivity {
         getWindow().setNavigationBarColor(BG);
         repository = new BabyLogRepository(this);
         service = new BabyLogService(this, repository);
+        if (savedInstanceState != null) {
+            activeTab = savedInstanceState.getString(STATE_ACTIVE_TAB, "home");
+            selectedTimelineFilter = savedInstanceState.getString(STATE_TIMELINE_FILTER, "all");
+            currentPhotoPath = savedInstanceState.getString(STATE_PHOTO_PATH, "");
+            currentPhotoName = savedInstanceState.getString(STATE_PHOTO_NAME, "");
+        }
         render();
+        restoreOpenForm(savedInstanceState);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_ACTIVE_TAB, activeTab);
+        outState.putString(STATE_TIMELINE_FILTER, selectedTimelineFilter);
+        outState.putString(STATE_PHOTO_PATH, currentPhotoPath);
+        outState.putString(STATE_PHOTO_NAME, currentPhotoName);
+        if (activeBabyCareDialog != null && activeBabyCareDialog.isShowing()) {
+            outState.putString(STATE_OPEN_FORM, FORM_BABY_CARE);
+            outState.putString(STATE_BABY_CARE_EVENT, activeBabyCareEventType);
+            outState.putString(STATE_PRIMARY, text(babyCarePrimaryInput));
+            outState.putString(STATE_SECONDARY, text(babyCareSecondaryInput));
+            outState.putString(STATE_TERTIARY, text(babyCareTertiaryInput));
+            outState.putString(STATE_NOTE, text(babyCareNoteInput));
+        } else if (activeUltrasoundDialog != null && activeUltrasoundDialog.isShowing()) {
+            outState.putString(STATE_OPEN_FORM, FORM_ULTRASOUND);
+            outState.putString(STATE_EXAM_DATE, text(examDateInput));
+            outState.putString(STATE_GESTATIONAL_AGE, text(gestationalAgeInput));
+            outState.putString(STATE_BPD, text(bpdInput));
+            outState.putString(STATE_HC, text(hcInput));
+            outState.putString(STATE_AC, text(acInput));
+            outState.putString(STATE_FL, text(flInput));
+            outState.putString(STATE_EFW, text(efwInput));
+            outState.putBoolean(STATE_RANGE_CONFIRMED, ultrasoundRangeWarningConfirmed);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ioExecutor.shutdownNow();
+    }
+
+    private void restoreOpenForm(Bundle savedInstanceState) {
+        if (savedInstanceState == null) {
+            return;
+        }
+        String openForm = savedInstanceState.getString(STATE_OPEN_FORM, "");
+        if (FORM_BABY_CARE.equals(openForm)) {
+            BabyLogService.QuickAction action = findQuickAction(savedInstanceState.getString(STATE_BABY_CARE_EVENT, ""));
+            if (action != null) {
+                showBabyCareForm(action, savedInstanceState);
+            }
+        } else if (FORM_ULTRASOUND.equals(openForm)) {
+            showUltrasoundForm(savedInstanceState);
+        }
+    }
+
+    private BabyLogService.QuickAction findQuickAction(String eventType) {
+        for (BabyLogService.QuickAction action : quickActions()) {
+            if (action.eventType.equals(eventType)) {
+                return action;
+            }
+        }
+        return null;
     }
 
     private void loadColors() {
@@ -159,6 +272,83 @@ public final class MainActivity extends AppCompatActivity {
         setContentView(shell);
     }
 
+    private void invalidateLoadedData() {
+        dataVersion += 1;
+        dashboardSnapshot = null;
+        timelineEvents = null;
+        libraryAttachments = null;
+        dashboardLoading = false;
+        timelineLoading = false;
+        attachmentsLoading = false;
+    }
+
+    private void loadDashboardInBackground() {
+        if (dashboardLoading) {
+            return;
+        }
+        dashboardLoading = true;
+        int version = dataVersion;
+        ioExecutor.execute(() -> {
+            BabyLogService.DashboardSnapshot snapshot = service.loadDashboard();
+            mainHandler.post(() -> {
+                if (isActivityGone()) {
+                    return;
+                }
+                dashboardLoading = false;
+                if (version == dataVersion) {
+                    dashboardSnapshot = snapshot;
+                    render();
+                }
+            });
+        });
+    }
+
+    private void loadTimelineInBackground() {
+        if (timelineLoading) {
+            return;
+        }
+        timelineLoading = true;
+        int version = dataVersion;
+        ioExecutor.execute(() -> {
+            List<BabyLogDomain.BabyLogEvent> events = service.listRecentEvents(50);
+            mainHandler.post(() -> {
+                if (isActivityGone()) {
+                    return;
+                }
+                timelineLoading = false;
+                if (version == dataVersion) {
+                    timelineEvents = events;
+                    render();
+                }
+            });
+        });
+    }
+
+    private void loadAttachmentsInBackground() {
+        if (attachmentsLoading) {
+            return;
+        }
+        attachmentsLoading = true;
+        int version = dataVersion;
+        ioExecutor.execute(() -> {
+            List<BabyLogDomain.AttachmentRecord> attachments = service.listAttachmentsNewestFirst();
+            mainHandler.post(() -> {
+                if (isActivityGone()) {
+                    return;
+                }
+                attachmentsLoading = false;
+                if (version == dataVersion) {
+                    libraryAttachments = attachments;
+                    render();
+                }
+            });
+        });
+    }
+
+    private boolean isActivityGone() {
+        return isFinishing() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed());
+    }
+
     private View header() {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
@@ -172,8 +362,13 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void renderHome(LinearLayout content) {
-        BabyLogService.DashboardSnapshot dashboard = service.loadDashboard();
+        BabyLogService.DashboardSnapshot dashboard = dashboardSnapshot;
         content.addView(weekPanel(), matchWrapWithBottom(16));
+        if (dashboard == null) {
+            loadDashboardInBackground();
+            content.addView(empty("正在读取本机记录..."), matchWrapWithBottom(16));
+            return;
+        }
         content.addView(todayPanel(dashboard), matchWrapWithBottom(16));
         content.addView(sectionHeader("最近记录", "全部记录", view -> {
             activeTab = "timeline";
@@ -241,57 +436,102 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout filters = panel(14, SURFACE);
         filters.setOrientation(LinearLayout.HORIZONTAL);
         String[] labels = {"全部", "孕期", "育儿", "B 超", "体温", "产检"};
-        for (String label : labels) {
-            TextView chip = label(label, 13, "全部".equals(label) ? 0xFFFFFFFF : MUTED, true);
+        String[] filtersKeys = {"all", "pregnancy", "baby", "ultrasound", "temperature", "checkup"};
+        for (int i = 0; i < labels.length; i++) {
+            String label = labels[i];
+            String filter = filtersKeys[i];
+            boolean selected = filter.equals(selectedTimelineFilter);
+            TextView chip = label(label, 13, selected ? 0xFFFFFFFF : MUTED, true);
             chip.setGravity(Gravity.CENTER);
-            chip.setBackground(round("全部".equals(label) ? PRIMARY : SURFACE_2, 999, BORDER));
+            chip.setBackground(round(selected ? PRIMARY : SURFACE_2, 999, BORDER));
             chip.setPadding(dp(12), dp(8), dp(12), dp(8));
+            chip.setOnClickListener(view -> {
+                selectedTimelineFilter = filter;
+                render();
+            });
             filters.addView(chip, wrapWrapWithRight(8));
         }
         content.addView(filters, matchWrapWithBottom(14));
         content.addView(disclaimer("曲线和参考提示只用于家庭记录，不能替代医生判断。"), matchWrapWithBottom(14));
 
-        List<BabyLogDomain.BabyLogEvent> events = service.listRecentEvents(50);
-        if (events.isEmpty()) {
+        List<BabyLogDomain.BabyLogEvent> events = timelineEvents;
+        if (events == null) {
+            loadTimelineInBackground();
+            content.addView(empty("正在读取时间线..."));
+            return;
+        }
+        boolean hasVisibleEvent = false;
+        for (BabyLogDomain.BabyLogEvent event : events) {
+            if (BabyLogFormatters.matchesTimelineFilter(event.eventType, selectedTimelineFilter)) {
+                hasVisibleEvent = true;
+                break;
+            }
+        }
+        if (!hasVisibleEvent) {
             content.addView(empty("暂无本地记录。快捷记录会先保存到本机，再等待同步上传。"));
             return;
         }
         for (BabyLogDomain.BabyLogEvent event : events) {
-            content.addView(timelineRow(event), matchWrapWithBottom(10));
+            if (BabyLogFormatters.matchesTimelineFilter(event.eventType, selectedTimelineFilter)) {
+                content.addView(timelineRow(event), matchWrapWithBottom(10));
+            }
         }
     }
 
     private void renderLibrary(LinearLayout content) {
-        List<BabyLogDomain.AttachmentRecord> attachments = service.listAttachmentsNewestFirst();
-        int ultrasoundCount = 0;
-        for (BabyLogDomain.AttachmentRecord attachment : attachments) {
-            if ("ultrasound_image".equals(attachment.kind)) {
-                ultrasoundCount += 1;
-            }
+        List<BabyLogDomain.AttachmentRecord> attachments = libraryAttachments;
+        if (attachments == null) {
+            loadAttachmentsInBackground();
+            content.addView(empty("正在读取本机附件..."));
+            return;
         }
-        content.addView(libraryItem("B 超单", ultrasoundCount + " 张", "已保存本机；OCR 待接入", R.drawable.ultrasound_sheet, view -> showAttachmentList("B 超单", attachments)), matchWrapWithBottom(12));
-        content.addView(libraryItem("检查单", "0 张", "孕期常规检查、血检报告", R.drawable.baby_diary_notebook, null), matchWrapWithBottom(12));
-        content.addView(libraryItem("出生证明", "0 张", "出生后启用", R.drawable.vaccine_card, null), matchWrapWithBottom(12));
-        content.addView(libraryItem("疫苗本", "0 张", "出生后启用", R.drawable.vaccine_card, null), matchWrapWithBottom(12));
+        List<BabyLogDomain.AttachmentRecord> ultrasound = filterAttachments(attachments, "ultrasound_image");
+        List<BabyLogDomain.AttachmentRecord> documents = filterAttachments(attachments, "document");
+        List<BabyLogDomain.AttachmentRecord> vaccines = filterAttachments(attachments, "vaccine_card");
+        content.addView(libraryItem("B 超单", attachmentCount(ultrasound), "已保存本机；OCR 待接入", R.drawable.ultrasound_sheet, view -> showAttachmentList("B 超单", ultrasound)), matchWrapWithBottom(12));
+        content.addView(libraryItem("检查单", attachmentCount(documents), documents.isEmpty() ? "待支持新增入口；可显示已导入附件" : "本机检查附件", R.drawable.baby_diary_notebook, documents.isEmpty() ? null : view -> showAttachmentList("检查单", documents)), matchWrapWithBottom(12));
+        content.addView(libraryItem("出生证明", "待支持", "出生资料归档入口待补；不伪装为可用功能", R.drawable.vaccine_card, null), matchWrapWithBottom(12));
+        content.addView(libraryItem("疫苗本", attachmentCount(vaccines), vaccines.isEmpty() ? "出生后启用；可显示已导入附件" : "本机疫苗附件", R.drawable.vaccine_card, vaccines.isEmpty() ? null : view -> showAttachmentList("疫苗本", vaccines)), matchWrapWithBottom(12));
         content.addView(disclaimer("FGR / 成长曲线标准数据尚未落库；当前曲线只显示自有趋势。点击首页趋势卡进入全屏曲线。"));
     }
 
+    private List<BabyLogDomain.AttachmentRecord> filterAttachments(List<BabyLogDomain.AttachmentRecord> attachments, String kind) {
+        List<BabyLogDomain.AttachmentRecord> filtered = new ArrayList<>();
+        for (BabyLogDomain.AttachmentRecord attachment : attachments) {
+            if (kind.equals(attachment.kind)) {
+                filtered.add(attachment);
+            }
+        }
+        return filtered;
+    }
+
+    private String attachmentCount(List<BabyLogDomain.AttachmentRecord> attachments) {
+        return attachments.size() + " 张";
+    }
+
     private void renderSettings(LinearLayout content) {
-        BabyLogService.DashboardSnapshot dashboard = service.loadDashboard();
+        BabyLogService.DashboardSnapshot dashboard = dashboardSnapshot;
         BabyLogDomain.BackendConfig settings = repository.loadSyncSettings();
 
         LinearLayout profile = settingsPanel("档案");
         profile.addView(settingRow("当前范围", "单胎 / 单宝宝", false, false));
         profile.addView(settingRow("预产期", "2026-08-05", false, false));
-        profile.addView(settingRow("日界", "自然日 00:00", true, false));
-        profile.addView(settingRow("夜间柔光", "跟随系统", true, false));
+        profile.addView(settingRow("日界", "自然日 00:00（待配置）", false, false));
+        profile.addView(settingRow("夜间柔光", "跟随系统（待配置）", false, false));
         content.addView(profile, matchWrapWithBottom(14));
+        if (dashboard == null) {
+            loadDashboardInBackground();
+            content.addView(empty("正在读取本机数据..."));
+            return;
+        }
 
         LinearLayout data = settingsPanel("数据");
-        data.addView(actionRow("本地备份", "导出 JSON，含本机附件图片", "导出", view -> exportBackup()));
-        data.addView(settingRow("本机用量", BabyLogFormatters.formatByteSize(dashboard.localBytes), false, false));
+        long lastBackupMs = getSharedPreferences(META_PREFS_NAME, MODE_PRIVATE).getLong(LAST_BACKUP_EXPORT_MS, 0L);
+        data.addView(backupActionRow(lastBackupMs));
+        data.addView(settingRow("本机用量", BabyLogFormatters.formatByteSize(dashboard.localBytes) + "（含附件）", false, false));
+        data.addView(settingRow("可用空间", BabyLogFormatters.formatByteSize(dashboard.freeBytes), false, false));
         data.addView(actionRow("从备份导入", "JSON", "导入", view -> importBackup()));
-        data.addView(settingRow("清空本地数据", "", true, true));
+        data.addView(actionRow("清空本地数据", "删除本机记录、附件和待同步队列", "清空", DANGER, view -> confirmClearLocalData()));
         content.addView(data, matchWrapWithBottom(14));
 
         LinearLayout sync = settingsPanel("同步");
@@ -305,22 +545,32 @@ public final class MainActivity extends AppCompatActivity {
         sync.addView(syncUrlInput, matchWrapWithBottom(8));
         sync.addView(syncRegionInput, matchWrapWithBottom(10));
         sync.addView(outlineButton("保存同步配置", view -> saveSyncSettings()), matchWrapWithBottom(8));
-        sync.addView(outlineButton("立即同步", view -> syncNow()), matchWrapWithBottom(8));
+        Button syncButton = outlineButton(settings.enabled ? "立即同步" : "配置后可同步", view -> syncNow());
+        syncButton.setEnabled(settings.enabled);
+        syncButton.setAlpha(settings.enabled ? 1f : 0.45f);
+        sync.addView(syncButton, matchWrapWithBottom(8));
         sync.addView(label("当前所有记录先保存到本机；服务器地址只保存在当前手机，后续接入后端后再上传 pending 队列。", 12, MUTED, false));
         content.addView(sync, matchWrapWithBottom(14));
 
         LinearLayout about = settingsPanel("关于");
         about.addView(settingRow("版本", "0.1.0 · MVP", false, false));
-        about.addView(settingRow("医疗免责声明", "", true, false));
-        about.addView(settingRow("隐私说明", "", true, false));
+        about.addView(settingRow("医疗免责声明", "查看", true, false, view -> showInfoDialog("医疗免责声明", "BabyLog 只做家庭记录、趋势整理和复诊沟通辅助；任何曲线、范围或提示都不能替代医生判断。OCR 接入后也必须人工确认后再保存。")));
+        about.addView(settingRow("隐私说明", "查看", true, false, view -> showInfoDialog("隐私说明", "阶段一数据仅保存在当前手机本机目录。导出备份会包含结构化记录和本机附件图片，请妥善保存；启用云同步前会单独确认服务器地址、地域和敏感医疗数据上传风险。")));
         content.addView(about);
     }
 
     private void showQuickSheet() {
+        Dialog dialog = new Dialog(this);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(4), dp(8), dp(4), 0);
-        final AlertDialog[] dialogRef = new AlertDialog[1];
+        body.setPadding(dp(18), dp(16), dp(18), dp(18));
+        body.setBackground(round(SURFACE, 22, BORDER));
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(label("快捷记录", 20, INK, true), weightWrap(1f));
+        Button close = outlineButton("关闭", view -> dialog.dismiss());
+        header.addView(close, new LinearLayout.LayoutParams(dp(76), dp(42)));
+        body.addView(header, matchWrapWithBottom(12));
         for (BabyLogService.QuickAction action : quickActions()) {
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -333,23 +583,31 @@ public final class MainActivity extends AppCompatActivity {
             copy.addView(label(action.hint, 12, MUTED, false));
             row.addView(copy, weightWrap(1f));
             row.setOnClickListener(view -> {
-                if (dialogRef[0] != null) {
-                    dialogRef[0].dismiss();
-                }
+                dialog.dismiss();
                 handleQuickAction(action);
             });
             body.addView(row, matchWrapWithBottom(10));
         }
-        dialogRef[0] = new AlertDialog.Builder(this)
-                .setTitle("快捷记录")
-                .setView(body)
-                .setNegativeButton("关闭", null)
-                .show();
+        dialog.setContentView(body);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setGravity(Gravity.BOTTOM);
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.width = WindowManager.LayoutParams.MATCH_PARENT;
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            window.setAttributes(params);
+        }
     }
 
     private void handleQuickAction(BabyLogService.QuickAction action) {
         if ("ultrasound".equals(action.eventType)) {
             showUltrasoundForm();
+            return;
+        }
+        if (isBabyCareAction(action.eventType)) {
+            showBabyCareForm(action);
             return;
         }
         try {
@@ -361,30 +619,197 @@ public final class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean isBabyCareAction(String eventType) {
+        return "feed".equals(eventType)
+                || "sleep".equals(eventType)
+                || "diaper".equals(eventType)
+                || "temperature".equals(eventType)
+                || "medication".equals(eventType);
+    }
+
+    private void showBabyCareForm(BabyLogService.QuickAction action) {
+        showBabyCareForm(action, null);
+    }
+
+    private void showBabyCareForm(BabyLogService.QuickAction action, Bundle restoredState) {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(4), dp(8), dp(4), 0);
+        if ("temperature".equals(action.eventType) || "medication".equals(action.eventType)) {
+            body.addView(disclaimer("仅供家庭记录和复诊沟通参考，不能替代医生判断。"), matchWrapWithBottom(10));
+        }
+
+        EditText primaryInput;
+        EditText secondaryInput;
+        EditText tertiaryInput = null;
+        EditText noteInput = null;
+        int textInput = InputType.TYPE_CLASS_TEXT;
+        int numberInput = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL;
+
+        if ("feed".equals(action.eventType)) {
+            primaryInput = input("方式，例如 母乳 / 奶瓶 / 辅食", restoredText(restoredState, STATE_PRIMARY), textInput);
+            secondaryInput = input("奶量 ml（可空）", restoredText(restoredState, STATE_SECONDARY), numberInput);
+            noteInput = input("备注（可空）", restoredText(restoredState, STATE_NOTE), textInput);
+        } else if ("sleep".equals(action.eventType)) {
+            primaryInput = input("开始时间，例如 22:10", restoredText(restoredState, STATE_PRIMARY), textInput);
+            secondaryInput = input("结束时间，例如 01:20", restoredText(restoredState, STATE_SECONDARY), textInput);
+            tertiaryInput = input("地点，例如 卧室 / 推车", restoredText(restoredState, STATE_TERTIARY), textInput);
+            noteInput = input("备注（可空）", restoredText(restoredState, STATE_NOTE), textInput);
+        } else if ("diaper".equals(action.eventType)) {
+            primaryInput = input("类型，例如 尿 / 便 / 混合", restoredText(restoredState, STATE_PRIMARY), textInput);
+            secondaryInput = input("性状 / 颜色 / 备注", restoredText(restoredState, STATE_SECONDARY), textInput);
+        } else if ("temperature".equals(action.eventType)) {
+            primaryInput = input("体温 ℃", restoredText(restoredState, STATE_PRIMARY), numberInput);
+            secondaryInput = input("测量方式，例如 腋温 / 耳温", restoredText(restoredState, STATE_SECONDARY), textInput);
+            noteInput = input("备注（可空）", restoredText(restoredState, STATE_NOTE), textInput);
+        } else {
+            primaryInput = input("药名", restoredText(restoredState, STATE_PRIMARY), textInput);
+            secondaryInput = input("剂量和单位，例如 2 ml", restoredText(restoredState, STATE_SECONDARY), textInput);
+            tertiaryInput = input("原因，例如 发热", restoredText(restoredState, STATE_TERTIARY), textInput);
+        }
+
+        body.addView(primaryInput, matchWrapWithBottom(8));
+        body.addView(secondaryInput, matchWrapWithBottom(8));
+        if (tertiaryInput != null) {
+            body.addView(tertiaryInput, matchWrapWithBottom(8));
+        }
+        if (noteInput != null) {
+            body.addView(noteInput, matchWrapWithBottom(8));
+        }
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(action.label + "记录")
+                .setView(body)
+                .setNegativeButton("关闭", null)
+                .setPositiveButton("保存", null)
+                .show();
+        activeBabyCareDialog = dialog;
+        activeBabyCareEventType = action.eventType;
+        babyCarePrimaryInput = primaryInput;
+        babyCareSecondaryInput = secondaryInput;
+        babyCareTertiaryInput = tertiaryInput;
+        babyCareNoteInput = noteInput;
+        dialog.setOnDismissListener(ignored -> clearBabyCareFormRefs());
+        EditText finalTertiaryInput = tertiaryInput;
+        EditText finalNoteInput = noteInput;
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view ->
+                saveBabyCareForm(action, dialog, primaryInput, secondaryInput, finalTertiaryInput, finalNoteInput));
+    }
+
+    private String restoredText(Bundle state, String key) {
+        return state == null ? "" : state.getString(key, "");
+    }
+
+    private void clearBabyCareFormRefs() {
+        activeBabyCareDialog = null;
+        activeBabyCareEventType = "";
+        babyCarePrimaryInput = null;
+        babyCareSecondaryInput = null;
+        babyCareTertiaryInput = null;
+        babyCareNoteInput = null;
+    }
+
+    private void saveBabyCareForm(
+            BabyLogService.QuickAction action,
+            AlertDialog dialog,
+            EditText primaryInput,
+            EditText secondaryInput,
+            EditText tertiaryInput,
+            EditText noteInput
+    ) {
+        if ("feed".equals(action.eventType)
+                && !text(secondaryInput).isEmpty()
+                && BabyLogFormatters.parseOptionalNumber(text(secondaryInput)) == null) {
+            Toast.makeText(this, "奶量请输入数字，单位 ml", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if ("temperature".equals(action.eventType)
+                && BabyLogFormatters.parseOptionalNumber(text(primaryInput)) == null) {
+            Toast.makeText(this, "请填写有效体温数值", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if ("medication".equals(action.eventType)
+                && (text(primaryInput).isEmpty() || text(secondaryInput).isEmpty())) {
+            Toast.makeText(this, "请填写药名和剂量单位", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            service.recordBabyCareEvent(createBabyCareInput(action.eventType, primaryInput, secondaryInput, tertiaryInput, noteInput));
+            Toast.makeText(this, action.label + "已保存到本机，等待同步", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+            invalidateLoadedData();
+            render();
+        } catch (JSONException error) {
+            Toast.makeText(this, "保存失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private BabyLogService.BabyCareInput createBabyCareInput(
+            String eventType,
+            EditText primaryInput,
+            EditText secondaryInput,
+            EditText tertiaryInput,
+            EditText noteInput
+    ) {
+        if ("feed".equals(eventType)) {
+            return BabyLogService.BabyCareInput.feed(text(primaryInput), text(secondaryInput), text(noteInput));
+        }
+        if ("sleep".equals(eventType)) {
+            return BabyLogService.BabyCareInput.sleep(text(primaryInput), text(secondaryInput), text(tertiaryInput), text(noteInput));
+        }
+        if ("diaper".equals(eventType)) {
+            return BabyLogService.BabyCareInput.diaper(text(primaryInput), text(secondaryInput), text(noteInput));
+        }
+        if ("temperature".equals(eventType)) {
+            return BabyLogService.BabyCareInput.temperature(text(primaryInput), text(secondaryInput), text(noteInput));
+        }
+        return BabyLogService.BabyCareInput.medication(text(primaryInput), text(secondaryInput), text(tertiaryInput));
+    }
+
     private void showUltrasoundForm() {
-        currentPhotoPath = "";
-        currentPhotoName = "";
+        showUltrasoundForm(null);
+    }
+
+    private void showUltrasoundForm(Bundle restoredState) {
+        if (restoredState == null) {
+            currentPhotoPath = "";
+            currentPhotoName = "";
+            ultrasoundRangeWarningConfirmed = false;
+        } else {
+            currentPhotoPath = restoredState.getString(STATE_PHOTO_PATH, "");
+            currentPhotoName = restoredState.getString(STATE_PHOTO_NAME, "");
+            ultrasoundRangeWarningConfirmed = restoredState.getBoolean(STATE_RANGE_CONFIRMED, false);
+        }
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(4), dp(8), dp(4), 0);
         body.addView(disclaimer("仅供家庭记录和复诊沟通参考，不能替代医生判断。"), matchWrapWithBottom(10));
-        examDateInput = input("检查日期 yyyy-MM-dd", BabyLogFormatters.todayDateInput(), InputType.TYPE_CLASS_DATETIME);
-        gestationalAgeInput = input("孕周，例如 28+3", "28+3", InputType.TYPE_CLASS_TEXT);
-        bpdInput = input("双顶径 BPD mm", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        hcInput = input("头围 HC mm", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        acInput = input("腹围 AC mm", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        flInput = input("股骨长 FL mm", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        efwInput = input("估计胎重 EFW g", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        examDateInput = input("检查日期 yyyy-MM-dd", restoredText(restoredState, STATE_EXAM_DATE, BabyLogFormatters.todayDateInput()), InputType.TYPE_CLASS_DATETIME);
+        gestationalAgeInput = input("孕周，例如 28+3", restoredText(restoredState, STATE_GESTATIONAL_AGE, "28+3"), InputType.TYPE_CLASS_TEXT);
+        bpdInput = input("双顶径 BPD", restoredText(restoredState, STATE_BPD), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        hcInput = input("头围 HC", restoredText(restoredState, STATE_HC), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        acInput = input("腹围 AC", restoredText(restoredState, STATE_AC), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        flInput = input("股骨长 FL", restoredText(restoredState, STATE_FL), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        efwInput = input("估计胎重 EFW", restoredText(restoredState, STATE_EFW), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        applyTabularNumbers(bpdInput);
+        applyTabularNumbers(hcInput);
+        applyTabularNumbers(acInput);
+        applyTabularNumbers(flInput);
+        applyTabularNumbers(efwInput);
         body.addView(examDateInput, matchWrapWithBottom(8));
         body.addView(gestationalAgeInput, matchWrapWithBottom(8));
-        body.addView(bpdInput, matchWrapWithBottom(8));
-        body.addView(hcInput, matchWrapWithBottom(8));
-        body.addView(acInput, matchWrapWithBottom(8));
-        body.addView(flInput, matchWrapWithBottom(8));
-        body.addView(efwInput, matchWrapWithBottom(8));
+        body.addView(unitInputRow(bpdInput, "mm"), matchWrapWithBottom(8));
+        body.addView(unitInputRow(hcInput, "mm"), matchWrapWithBottom(8));
+        body.addView(unitInputRow(acInput, "mm"), matchWrapWithBottom(8));
+        body.addView(unitInputRow(flInput, "mm"), matchWrapWithBottom(8));
+        body.addView(unitInputRow(efwInput, "g"), matchWrapWithBottom(8));
         photoPreview = new ImageView(this);
         photoPreview.setAdjustViewBounds(true);
         photoPreview.setMaxHeight(dp(190));
+        if (!currentPhotoPath.isEmpty()) {
+            photoPreview.setImageBitmap(BitmapFactory.decodeFile(currentPhotoPath));
+        }
         body.addView(photoPreview, matchWrapWithBottom(8));
         LinearLayout photoActions = new LinearLayout(this);
         photoActions.setOrientation(LinearLayout.HORIZONTAL);
@@ -399,7 +824,25 @@ public final class MainActivity extends AppCompatActivity {
                 .setNegativeButton("关闭", null)
                 .setPositiveButton("保存 B 超记录", null)
                 .show();
+        activeUltrasoundDialog = dialog;
+        dialog.setOnDismissListener(ignored -> clearUltrasoundFormRefs());
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> saveUltrasound(dialog));
+    }
+
+    private String restoredText(Bundle state, String key, String fallback) {
+        return state == null ? fallback : state.getString(key, fallback);
+    }
+
+    private void clearUltrasoundFormRefs() {
+        activeUltrasoundDialog = null;
+        photoPreview = null;
+        examDateInput = null;
+        gestationalAgeInput = null;
+        bpdInput = null;
+        hcInput = null;
+        acInput = null;
+        flInput = null;
+        efwInput = null;
     }
 
     private void launchCamera() {
@@ -453,8 +896,28 @@ public final class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "请填写检查日期", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (BabyLogFormatters.parseGestationalAgeDays(gestationalAge) == null) {
+        Integer gestationalAgeDays = BabyLogFormatters.parseGestationalAgeDays(gestationalAge);
+        if (gestationalAgeDays == null) {
             Toast.makeText(this, "请填写有效孕周，例如 28+3", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Double bpdMm = BabyLogFormatters.parseOptionalNumber(text(bpdInput));
+        Double hcMm = BabyLogFormatters.parseOptionalNumber(text(hcInput));
+        Double acMm = BabyLogFormatters.parseOptionalNumber(text(acInput));
+        Double flMm = BabyLogFormatters.parseOptionalNumber(text(flInput));
+        Double efwGram = BabyLogFormatters.parseOptionalNumber(text(efwInput));
+        String warnings = BabyLogFormatters.formatUltrasoundSoftRangeWarnings(gestationalAgeDays, bpdMm, hcMm, acMm, flMm, efwGram);
+        markUltrasoundSoftRanges(gestationalAgeDays, bpdMm, hcMm, acMm, flMm, efwGram);
+        if (!warnings.isEmpty() && !ultrasoundRangeWarningConfirmed) {
+            new AlertDialog.Builder(this)
+                    .setTitle("请复核 B 超单位")
+                    .setMessage(warnings + "\n\n这些只是常用范围提醒，不是诊断。请确认是否录入单位或小数点无误。")
+                    .setNegativeButton("返回修改", null)
+                    .setPositiveButton("仍然保存", (confirmDialog, which) -> {
+                        ultrasoundRangeWarningConfirmed = true;
+                        saveUltrasound(dialog);
+                    })
+                    .show();
             return;
         }
         try {
@@ -471,9 +934,41 @@ public final class MainActivity extends AppCompatActivity {
             ));
             Toast.makeText(this, "B 超已保存到本机，等待同步", Toast.LENGTH_SHORT).show();
             dialog.dismiss();
+            invalidateLoadedData();
             render();
         } catch (JSONException error) {
             Toast.makeText(this, "B 超保存失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void markUltrasoundSoftRanges(Integer gestationalAgeDays, Double bpdMm, Double hcMm, Double acMm, Double flMm, Double efwGram) {
+        markGestationalAgeRangeInput(gestationalAgeInput, gestationalAgeDays);
+        markSoftRangeInput(bpdInput, bpdMm, 10, 120);
+        markSoftRangeInput(hcInput, hcMm, 50, 400);
+        markSoftRangeInput(acInput, acMm, 50, 400);
+        markSoftRangeInput(flInput, flMm, 5, 90);
+        markSoftRangeInput(efwInput, efwGram, 50, 6000);
+    }
+
+    private void markSoftRangeInput(EditText input, Double value, double min, double max) {
+        if (input == null) {
+            return;
+        }
+        if (BabyLogFormatters.isOutsideSoftRange(value, min, max)) {
+            input.setBackground(round(0xFFFFE9E5, 10, DANGER));
+        } else {
+            input.setBackground(round(SURFACE, 10, BORDER));
+        }
+    }
+
+    private void markGestationalAgeRangeInput(EditText input, Integer days) {
+        if (input == null) {
+            return;
+        }
+        if (days != null && (days < 70 || days > 294)) {
+            input.setBackground(round(0xFFFFE9E5, 10, DANGER));
+        } else {
+            input.setBackground(round(SURFACE, 10, BORDER));
         }
     }
 
@@ -590,7 +1085,13 @@ public final class MainActivity extends AppCompatActivity {
                 throw new IOException("无法写入备份文件");
             }
             output.write(pendingBackupJson.getBytes(StandardCharsets.UTF_8));
+            getSharedPreferences(META_PREFS_NAME, MODE_PRIVATE)
+                    .edit()
+                    .putLong(LAST_BACKUP_EXPORT_MS, System.currentTimeMillis())
+                    .apply();
             Toast.makeText(this, "备份已生成", Toast.LENGTH_SHORT).show();
+            invalidateLoadedData();
+            render();
         } catch (IOException error) {
             Toast.makeText(this, "备份写入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
@@ -617,25 +1118,65 @@ public final class MainActivity extends AppCompatActivity {
             String raw = new String(output.toByteArray(), StandardCharsets.UTF_8);
             int count = service.importBackupJson(raw);
             Toast.makeText(this, "导入完成：" + count + " 条记录", Toast.LENGTH_SHORT).show();
+            invalidateLoadedData();
             render();
         } catch (JSONException | IOException error) {
             Toast.makeText(this, "导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
+    private void showInfoDialog(String title, String message) {
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("知道了", null)
+                .show();
+    }
+
     private void saveSyncSettings() {
+        String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(text(syncUrlInput));
+        if (!normalizedUrl.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("确认启用同步")
+                    .setMessage("启用后，家庭记录、医疗相关记录和本机待上传队列会发送到你配置的服务器。请确认服务器地址、地域和数据合规风险都已知晓。")
+                    .setNegativeButton("返回修改", null)
+                    .setPositiveButton("我已知晓并保存", (dialog, which) -> persistSyncSettings(normalizedUrl))
+                    .show();
+            return;
+        }
+        persistSyncSettings("");
+    }
+
+    private void persistSyncSettings(String backendBaseUrl) {
         try {
             BabyLogDomain.BackendConfig saved = repository.saveSyncSettings(new BabyLogDomain.BackendConfig(
-                    true,
-                    text(syncUrlInput),
+                    !backendBaseUrl.isEmpty(),
+                    backendBaseUrl,
                     text(syncRegionInput),
                     null
             ));
             Toast.makeText(this, saved.enabled ? "同步配置已保存到本机" : "同步配置已清空，当前为本机模式", Toast.LENGTH_SHORT).show();
+            invalidateLoadedData();
             render();
         } catch (JSONException error) {
             Toast.makeText(this, "保存同步配置失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void confirmClearLocalData() {
+        new AlertDialog.Builder(this)
+                .setTitle("清空本地数据")
+                .setMessage("将删除本机记录、附件和待同步队列，保留同步配置。此操作不会删除你已经导出的备份文件。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清空", (dialog, which) -> clearLocalData())
+                .show();
+    }
+
+    private void clearLocalData() {
+        service.clearLocalData();
+        Toast.makeText(this, "本地数据已清空", Toast.LENGTH_SHORT).show();
+        invalidateLoadedData();
+        render();
     }
 
     private void syncNow() {
@@ -657,9 +1198,6 @@ public final class MainActivity extends AppCompatActivity {
         body.setOrientation(LinearLayout.VERTICAL);
         boolean hasAny = false;
         for (BabyLogDomain.AttachmentRecord attachment : allAttachments) {
-            if (!"ultrasound_image".equals(attachment.kind)) {
-                continue;
-            }
             hasAny = true;
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -746,16 +1284,34 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private View timelineRow(BabyLogDomain.BabyLogEvent event) {
-        LinearLayout row = panel(12, SURFACE);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.addView(label(BabyLogFormatters.formatEventDay(event.occurredAt) + " " + BabyLogFormatters.formatEventTime(event.occurredAt) + " · " + BabyLogFormatters.eventLabel(event.eventType), 13, MUTED, true));
-        row.addView(label(BabyLogFormatters.eventSummary(event), 15, INK, false));
+        int tone = eventTone(event.eventType);
+        LinearLayout row = panel(0, softTone(tone));
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        View ribbon = new View(this);
+        ribbon.setBackgroundColor(tone);
+        row.addView(ribbon, new LinearLayout.LayoutParams(dp(5), LinearLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), dp(12), dp(12), dp(12));
+        copy.addView(label(BabyLogFormatters.formatEventDay(event.occurredAt) + " " + BabyLogFormatters.formatEventTime(event.occurredAt) + " · " + BabyLogFormatters.eventLabel(event.eventType), 13, MUTED, true));
+        copy.addView(label(BabyLogFormatters.eventSummary(event), 15, INK, false));
         if (!event.attachmentIds.isEmpty()) {
             TextView tag = label("附件 " + event.attachmentIds.size(), 12, PRIMARY, true);
             tag.setPadding(0, dp(6), 0, 0);
-            row.addView(tag);
+            copy.addView(tag);
         }
+        row.addView(copy, weightWrap(1f));
         return row;
+    }
+
+    private int eventTone(String eventType) {
+        String group = BabyLogFormatters.timelineFilterGroup(eventType);
+        if ("pregnancy".equals(group)) return ACCENT;
+        if ("baby".equals(group)) return PEACH;
+        if ("ultrasound".equals(group)) return ROSE;
+        if ("temperature".equals(group)) return GREEN;
+        if ("checkup".equals(group)) return VIOLET;
+        return BLUE;
     }
 
     private View libraryItem(String title, String count, String note, int asset, View.OnClickListener listener) {
@@ -786,6 +1342,10 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private View settingRow(String label, String value, boolean interactive, boolean destructive) {
+        return settingRow(label, value, interactive, destructive, null);
+    }
+
+    private View settingRow(String label, String value, boolean interactive, boolean destructive, View.OnClickListener listener) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(10), 0, dp(10));
@@ -794,20 +1354,45 @@ public final class MainActivity extends AppCompatActivity {
         if (interactive) {
             row.addView(label(" >", 14, destructive ? DANGER : TEXT_3, true));
         }
+        if (listener != null) {
+            row.setOnClickListener(listener);
+        }
         return row;
     }
 
     private View actionRow(String title, String subtitle, String action, View.OnClickListener listener) {
+        return actionRow(title, subtitle, action, PRIMARY, MUTED, listener);
+    }
+
+    private View actionRow(String title, String subtitle, String action, int actionColor, View.OnClickListener listener) {
+        return actionRow(title, subtitle, action, actionColor, MUTED, listener);
+    }
+
+    private View actionRow(String title, String subtitle, String action, int actionColor, int subtitleColor, View.OnClickListener listener) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(10), 0, dp(10));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.addView(label(title, 14, INK, true));
-        copy.addView(label(subtitle, 12, MUTED, false));
+        copy.addView(label(subtitle, 12, subtitleColor, false));
         row.addView(copy, weightWrap(1f));
-        row.addView(primaryButton(action, listener), new LinearLayout.LayoutParams(dp(84), dp(44)));
+        row.addView(solidButton(action, actionColor, listener), new LinearLayout.LayoutParams(dp(84), dp(44)));
         return row;
+    }
+
+    private View backupActionRow(long lastBackupMs) {
+        long now = System.currentTimeMillis();
+        int level = BabyLogFormatters.backupAgeLevel(lastBackupMs, now);
+        int subtitleColor = level == 2 ? DANGER : level == 1 ? 0xFF8A6521 : MUTED;
+        return actionRow(
+                "本地备份",
+                "导出 JSON，含本机附件图片 · " + BabyLogFormatters.formatBackupAgeLabel(lastBackupMs, now),
+                "导出",
+                PRIMARY,
+                subtitleColor,
+                view -> exportBackup()
+        );
     }
 
     private View sectionHeader(String title, String action, View.OnClickListener listener) {
@@ -890,12 +1475,34 @@ public final class MainActivity extends AppCompatActivity {
         return editText;
     }
 
+    private View unitInputRow(EditText input, String unit) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(input, weightWrap(1f));
+        TextView badge = label(unit, 13, PRIMARY, true);
+        applyTabularNumbers(badge);
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(12), 0, dp(12), 0);
+        badge.setBackground(round(PRIMARY_SOFT, 999, 0));
+        row.addView(badge, new LinearLayout.LayoutParams(dp(60), dp(48)));
+        return row;
+    }
+
+    private void applyTabularNumbers(TextView view) {
+        view.setFontFeatureSettings("tnum");
+        view.setTypeface(Typeface.MONOSPACE, view.getTypeface() == null ? Typeface.NORMAL : view.getTypeface().getStyle());
+    }
+
     private Button primaryButton(String text, View.OnClickListener listener) {
+        return solidButton(text, PRIMARY, listener);
+    }
+
+    private Button solidButton(String text, int color, View.OnClickListener listener) {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
         button.setTextColor(0xFFFFFFFF);
-        button.setBackground(round(PRIMARY, 999, 0));
+        button.setBackground(round(color, 999, 0));
         button.setOnClickListener(listener);
         return button;
     }

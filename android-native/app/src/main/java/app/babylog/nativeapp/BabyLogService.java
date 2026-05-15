@@ -49,6 +49,85 @@ public final class BabyLogService {
         return event;
     }
 
+    public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input) throws JSONException {
+        JSONObject payload = buildBabyCarePayload(input);
+        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                input.eventType,
+                BabyLogFormatters.nowIso(),
+                payload,
+                Collections.emptyList(),
+                "manual"
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
+    public static JSONObject buildBabyCarePayload(BabyCareInput input) throws JSONException {
+        JSONObject payload = new JSONObject();
+
+        if ("feed".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "feedType", input.primary);
+            putNumberIfNotNull(payload, "amountMl", BabyLogFormatters.parseOptionalNumber(input.secondary));
+            putStringIfNotBlank(payload, "note", input.note);
+        } else if ("sleep".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "sleepStart", input.primary);
+            putStringIfNotBlank(payload, "sleepEnd", input.secondary);
+            putStringIfNotBlank(payload, "sleepPlace", input.tertiary);
+            putStringIfNotBlank(payload, "note", input.note);
+        } else if ("diaper".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "diaperType", input.primary);
+            putStringIfNotBlank(payload, "diaperDetail", input.secondary);
+            putStringIfNotBlank(payload, "note", input.note);
+        } else if ("temperature".equals(input.eventType)) {
+            Double temperature = BabyLogFormatters.parseOptionalNumber(input.primary);
+            putNumberIfNotNull(payload, "temperatureC", temperature);
+            putStringIfNotBlank(payload, "measureMethod", input.secondary);
+            putStringIfNotBlank(payload, "note", input.note);
+        } else if ("medication".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "medicationName", input.primary);
+            putStringIfNotBlank(payload, "dosage", input.secondary);
+            putStringIfNotBlank(payload, "reason", input.tertiary);
+            putStringIfNotBlank(payload, "note", input.note);
+        }
+
+        payload.put("summary", formatBabyCareSummary(input));
+        return payload;
+    }
+
+    public static String formatBabyCareSummary(BabyCareInput input) {
+        StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel(input.eventType));
+        if ("feed".equals(input.eventType)) {
+            appendSummary(summary, input.primary);
+            Double amount = BabyLogFormatters.parseOptionalNumber(input.secondary);
+            if (amount != null) {
+                appendSummary(summary, BabyLogFormatters.formatNumber(amount) + " ml");
+            }
+        } else if ("sleep".equals(input.eventType)) {
+            if (!isBlank(input.primary) && !isBlank(input.secondary)) {
+                appendSummary(summary, input.primary.trim() + "-" + input.secondary.trim());
+            }
+            appendSummary(summary, input.tertiary);
+        } else if ("diaper".equals(input.eventType)) {
+            appendSummary(summary, input.primary);
+            appendSummary(summary, input.secondary);
+        } else if ("temperature".equals(input.eventType)) {
+            Double temperature = BabyLogFormatters.parseOptionalNumber(input.primary);
+            if (temperature != null) {
+                appendSummary(summary, BabyLogFormatters.formatNumber(temperature) + " ℃");
+            }
+            appendSummary(summary, input.secondary);
+        } else if ("medication".equals(input.eventType)) {
+            appendSummary(summary, input.primary);
+            appendSummary(summary, input.secondary);
+            appendSummary(summary, input.tertiary);
+        }
+        if (summary.toString().equals(BabyLogFormatters.eventLabel(input.eventType))) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
     public BabyLogDomain.BabyLogEvent recordUltrasound(UltrasoundInput input) throws JSONException {
         List<String> attachmentIds = new ArrayList<>();
         if (input.photoPath != null && !input.photoPath.isEmpty()) {
@@ -102,7 +181,15 @@ public final class BabyLogService {
                 failed += 1;
             }
         }
-        return new DashboardSnapshot(events, attachments, summarizeToday(), pending, failed, repository.estimateLocalBytes());
+        return new DashboardSnapshot(
+                events,
+                attachments,
+                summarizeToday(),
+                pending,
+                failed,
+                repository.estimateLocalBytes() + estimateAttachmentBytes(),
+                context.getFilesDir().getUsableSpace()
+        );
     }
 
     public List<BabyLogDomain.BabyLogEvent> listRecentEvents(int limit) {
@@ -234,6 +321,48 @@ public final class BabyLogService {
         return new File(dir, System.currentTimeMillis() + "-" + safeName);
     }
 
+    public void clearLocalData() {
+        deleteRecursively(new File(context.getFilesDir(), "attachments"));
+        repository.clearLocalData();
+    }
+
+    private long estimateAttachmentBytes() {
+        return directoryBytes(new File(context.getFilesDir(), "attachments"));
+    }
+
+    private void deleteRecursively(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        file.delete();
+    }
+
+    private long directoryBytes(File file) {
+        if (file == null || !file.exists()) {
+            return 0;
+        }
+        if (file.isFile()) {
+            return file.length();
+        }
+        long bytes = 0;
+        File[] children = file.listFiles();
+        if (children == null) {
+            return 0;
+        }
+        for (File child : children) {
+            bytes += directoryBytes(child);
+        }
+        return bytes;
+    }
+
     private JSONArray createAttachmentBlobBackup() throws IOException, JSONException {
         JSONArray blobs = new JSONArray();
         for (BabyLogDomain.AttachmentRecord attachment : repository.listAttachments()) {
@@ -309,6 +438,29 @@ public final class BabyLogService {
         }
     }
 
+    private static void putStringIfNotBlank(JSONObject payload, String key, String value) throws JSONException {
+        if (!isBlank(value)) {
+            payload.put(key, value.trim());
+        }
+    }
+
+    private static void putNumberIfNotNull(JSONObject payload, String key, Double value) throws JSONException {
+        if (value != null) {
+            payload.put(key, value);
+        }
+    }
+
+    private static void appendSummary(StringBuilder summary, String value) {
+        if (isBlank(value)) {
+            return;
+        }
+        summary.append(" · ").append(value.trim());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
     private long parseTime(String value) {
         return BabyLogFormatters.parseIsoMillis(value);
     }
@@ -347,6 +499,42 @@ public final class BabyLogService {
         }
     }
 
+    public static final class BabyCareInput {
+        public final String eventType;
+        public final String primary;
+        public final String secondary;
+        public final String tertiary;
+        public final String note;
+
+        private BabyCareInput(String eventType, String primary, String secondary, String tertiary, String note) {
+            this.eventType = eventType;
+            this.primary = primary;
+            this.secondary = secondary;
+            this.tertiary = tertiary;
+            this.note = note;
+        }
+
+        public static BabyCareInput feed(String feedType, String amountMl, String note) {
+            return new BabyCareInput("feed", feedType, amountMl, "", note);
+        }
+
+        public static BabyCareInput sleep(String startTime, String endTime, String place, String note) {
+            return new BabyCareInput("sleep", startTime, endTime, place, note);
+        }
+
+        public static BabyCareInput diaper(String diaperType, String detail, String note) {
+            return new BabyCareInput("diaper", diaperType, detail, "", note);
+        }
+
+        public static BabyCareInput temperature(String temperatureC, String measureMethod, String note) {
+            return new BabyCareInput("temperature", temperatureC, measureMethod, "", note);
+        }
+
+        public static BabyCareInput medication(String medicationName, String dosage, String reason) {
+            return new BabyCareInput("medication", medicationName, dosage, reason, "");
+        }
+    }
+
     public static final class QuickAction {
         public final String label;
         public final String hint;
@@ -372,6 +560,7 @@ public final class BabyLogService {
         public final int pendingSyncCount;
         public final int failedSyncCount;
         public final long localBytes;
+        public final long freeBytes;
 
         DashboardSnapshot(
                 List<BabyLogDomain.BabyLogEvent> recentEvents,
@@ -379,7 +568,8 @@ public final class BabyLogService {
                 Map<String, Integer> todayCounts,
                 int pendingSyncCount,
                 int failedSyncCount,
-                long localBytes
+                long localBytes,
+                long freeBytes
         ) {
             this.recentEvents = recentEvents;
             this.attachments = attachments;
@@ -387,6 +577,7 @@ public final class BabyLogService {
             this.pendingSyncCount = pendingSyncCount;
             this.failedSyncCount = failedSyncCount;
             this.localBytes = localBytes;
+            this.freeBytes = freeBytes;
         }
     }
 

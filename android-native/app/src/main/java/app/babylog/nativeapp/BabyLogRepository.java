@@ -100,6 +100,14 @@ public final class BabyLogRepository {
                 .apply();
     }
 
+    public void clearLocalData() {
+        preferences.edit()
+                .putString(EVENTS_KEY, "[]")
+                .putString(ATTACHMENTS_KEY, "[]")
+                .putString(SYNC_CHANGES_KEY, "[]")
+                .apply();
+    }
+
     public long estimateLocalBytes() {
         long bytes = 0;
         bytes += preferences.getString(EVENTS_KEY, "[]").length();

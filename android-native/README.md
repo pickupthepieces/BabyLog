@@ -43,6 +43,27 @@ APK 输出：
 android-native/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Release 签名
+
+Release keystore 不提交仓库。本机打 signed release 时，在 `android-native/signing.properties`
+写入以下键，或用同名环境变量提供：
+
+```properties
+BABYLOG_RELEASE_STORE_FILE=release.jks
+BABYLOG_RELEASE_STORE_PASSWORD=***
+BABYLOG_RELEASE_KEY_ALIAS=***
+BABYLOG_RELEASE_KEY_PASSWORD=***
+```
+
+```powershell
+.\gradlew.bat :app:assembleRelease --console=plain
+```
+
+CI 使用 `.github/workflows/android-native.yml`。配置
+`BABYLOG_RELEASE_KEYSTORE_BASE64`、`BABYLOG_RELEASE_STORE_PASSWORD`、
+`BABYLOG_RELEASE_KEY_ALIAS`、`BABYLOG_RELEASE_KEY_PASSWORD` 后会额外构建 signed release；
+未配置时只跑 smoke tests 和 debug 构建。
+
 ## 本地文件
 
 `local.properties`、`.gradle/`、`build/`、`app/build/` 都不提交。服务器 IP、SDK 绝对路径、调试产物不要进入 Git。

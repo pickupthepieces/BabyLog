@@ -1,0 +1,75 @@
+name: Android Native
+
+on:
+  push:
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/android-native.yml'
+  pull_request:
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/android-native.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BABYLOG_RELEASE_KEYSTORE_BASE64: ${{ secrets.BABYLOG_RELEASE_KEYSTORE_BASE64 }}
+      BABYLOG_RELEASE_STORE_PASSWORD: ${{ secrets.BABYLOG_RELEASE_STORE_PASSWORD }}
+      BABYLOG_RELEASE_KEY_ALIAS: ${{ secrets.BABYLOG_RELEASE_KEY_ALIAS }}
+      BABYLOG_RELEASE_KEY_PASSWORD: ${{ secrets.BABYLOG_RELEASE_KEY_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: JVM smoke tests
+        shell: bash
+        run: |
+          cd android-native
+          mkdir -p smoke-tests/out
+          javac -encoding UTF-8 \
+            -cp "$ANDROID_HOME/platforms/android-36/android.jar" \
+            -d smoke-tests/out \
+            app/src/main/java/app/babylog/nativeapp/BabyLogDomain.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogFormatters.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogImageUtils.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
+            smoke-tests/BabyLogFormattersSmokeTest.java \
+            smoke-tests/BabyLogImageUtilsSmokeTest.java \
+            smoke-tests/BabyLogServiceSmokeTest.java
+          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogFormattersSmokeTest
+          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogImageUtilsSmokeTest
+          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogServiceSmokeTest
+
+      - name: Assemble debug
+        run: cd android-native && ./gradlew :app:assembleDebug --console=plain
+
+      - name: Prepare release signing
+        if: env.BABYLOG_RELEASE_KEYSTORE_BASE64 != ''
+        shell: bash
+        run: |
+          cd android-native
+          echo "$BABYLOG_RELEASE_KEYSTORE_BASE64" | base64 --decode > release.jks
+          {
+            echo "BABYLOG_RELEASE_STORE_FILE=release.jks"
+            echo "BABYLOG_RELEASE_STORE_PASSWORD=$BABYLOG_RELEASE_STORE_PASSWORD"
+            echo "BABYLOG_RELEASE_KEY_ALIAS=$BABYLOG_RELEASE_KEY_ALIAS"
+            echo "BABYLOG_RELEASE_KEY_PASSWORD=$BABYLOG_RELEASE_KEY_PASSWORD"
+          } > signing.properties
+
+      - name: Assemble signed release
+        if: env.BABYLOG_RELEASE_KEYSTORE_BASE64 != ''
+        run: cd android-native && ./gradlew :app:assembleRelease --console=plain

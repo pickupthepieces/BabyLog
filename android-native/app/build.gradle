@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file('signing.properties')
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+
+def signingValue = { String key ->
+    signingProperties.getProperty(key) ?: System.getenv(key)
+}
+
+def releaseStoreFile = signingValue('BABYLOG_RELEASE_STORE_FILE')
+def hasReleaseSigning = releaseStoreFile
+        && signingValue('BABYLOG_RELEASE_STORE_PASSWORD')
+        && signingValue('BABYLOG_RELEASE_KEY_ALIAS')
+        && signingValue('BABYLOG_RELEASE_KEY_PASSWORD')
+
 android {
     namespace 'app.babylog.nativeapp'
     compileSdk 36
@@ -10,6 +26,26 @@ android {
         targetSdk 36
         versionCode 1
         versionName '0.1.0'
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStoreFile)
+                storePassword signingValue('BABYLOG_RELEASE_STORE_PASSWORD')
+                keyAlias signingValue('BABYLOG_RELEASE_KEY_ALIAS')
+                keyPassword signingValue('BABYLOG_RELEASE_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
 }
 

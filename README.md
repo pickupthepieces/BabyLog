@@ -66,6 +66,8 @@ PWA 服务器部署说明：
 - `deploy/nginx-babylog.conf`
 - `deploy/deploy-pwa.ps1`
 
-Android APK 分发：待补 release signing、keystore 流程和 GitHub Actions 构建。
+Android APK 分发：`android-native/app/build.gradle` 已支持通过本机 `android-native/signing.properties`
+或 CI Secrets 注入 release keystore；`.github/workflows/android-native.yml` 会构建 debug 包，并在配置
+`BABYLOG_RELEASE_KEYSTORE_BASE64` 等 Secrets 后构建 signed release 包。
 
 服务器 IP、域名、SSH 用户、Android keystore 等敏感参数不写入仓库。

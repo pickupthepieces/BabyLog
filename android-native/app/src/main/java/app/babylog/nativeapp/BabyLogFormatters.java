@@ -117,6 +117,38 @@ public final class BabyLogFormatters {
         return summary.length() == 0 ? "B 超手动记录 · 待补充指标" : summary.toString();
     }
 
+    public static String formatUltrasoundSoftRangeWarnings(
+            Double bpdMm,
+            Double hcMm,
+            Double acMm,
+            Double flMm,
+            Double efwGram
+    ) {
+        return formatUltrasoundSoftRangeWarnings(null, bpdMm, hcMm, acMm, flMm, efwGram);
+    }
+
+    public static String formatUltrasoundSoftRangeWarnings(
+            Integer gestationalAgeDays,
+            Double bpdMm,
+            Double hcMm,
+            Double acMm,
+            Double flMm,
+            Double efwGram
+    ) {
+        StringBuilder warnings = new StringBuilder();
+        appendGestationalAgeWarning(warnings, gestationalAgeDays);
+        appendRangeWarning(warnings, "BPD", bpdMm, 10, 120, "mm");
+        appendRangeWarning(warnings, "HC", hcMm, 50, 400, "mm");
+        appendRangeWarning(warnings, "AC", acMm, 50, 400, "mm");
+        appendRangeWarning(warnings, "FL", flMm, 5, 90, "mm");
+        appendRangeWarning(warnings, "EFW", efwGram, 50, 6000, "g");
+        return warnings.toString();
+    }
+
+    public static boolean isOutsideSoftRange(Double value, double min, double max) {
+        return value != null && (value < min || value > max);
+    }
+
     public static String eventLabel(String eventType) {
         if ("pregnancy_checkup".equals(eventType)) return "产检";
         if ("ultrasound".equals(eventType)) return "B 超";
@@ -217,6 +249,70 @@ public final class BabyLogFormatters {
         return String.format(Locale.US, "%.1f MB", kb / 1024.0);
     }
 
+    public static String formatBackupAgeLabel(long lastExportMillis, long nowMillis) {
+        if (lastExportMillis <= 0) {
+            return "尚未导出";
+        }
+        int days = backupAgeDays(lastExportMillis, nowMillis);
+        if (days <= 0) {
+            return "今天已导出";
+        }
+        return "距上次导出 " + days + " 天";
+    }
+
+    public static int backupAgeDays(long lastExportMillis, long nowMillis) {
+        if (lastExportMillis <= 0 || nowMillis <= lastExportMillis) {
+            return 0;
+        }
+        return (int) ((nowMillis - lastExportMillis) / 86_400_000L);
+    }
+
+    public static int backupAgeLevel(long lastExportMillis, long nowMillis) {
+        int days = backupAgeDays(lastExportMillis, nowMillis);
+        if (lastExportMillis <= 0 || days < 7) {
+            return 0;
+        }
+        if (days >= 30) {
+            return 2;
+        }
+        return 1;
+    }
+
+    public static String timelineFilterGroup(String eventType) {
+        if ("ultrasound".equals(eventType)) {
+            return "ultrasound";
+        }
+        if ("temperature".equals(eventType)) {
+            return "temperature";
+        }
+        if ("pregnancy_checkup".equals(eventType)) {
+            return "checkup";
+        }
+        if ("fetal_movement".equals(eventType)
+                || "contraction".equals(eventType)
+                || "birth".equals(eventType)) {
+            return "pregnancy";
+        }
+        if ("feed".equals(eventType)
+                || "sleep".equals(eventType)
+                || "diaper".equals(eventType)
+                || "medication".equals(eventType)
+                || "illness".equals(eventType)
+                || "growth".equals(eventType)
+                || "vaccine".equals(eventType)
+                || "milestone".equals(eventType)) {
+            return "baby";
+        }
+        return "all";
+    }
+
+    public static boolean matchesTimelineFilter(String eventType, String filter) {
+        if (filter == null || filter.isEmpty() || "all".equals(filter)) {
+            return true;
+        }
+        return filter.equals(timelineFilterGroup(eventType));
+    }
+
     private static Date parseIso(String iso) {
         if (iso == null || iso.trim().isEmpty()) {
             return null;
@@ -252,5 +348,38 @@ public final class BabyLogFormatters {
             builder.append(" · ");
         }
         builder.append(value);
+    }
+
+    private static void appendRangeWarning(
+            StringBuilder builder,
+            String label,
+            Double value,
+            double min,
+            double max,
+            String unit
+    ) {
+        if (!isOutsideSoftRange(value, min, max)) {
+            return;
+        }
+        if (builder.length() > 0) {
+            builder.append("；");
+        }
+        builder.append(label)
+                .append(" 常用范围 ")
+                .append(formatNumber(min))
+                .append("-")
+                .append(formatNumber(max))
+                .append(" ")
+                .append(unit);
+    }
+
+    private static void appendGestationalAgeWarning(StringBuilder builder, Integer days) {
+        if (days == null || (days >= 70 && days <= 294)) {
+            return;
+        }
+        if (builder.length() > 0) {
+            builder.append("；");
+        }
+        builder.append("孕周 常用范围 10+0-42+0 周");
     }
 }
