@@ -555,18 +555,31 @@ p {
   grid-template-columns: 62px 1fr;
   gap: 12px;
   align-items: center;
+  width: 100%;
   min-height: 86px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--shadow-1);
+  text-align: left;
 }
 
 .library-item img {
   width: 58px;
   height: 58px;
   object-fit: contain;
+}
+
+.library-item.clickable {
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.library-item.clickable:active {
+  transform: scale(0.985);
 }
 
 .library-line {
@@ -590,6 +603,74 @@ p {
   color: var(--text-2);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.list-sheet {
+  max-height: min(78svh, 680px);
+  overflow-y: auto;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attachment-row {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.attachment-row img {
+  width: 46px;
+  height: 46px;
+  padding: 3px;
+  border-radius: 12px;
+  background: #fff8e8;
+  object-fit: contain;
+}
+
+.attachment-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.attachment-line strong {
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-line span {
+  flex: 0 0 auto;
+  color: var(--primary-press);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.attachment-row p,
+.attachment-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.attachment-row small {
+  color: var(--warning);
+  font-weight: 800;
 }
 
 .setting-row {

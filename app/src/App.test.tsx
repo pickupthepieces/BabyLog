@@ -152,6 +152,13 @@ describe("BabyLog UI shell", () => {
     const library = await screen.findByLabelText("资料分类");
     expect(within(library).getByText("B 超单")).toBeInTheDocument();
     expect(await within(library).findByText("1 张")).toBeInTheDocument();
+
+    fireEvent.click(within(library).getByText("B 超单"));
+
+    const attachmentList = await screen.findByRole("dialog", { name: "B 超单列表" });
+    expect(within(attachmentList).getByText("scan.jpg")).toBeInTheDocument();
+    expect(within(attachmentList).getByText("10 B")).toBeInTheDocument();
+    expect(within(attachmentList).getByText("OCR 未启用")).toBeInTheDocument();
   });
 
   it("keeps an invalid ultrasound form from creating pending records", async () => {

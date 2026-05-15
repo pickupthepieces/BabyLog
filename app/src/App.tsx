@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { estimateStorageUsage } from "./adapters/storage";
-import type { AttachmentKind, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
+import type { AttachmentKind, AttachmentRecord, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
 import { createBackup } from "./storage/backup";
 import { formatStorageEstimate } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
@@ -37,6 +37,7 @@ type DashboardState = {
   recentEvents: BabyLogEvent[];
   summary: EventDaySummary | null;
   pendingSyncCount: number;
+  attachments: AttachmentRecord[];
   attachmentCounts: Partial<Record<AttachmentKind, number>>;
   storageUsage: string;
   isLoading: boolean;
@@ -192,6 +193,7 @@ function App() {
     recentEvents: [],
     summary: null,
     pendingSyncCount: 0,
+    attachments: [],
     attachmentCounts: {},
     storageUsage: "读取中",
     isLoading: true
@@ -219,6 +221,7 @@ function App() {
           recentEvents,
           summary,
           pendingSyncCount: pendingChanges.length,
+          attachments,
           attachmentCounts: buildAttachmentCounts(attachments),
           storageUsage: formatStorageEstimateForUi(storageEstimate),
           isLoading: false
@@ -316,7 +319,9 @@ function App() {
             />
           )}
           {activeTab === "timeline" && <TimelineView events={dashboard.recentEvents} />}
-          {activeTab === "library" && <LibraryView attachmentCounts={dashboard.attachmentCounts} />}
+          {activeTab === "library" && (
+            <LibraryView attachments={dashboard.attachments} attachmentCounts={dashboard.attachmentCounts} />
+          )}
           {activeTab === "settings" && (
             <SettingsView
               pendingSyncCount={dashboard.pendingSyncCount}
@@ -467,14 +472,32 @@ function TimelineView({ events }: { events: BabyLogEvent[] }) {
   );
 }
 
-function LibraryView({ attachmentCounts }: { attachmentCounts: Partial<Record<AttachmentKind, number>> }) {
+function LibraryView({
+  attachments,
+  attachmentCounts
+}: {
+  attachments: AttachmentRecord[];
+  attachmentCounts: Partial<Record<AttachmentKind, number>>;
+}) {
+  const [selectedAttachmentKind, setSelectedAttachmentKind] = useState<AttachmentKind | null>(null);
   const libraryItems = buildLibraryItems(attachmentCounts);
+  const selectedItem = libraryItems.find((item) => item.attachmentKind === selectedAttachmentKind);
+  const selectedAttachments = selectedAttachmentKind
+    ? attachments
+        .filter((attachment) => attachment.kind === selectedAttachmentKind)
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+    : [];
 
   return (
     <div className="view-stack">
       <section className="library-grid" aria-label="资料分类">
         {libraryItems.map((item) => (
-          <article className="library-item" key={item.title}>
+          <button
+            className={item.attachmentKind ? "library-item clickable" : "library-item"}
+            type="button"
+            key={item.title}
+            onClick={() => item.attachmentKind && setSelectedAttachmentKind(item.attachmentKind)}
+          >
             <img src={`${assetBase}/${item.asset}`} alt="" />
             <div>
               <div className="library-line">
@@ -483,13 +506,21 @@ function LibraryView({ attachmentCounts }: { attachmentCounts: Partial<Record<At
               </div>
               <p>{item.note}</p>
             </div>
-          </article>
+          </button>
         ))}
       </section>
 
       <section className="disclaimer pinned" aria-label="曲线免责声明">
         FGR / 成长曲线标准数据尚未落库；当前曲线只显示自有趋势。点击首页趋势卡进入全屏曲线。
       </section>
+
+      {selectedItem && (
+        <AttachmentListSheet
+          title={selectedItem.title}
+          attachments={selectedAttachments}
+          onClose={() => setSelectedAttachmentKind(null)}
+        />
+      )}
     </div>
   );
 }
@@ -765,6 +796,52 @@ function UltrasoundFormSheet({
   );
 }
 
+function AttachmentListSheet({
+  title,
+  attachments,
+  onClose
+}: {
+  title: string;
+  attachments: AttachmentRecord[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="sheet-layer">
+      <button className="sheet-scrim" type="button" aria-label={`关闭${title}列表`} onClick={onClose} />
+      <section className="quick-sheet list-sheet" role="dialog" aria-label={`${title}列表`}>
+        <div className="sheet-handle" />
+        <div className="section-title">
+          <h2>{title}</h2>
+          <button className="text-button" type="button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+        <div className="attachment-list">
+          {attachments.length > 0 ? (
+            attachments.map((attachment) => (
+              <article className="attachment-row" key={attachment.id}>
+                <img src={`${assetBase}/ultrasound-sheet.png`} alt="" />
+                <div>
+                  <div className="attachment-line">
+                    <strong>{attachment.originalName}</strong>
+                    <span className="num">{formatByteSize(attachment.byteSize)}</span>
+                  </div>
+                  <p className="num">
+                    {formatAttachmentDate(attachment.createdAt)} · {attachment.mimeType}
+                  </p>
+                  <small>{formatOcrStatus(attachment.ocrStatus)}</small>
+                </div>
+              </article>
+            ))
+          ) : (
+            <EmptyState text="这里还没有本机附件。" />
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function TimelineRow({
   day,
   time,
@@ -959,6 +1036,41 @@ function buildLibraryItems(attachmentCounts: Partial<Record<AttachmentKind, numb
     ...item,
     count: item.attachmentKind ? `${attachmentCounts[item.attachmentKind] ?? 0} 张` : item.defaultCount
   }));
+}
+
+function formatByteSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const kilobytes = bytes / 1024;
+  if (kilobytes < 1024) {
+    return `${kilobytes.toFixed(1)} KB`;
+  }
+
+  return `${(kilobytes / 1024).toFixed(1)} MB`;
+}
+
+function formatAttachmentDate(iso: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(new Date(iso));
+}
+
+function formatOcrStatus(status: AttachmentRecord["ocrStatus"]): string {
+  const labels: Record<AttachmentRecord["ocrStatus"], string> = {
+    "not-requested": "OCR 未启用",
+    "manual-review-required": "OCR 待人工确认",
+    queued: "OCR 排队中",
+    recognized: "OCR 已识别",
+    failed: "OCR 失败"
+  };
+
+  return labels[status];
 }
 
 function buildTodayHighlights(dashboard: DashboardState): Array<{ label: string; value: string; sub: string }> {
