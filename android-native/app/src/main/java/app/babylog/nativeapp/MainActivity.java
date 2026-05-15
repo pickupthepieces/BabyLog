@@ -1,8 +1,8 @@
 package app.babylog.nativeapp;
 
 import android.Manifest;
-import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -24,6 +24,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import org.json.JSONException;
 
 import java.io.File;
@@ -39,7 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class MainActivity extends Activity {
+public final class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CAPTURE_ULTRASOUND = 1201;
     private static final int REQUEST_PICK_ULTRASOUND = 1202;
     private static final int REQUEST_EXPORT_BACKUP = 1203;
@@ -47,24 +49,24 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_PERMISSION_CAMERA = 2201;
     private static final int REQUEST_PERMISSION_IMAGES = 2202;
 
-    private static final int BG = 0xFFEEF7F2;
-    private static final int SURFACE = 0xFFFFFFFF;
-    private static final int SURFACE_2 = 0xFFF7FBF8;
-    private static final int BORDER = 0xFFD7E6DF;
-    private static final int INK = 0xFF21342D;
-    private static final int MUTED = 0xFF5F706A;
-    private static final int TEXT_3 = 0xFF8B9994;
-    private static final int PRIMARY = 0xFF1F9A8A;
-    private static final int PRIMARY_SOFT = 0xFFD6F1EC;
-    private static final int ACCENT = 0xFFF3A53A;
-    private static final int ACCENT_SOFT = 0xFFFFF0CE;
-    private static final int ROSE = 0xFFEF8A9B;
-    private static final int BLUE = 0xFF85A9E9;
-    private static final int VIOLET = 0xFFB899DD;
-    private static final int GREEN = 0xFF82CDA6;
-    private static final int YELLOW = 0xFFF6CF63;
-    private static final int PEACH = 0xFFF5A77D;
-    private static final int DANGER = 0xFFB54E4B;
+    private int BG;
+    private int SURFACE;
+    private int SURFACE_2;
+    private int BORDER;
+    private int INK;
+    private int MUTED;
+    private int TEXT_3;
+    private int PRIMARY;
+    private int PRIMARY_SOFT;
+    private int ACCENT;
+    private int ACCENT_SOFT;
+    private int ROSE;
+    private int BLUE;
+    private int VIOLET;
+    private int GREEN;
+    private int YELLOW;
+    private int PEACH;
+    private int DANGER;
 
     private BabyLogRepository repository;
     private BabyLogService service;
@@ -88,9 +90,40 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        loadColors();
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
         repository = new BabyLogRepository(this);
         service = new BabyLogService(this, repository);
         render();
+    }
+
+    private void loadColors() {
+        BG = color(R.color.bg);
+        SURFACE = color(R.color.surface);
+        SURFACE_2 = color(R.color.surface_2);
+        BORDER = color(R.color.border);
+        INK = color(R.color.ink);
+        MUTED = color(R.color.muted);
+        TEXT_3 = color(R.color.text_3);
+        PRIMARY = color(R.color.primary);
+        PRIMARY_SOFT = color(R.color.primary_soft);
+        ACCENT = color(R.color.accent);
+        ACCENT_SOFT = color(R.color.accent_soft);
+        ROSE = color(R.color.rose);
+        BLUE = color(R.color.blue);
+        VIOLET = color(R.color.violet);
+        GREEN = color(R.color.green);
+        YELLOW = color(R.color.yellow);
+        PEACH = color(R.color.peach);
+        DANGER = color(R.color.danger);
+    }
+
+    private int color(int resId) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return getResources().getColor(resId, getTheme());
+        }
+        return getResources().getColor(resId);
     }
 
     private void render() {
@@ -878,9 +911,8 @@ public final class MainActivity extends Activity {
     }
 
     private ImageView image(int resId, int dpSize) {
-        ImageView image = new ImageView(this);
+        ImageView image = new FixedSizeImageView(this, dp(dpSize));
         image.setImageResource(resId);
-        image.setAdjustViewBounds(true);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setLayoutParams(new LinearLayout.LayoutParams(dp(dpSize), dp(dpSize)));
         return image;
@@ -989,5 +1021,19 @@ public final class MainActivity extends Activity {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private static final class FixedSizeImageView extends ImageView {
+        private final int sizePx;
+
+        FixedSizeImageView(Context context, int sizePx) {
+            super(context);
+            this.sizePx = sizePx;
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            setMeasuredDimension(sizePx, sizePx);
+        }
     }
 }
