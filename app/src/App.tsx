@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { estimateStorageUsage } from "./adapters/storage";
-import type { BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
+import type { AttachmentKind, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
 import { createBackup } from "./storage/backup";
 import { formatStorageEstimate } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
@@ -37,8 +37,17 @@ type DashboardState = {
   recentEvents: BabyLogEvent[];
   summary: EventDaySummary | null;
   pendingSyncCount: number;
+  attachmentCounts: Partial<Record<AttachmentKind, number>>;
   storageUsage: string;
   isLoading: boolean;
+};
+
+type LibraryItemTemplate = {
+  title: string;
+  defaultCount: string;
+  asset: string;
+  note: string;
+  attachmentKind?: AttachmentKind;
 };
 
 type UltrasoundFormState = {
@@ -113,11 +122,17 @@ const trendCards = [
   { title: "孕妈体重", value: "60.4 kg", caption: "较孕前 +8.6 kg", tone: "green" as ToneKey, points: "4,28 22,26 42,24 62,20 82,17 102,12 116,8" }
 ];
 
-const libraryItems: Array<{ title: string; count: string; asset: string; note: string }> = [
-  { title: "B 超单", count: "0 张", asset: "ultrasound-sheet.png", note: "已保存本机；OCR 待接入" },
-  { title: "检查单", count: "0 张", asset: "baby-diary-notebook.png", note: "孕期常规检查、血检报告" },
-  { title: "出生证明", count: "0 张", asset: "vaccine-card.png", note: "出生后启用" },
-  { title: "疫苗本", count: "0 张", asset: "vaccine-card.png", note: "出生后启用" }
+const libraryItemTemplates: LibraryItemTemplate[] = [
+  {
+    title: "B 超单",
+    defaultCount: "0 张",
+    asset: "ultrasound-sheet.png",
+    note: "已保存本机；OCR 待接入",
+    attachmentKind: "ultrasound_image"
+  },
+  { title: "检查单", defaultCount: "0 张", asset: "baby-diary-notebook.png", note: "孕期常规检查、血检报告" },
+  { title: "出生证明", defaultCount: "0 张", asset: "vaccine-card.png", note: "出生后启用" },
+  { title: "疫苗本", defaultCount: "0 张", asset: "vaccine-card.png", note: "出生后启用" }
 ];
 
 const navItems: Array<{ key: TabKey; label: string; asset: string }> = [
@@ -177,6 +192,7 @@ function App() {
     recentEvents: [],
     summary: null,
     pendingSyncCount: 0,
+    attachmentCounts: {},
     storageUsage: "读取中",
     isLoading: true
   });
@@ -190,11 +206,12 @@ function App() {
 
     async function loadLocalData() {
       const { startIso, endIso } = getLocalDayRange(new Date());
-      const [recentEvents, summary, pendingChanges, storageEstimate] = await Promise.all([
+      const [recentEvents, summary, pendingChanges, storageEstimate, attachments] = await Promise.all([
         listRecentEvents(repository, localFamilyId, 20),
         summarizeEventDay(repository, localFamilyId, startIso, endIso),
         listPendingSyncChanges(repository, localFamilyId),
-        estimateStorageUsage()
+        estimateStorageUsage(),
+        repository.listByFamily("attachments", localFamilyId)
       ]);
 
       if (!cancelled) {
@@ -202,6 +219,7 @@ function App() {
           recentEvents,
           summary,
           pendingSyncCount: pendingChanges.length,
+          attachmentCounts: buildAttachmentCounts(attachments),
           storageUsage: formatStorageEstimateForUi(storageEstimate),
           isLoading: false
         });
@@ -292,7 +310,7 @@ function App() {
             />
           )}
           {activeTab === "timeline" && <TimelineView events={dashboard.recentEvents} />}
-          {activeTab === "library" && <LibraryView />}
+          {activeTab === "library" && <LibraryView attachmentCounts={dashboard.attachmentCounts} />}
           {activeTab === "settings" && (
             <SettingsView
               pendingSyncCount={dashboard.pendingSyncCount}
@@ -443,7 +461,9 @@ function TimelineView({ events }: { events: BabyLogEvent[] }) {
   );
 }
 
-function LibraryView() {
+function LibraryView({ attachmentCounts }: { attachmentCounts: Partial<Record<AttachmentKind, number>> }) {
+  const libraryItems = buildLibraryItems(attachmentCounts);
+
   return (
     <div className="view-stack">
       <section className="library-grid" aria-label="资料分类">
@@ -898,6 +918,20 @@ function formatDateInputValue(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function buildAttachmentCounts(attachments: Array<{ kind: AttachmentKind }>): Partial<Record<AttachmentKind, number>> {
+  return attachments.reduce<Partial<Record<AttachmentKind, number>>>((counts, attachment) => {
+    counts[attachment.kind] = (counts[attachment.kind] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function buildLibraryItems(attachmentCounts: Partial<Record<AttachmentKind, number>>) {
+  return libraryItemTemplates.map((item) => ({
+    ...item,
+    count: item.attachmentKind ? `${attachmentCounts[item.attachmentKind] ?? 0} 张` : item.defaultCount
+  }));
 }
 
 function buildTodayHighlights(dashboard: DashboardState): Array<{ label: string; value: string; sub: string }> {

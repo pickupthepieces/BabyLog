@@ -146,5 +146,11 @@ describe("BabyLog UI shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
 
     expect(await screen.findByText("2 条待上传")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "资料" }));
+
+    const library = await screen.findByLabelText("资料分类");
+    expect(within(library).getByText("B 超单")).toBeInTheDocument();
+    expect(within(library).getByText("1 张")).toBeInTheDocument();
   });
 });
