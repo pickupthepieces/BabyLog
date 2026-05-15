@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { estimateStorageUsage } from "./adapters/storage";
+import { createDefaultBackendConfig, createMockSyncAdapter } from "./adapters/backend";
 import type { AttachmentKind, AttachmentRecord, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
 import { createCompleteBackup, parseBackup, restoreAttachmentBlobRecord } from "./storage/backup";
 import { base64ToBlob, formatStorageEstimate, isBlobLike } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
 import type { LocalRepository } from "./storage/localRepository";
-import { listPendingSyncChanges } from "./storage/syncQueue";
+import { listUnsyncedSyncChanges } from "./storage/syncQueue";
 import { listRecentEvents, recordLocalEvent, recordLocalUltrasound, summarizeEventDay } from "./services/logService";
 import type { LocalUltrasoundFields } from "./services/logService";
 import type { EventDaySummary } from "./services/logService";
+import { runSyncNow } from "./services/syncService";
 import "./styles.css";
 
 type TabKey = "home" | "timeline" | "library" | "settings";
@@ -38,6 +40,7 @@ type DashboardState = {
   recentEvents: BabyLogEvent[];
   summary: EventDaySummary | null;
   pendingSyncCount: number;
+  failedSyncCount: number;
   attachments: AttachmentRecord[];
   attachmentCounts: Partial<Record<AttachmentKind, number>>;
   storageUsage: string;
@@ -188,18 +191,21 @@ const eventTones: Record<EventType, ToneKey> = {
 
 function App() {
   const repository = useMemo(() => createLocalRepository(localDbName), []);
+  const syncAdapter = useMemo(() => createMockSyncAdapter(createDefaultBackendConfig()), []);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [isQuickSheetOpen, setQuickSheetOpen] = useState(false);
   const [isUltrasoundFormOpen, setUltrasoundFormOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [isSavingUltrasound, setSavingUltrasound] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [isSyncing, setSyncing] = useState(false);
   const [ultrasoundForm, setUltrasoundForm] = useState<UltrasoundFormState>(() => createDefaultUltrasoundForm());
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [dashboard, setDashboard] = useState<DashboardState>({
     recentEvents: [],
     summary: null,
     pendingSyncCount: 0,
+    failedSyncCount: 0,
     attachments: [],
     attachmentCounts: {},
     storageUsage: "读取中",
@@ -215,10 +221,10 @@ function App() {
 
     async function loadLocalData() {
       const { startIso, endIso } = getLocalDayRange(new Date());
-      const [recentEvents, summary, pendingChanges, storageEstimate, attachments] = await Promise.all([
+      const [recentEvents, summary, syncChanges, storageEstimate, attachments] = await Promise.all([
         listRecentEvents(repository, localFamilyId, 20),
         summarizeEventDay(repository, localFamilyId, startIso, endIso),
-        listPendingSyncChanges(repository, localFamilyId),
+        listUnsyncedSyncChanges(repository, localFamilyId),
         estimateStorageUsage(),
         repository.listByFamily("attachments", localFamilyId)
       ]);
@@ -227,7 +233,8 @@ function App() {
         setDashboard({
           recentEvents,
           summary,
-          pendingSyncCount: pendingChanges.length,
+          pendingSyncCount: syncChanges.length,
+          failedSyncCount: syncChanges.filter((change) => change.status === "failed").length,
           attachments,
           attachmentCounts: buildAttachmentCounts(attachments),
           storageUsage: formatStorageEstimateForUi(storageEstimate),
@@ -342,6 +349,23 @@ function App() {
     }
   }
 
+  async function handleSyncNow() {
+    setSyncing(true);
+    try {
+      const result = await runSyncNow(repository, localFamilyId, syncAdapter);
+      if (result.ok) {
+        setToast(result.pushed + result.pulled > 0 ? `同步完成：上传 ${result.pushed}，下载 ${result.pulled}` : "没有待同步记录");
+      } else {
+        setToast(`同步失败：${formatSyncError(result.code)}，记录仍保留在待上传队列`);
+      }
+      refreshLocalData();
+    } catch (error) {
+      setToast(`同步失败：${getErrorMessage(error)}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="phone-frame" aria-label="BabyLog PWA 工作区">
@@ -365,9 +389,12 @@ function App() {
           {activeTab === "settings" && (
             <SettingsView
               pendingSyncCount={dashboard.pendingSyncCount}
+              failedSyncCount={dashboard.failedSyncCount}
               storageUsage={dashboard.storageUsage}
+              isSyncing={isSyncing}
               onExportBackup={handleExportBackup}
               onImportBackup={handleImportBackup}
+              onSyncNow={handleSyncNow}
             />
           )}
         </div>
@@ -614,14 +641,20 @@ function LibraryView({
 
 function SettingsView({
   pendingSyncCount,
+  failedSyncCount,
   storageUsage,
+  isSyncing,
   onExportBackup,
-  onImportBackup
+  onImportBackup,
+  onSyncNow
 }: {
   pendingSyncCount: number;
+  failedSyncCount: number;
   storageUsage: string;
+  isSyncing: boolean;
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
+  onSyncNow: () => void;
 }) {
   return (
     <div className="view-stack">
@@ -645,10 +678,11 @@ function SettingsView({
         <h2>同步</h2>
         <SettingRow label="后端" value="后端未配置" />
         <SettingRow label="待同步记录" value={`${pendingSyncCount} 条待上传`} />
+        <SettingRow label="失败记录" value={`${failedSyncCount} 条需重试`} />
         <SettingRow label="服务端地域" value="—" />
         <SettingRow label="最近健康检查" value="—" />
-        <button className="primary-button outline" type="button">
-          配置同步
+        <button className="primary-button outline" type="button" disabled={isSyncing} onClick={onSyncNow}>
+          {isSyncing ? "同步中" : "立即同步"}
         </button>
         <p className="settings-hint">
           当前所有记录先保存到本机 IndexedDB；启用同步后，再把 pending 队列上传到你选定的服务器。
@@ -1383,6 +1417,15 @@ function formatDateForFilename(date: Date): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function formatSyncError(code: "BACKEND_NOT_CONFIGURED" | "BACKEND_UNREACHABLE"): string {
+  const labels: Record<typeof code, string> = {
+    BACKEND_NOT_CONFIGURED: "后端未配置",
+    BACKEND_UNREACHABLE: "后端不可达"
+  };
+
+  return labels[code];
 }
 
 export default App;

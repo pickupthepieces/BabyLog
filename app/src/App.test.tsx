@@ -102,6 +102,23 @@ describe("BabyLog UI shell", () => {
     expect(screen.getByText("1 条待上传")).toBeInTheDocument();
   });
 
+  it("marks pending changes failed when sync runs without a backend", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /喂养/ }));
+    await screen.findByText(/喂养已保存到本机/);
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    expect(await screen.findByText("1 条待上传")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "立即同步" }));
+
+    expect(await screen.findByText(/同步失败：后端未配置/)).toBeInTheDocument();
+    expect(await screen.findByText("1 条待上传")).toBeInTheDocument();
+    expect(screen.getByText("1 条需重试")).toBeInTheDocument();
+  });
+
   it("exports local records as a JSON backup", async () => {
     render(<App />);
 
