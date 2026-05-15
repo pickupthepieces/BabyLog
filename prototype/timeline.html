@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F4F6F5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0E1715" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>BabyLog · 时间线</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="header with-line">
+      <div class="header-title">时间线</div>
+      <button class="header-action" type="button">筛选 ⌄</button>
+    </header>
+
+    <div class="content">
+      <div class="chip-row">
+        <button class="chip selected">全部</button>
+        <button class="chip">孕期</button>
+        <button class="chip">育儿</button>
+        <button class="chip">B 超</button>
+        <button class="chip">喂养</button>
+        <button class="chip">睡眠</button>
+        <button class="chip">尿布</button>
+        <button class="chip">体温</button>
+        <button class="chip">用药</button>
+      </div>
+
+      <div class="timeline-day">今天 ・ 5 月 15 日</div>
+      <ul class="timeline-list">
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">16:20</span><span class="timeline-type">胎动</span>
+          <div class="timeline-body num">2 小时内 32 次 · 主要饭后</div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">14:00</span><span class="timeline-type">孕妈体重</span>
+          <div class="timeline-body num">60.4 kg</div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">09:30</span><span class="timeline-type">B 超</span>
+          <div class="timeline-body num">28⁺³ 周 · EFW 1320 g · BPD 71 mm<span class="attachment-mark">2</span></div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">08:10</span><span class="timeline-type">产检</span>
+          <div class="timeline-body">市妇幼 · 王医生 · 各项正常<span class="attachment-mark">1</span></div>
+        </li>
+      </ul>
+
+      <div class="timeline-day">5 月 14 日</div>
+      <ul class="timeline-list">
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">21:00</span><span class="timeline-type">体温</span>
+          <div class="timeline-body num">37.2 ℃ · 腋温</div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">10:00</span><span class="timeline-type">胎动</span>
+          <div class="timeline-body num">1 小时 12 次</div>
+        </li>
+      </ul>
+
+      <div class="timeline-day">5 月 12 日</div>
+      <ul class="timeline-list">
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">15:30</span><span class="timeline-type">血糖</span>
+          <div class="timeline-body num">餐后 2h · 6.8 mmol/L</div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time num">09:00</span><span class="timeline-type">产检</span>
+          <div class="timeline-body">复查 GDM · 75g OGTT<span class="attachment-mark">1</span></div>
+        </li>
+      </ul>
+    </div>
+
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <a class="nav-item" href="home.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-7 9 7v9a2 2 0 0 1-2 2h-4v-6h-6v6H5a2 2 0 0 1-2-2v-9Z"/></svg>
+          首页
+        </a>
+        <a class="nav-item active" href="timeline.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14M5 12h14M5 19h14"/></svg>
+          时间线
+        </a>
+        <div class="fab-slot">
+          <button class="fab" type="button" aria-label="快捷记录">+</button>
+        </div>
+        <a class="nav-item" href="growth.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>
+          资料
+        </a>
+        <a class="nav-item" href="settings.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+          设置
+        </a>
+      </div>
+    </nav>
+  </main>
+</body>
+</html>

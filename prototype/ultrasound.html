@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F4F6F5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0E1715" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>BabyLog · 新建 B 超</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app" style="padding-bottom: calc(82px + env(safe-area-inset-bottom));">
+    <header class="header with-line">
+      <button class="header-back" type="button" onclick="history.back()">‹ 返回</button>
+      <div class="header-title" style="font-size: 16px;">新建 B 超</div>
+      <button class="header-action" type="button">草稿</button>
+    </header>
+
+    <div class="content">
+      <div class="photo-zone">
+        <div class="photo-zone-plus">+</div>
+        <div>拍照 / 从相册选 B 超单</div>
+        <div style="font-size:12px; color: var(--text-3);">保存前会自动压缩</div>
+      </div>
+
+      <div class="disclaimer">
+        仅供记录和参考，不能替代医生判断。OCR 字段需人工核对后再保存。
+      </div>
+
+      <div class="section-title">检查信息</div>
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-label">检查日期</div>
+          <input class="form-input" type="date" value="2026-05-15" />
+        </div>
+        <div class="form-row">
+          <div class="form-label">孕周</div>
+          <input class="form-input num" type="text" inputmode="numeric" value="28 周 + 3 天" />
+        </div>
+        <div class="form-row">
+          <div class="form-label">医院</div>
+          <input class="form-input" type="text" placeholder="例如 市妇幼" value="市妇幼" />
+        </div>
+      </div>
+
+      <div class="section-title">主要指标</div>
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-label">BPD</div>
+          <input class="form-input num" type="text" inputmode="decimal" value="71" />
+          <span class="form-unit">mm</span>
+        </div>
+        <div class="form-row">
+          <div class="form-label">HC</div>
+          <input class="form-input num" type="text" inputmode="decimal" value="265" />
+          <span class="form-unit">mm</span>
+        </div>
+        <div class="form-row">
+          <div class="form-label">AC</div>
+          <input class="form-input num" type="text" inputmode="decimal" value="240" />
+          <span class="form-unit">mm</span>
+        </div>
+        <div class="form-row">
+          <div class="form-label">FL</div>
+          <input class="form-input num" type="text" inputmode="decimal" value="54" />
+          <span class="form-unit">mm</span>
+        </div>
+        <div class="form-row">
+          <div class="form-label">EFW</div>
+          <input class="form-input num" type="text" inputmode="decimal" value="1320" />
+          <span class="form-unit">g</span>
+        </div>
+        <div class="form-row error">
+          <div class="form-label">AFI</div>
+          <input class="form-input num" type="text" inputmode="decimal" value="60" />
+          <span class="form-unit">mm</span>
+        </div>
+      </div>
+      <div class="form-hint error">AFI 60 mm 低于常用软范围 (80–250)，请确认是否原值；保存不会被阻止。</div>
+
+      <div class="section-title">胎盘与胎位</div>
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-label">胎盘位置</div>
+          <input class="form-input" type="text" placeholder="前壁 / 后壁 / 侧壁" value="前壁" />
+        </div>
+        <div class="form-row">
+          <div class="form-label">胎盘成熟度</div>
+          <input class="form-input" type="text" placeholder="0 / I / II / III" value="I" />
+        </div>
+        <div class="form-row">
+          <div class="form-label">胎位</div>
+          <input class="form-input" type="text" placeholder="头位 / 臀位 / 横位" value="头位" />
+        </div>
+      </div>
+
+      <div class="section-title">脐动脉</div>
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-label">S/D</div>
+          <input class="form-input num" type="text" inputmode="decimal" placeholder="例如 2.6" value="2.6" />
+        </div>
+        <div class="form-row">
+          <div class="form-label">PI</div>
+          <input class="form-input num" type="text" inputmode="decimal" placeholder="例如 0.92" value="0.92" />
+        </div>
+        <div class="form-row">
+          <div class="form-label">RI</div>
+          <input class="form-input num" type="text" inputmode="decimal" placeholder="例如 0.62" value="0.62" />
+        </div>
+      </div>
+
+      <div class="section-title">备注</div>
+      <div class="form-group">
+        <div class="textarea-row">
+          <div class="form-label">医生口头建议</div>
+          <textarea class="textarea" placeholder="如：胎儿偏小一周，建议两周后复查">胎儿偏小约一周，建议两周后复查 EFW。</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-bar">
+      <button class="btn" type="button">保存到时间线</button>
+    </div>
+  </main>
+</body>
+</html>

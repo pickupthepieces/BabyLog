@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F4F6F5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0E1715" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>BabyLog 原型预览</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <div class="proto-hero">
+      <h1>BabyLog 原型</h1>
+      <p>静态 HTML 预览，无后端、无真实交互。按 UI设计书.md 实现，仅用于在手机上确认视觉、单手范围、夜间模式。</p>
+    </div>
+
+    <div class="content">
+      <div class="proto-list">
+        <a href="home.html">
+          <span class="proto-id">S-01</span>
+          <span class="proto-name">首页
+            <span class="proto-desc">孕周 / 今日摘要 / 快捷记录 / 趋势</span>
+          </span>
+          <span class="list-row-chevron">›</span>
+        </a>
+        <a href="timeline.html">
+          <span class="proto-id">S-02</span>
+          <span class="proto-name">时间线
+            <span class="proto-desc">全部记录倒序，阶段/类型筛选</span>
+          </span>
+          <span class="list-row-chevron">›</span>
+        </a>
+        <a href="ultrasound.html">
+          <span class="proto-id">S-03</span>
+          <span class="proto-name">B 超录入
+            <span class="proto-desc">拍照 + 结构化字段 + 单位校验</span>
+          </span>
+          <span class="list-row-chevron">›</span>
+        </a>
+        <a href="growth.html">
+          <span class="proto-id">S-04</span>
+          <span class="proto-name">成长曲线
+            <span class="proto-desc">胎儿 / 出生后曲线（静态 SVG）</span>
+          </span>
+          <span class="list-row-chevron">›</span>
+        </a>
+        <a href="settings.html">
+          <span class="proto-id">S-05</span>
+          <span class="proto-name">设置
+            <span class="proto-desc">导出 / 配额 / 同步配置占位</span>
+          </span>
+          <span class="list-row-chevron">›</span>
+        </a>
+      </div>
+
+      <p style="color: var(--text-3); font-size: 12px; margin-top: 32px; line-height: 1.6;">
+        预览方式：<br />
+        ① 电脑浏览器开 <code>prototype/index.html</code>，缩到 ~390 px 看效果。<br />
+        ② 电脑跑 <code>npx serve prototype</code>，手机同 WiFi 访问 <code>http://&lt;电脑 IP&gt;:3000</code>。<br />
+        ③ 直接把 prototype 拷到手机本地（iCloud / 微信收藏）用 Safari 打开。
+      </p>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFF9EF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1A1612" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>BabyLog · 首页</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="header-title">BabyLog</div>
+      <button class="header-action" type="button">导出</button>
+    </header>
+
+    <div class="content">
+      <section class="week-badge num">
+        <!-- 小芽吉祥物：暖黄圆 + 绿叶 -->
+        <svg class="week-mascot" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="32" cy="44" rx="20" ry="14" fill="#F8C75E"/>
+          <ellipse cx="26" cy="40" rx="2" ry="2.6" fill="#4A3527"/>
+          <ellipse cx="38" cy="40" rx="2" ry="2.6" fill="#4A3527"/>
+          <path d="M28 46c1.5 1.2 6.5 1.2 8 0" stroke="#4A3527" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          <ellipse cx="22" cy="46" rx="3" ry="2" fill="#F4A8B0" opacity="0.7"/>
+          <ellipse cx="42" cy="46" rx="3" ry="2" fill="#F4A8B0" opacity="0.7"/>
+          <path d="M32 30c-1-6 3-10 6-10-1 4-2 7-6 10Z" fill="#88C9B5"/>
+          <path d="M32 30c1-5-2-9-5-9 1 4 1 6 5 9Z" fill="#A8D8C0"/>
+        </svg>
+        <div>
+          <span class="week-number">28<sup style="font-size:18px; font-weight:700;">+3</sup></span>
+          <span class="week-unit">孕周</span>
+        </div>
+        <div class="week-sub">距预产期 82 天 ・ 预产期 2026-08-05</div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">今日</div>
+        <div class="summary-pills num">
+          <span class="summary-pill">最近产检 5/14</span>
+          <span class="summary-pill">胎动 32 次/2h</span>
+          <span class="summary-pill">体重 60.4 kg</span>
+        </div>
+      </section>
+
+      <div class="section-title">快捷记录</div>
+      <div class="quick-grid">
+        <a class="quick-tile cat-feed" href="#">
+          <span class="quick-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4l-1 4h-2l-1-4Z"/><path d="M9 7h6l-1 13a1.5 1.5 0 0 1-1.5 1.5h-1A1.5 1.5 0 0 1 10 20L9 7Z"/></svg>
+          </span>
+          <span class="quick-label">喂养</span>
+        </a>
+        <a class="quick-tile cat-sleep" href="#">
+          <span class="quick-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 13a9 9 0 1 1-9.79-8.97A7 7 0 0 0 21 13Z"/></svg>
+          </span>
+          <span class="quick-label">睡眠</span>
+        </a>
+        <a class="quick-tile cat-diaper" href="#">
+          <span class="quick-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16l-2 9a2 2 0 0 1-2 1.6H8a2 2 0 0 1-2-1.6L4 10Z"/><path d="M4 10c0-3 2.5-5 5-5 1.5 0 2.5.6 3 1.4C12.5 5.6 13.5 5 15 5c2.5 0 5 2 5 5"/></svg>
+          </span>
+          <span class="quick-label">尿布</span>
+        </a>
+        <a class="quick-tile cat-temp" href="#">
+          <span class="quick-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.5a3.5 3.5 0 1 1-4 0V4a2 2 0 1 1 4 0Z"/></svg>
+          </span>
+          <span class="quick-label">体温</span>
+        </a>
+        <a class="quick-tile cat-med" href="#">
+          <span class="quick-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-45 12 12)"/><path d="m8.5 8.5 7 7"/></svg>
+          </span>
+          <span class="quick-label">用药</span>
+        </a>
+        <a class="quick-tile cat-us" href="ultrasound.html">
+          <span class="quick-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18s2-6 8-6 8 6 8 6"/><circle cx="12" cy="9" r="3"/></svg>
+          </span>
+          <span class="quick-label">B 超</span>
+        </a>
+      </div>
+
+      <div class="section-title">最近记录</div>
+      <ul class="timeline-list" style="margin-bottom: 8px;">
+        <li class="timeline-item">
+          <span class="timeline-tag tag-fetal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 6 5 6 9c0 4 3 6 3 9 0 2 1 4 3 4s3-2 3-4c0-3 3-5 3-9 0-4-2-7-6-7Z"/></svg>
+          </span>
+          <div class="timeline-item-body">
+            <div class="timeline-line-1">
+              <span class="timeline-time num">16:20</span><span class="timeline-type">胎动</span>
+            </div>
+            <div class="timeline-body num">2 小时内 32 次</div>
+          </div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-tag tag-us">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18s2-6 8-6 8 6 8 6"/><circle cx="12" cy="9" r="3"/></svg>
+          </span>
+          <div class="timeline-item-body">
+            <div class="timeline-line-1">
+              <span class="timeline-time num">09:30</span><span class="timeline-type">B 超</span>
+            </div>
+            <div class="timeline-body num">28⁺³ 周 · EFW 1320 g · BPD 71 mm<span class="attachment-mark">2</span></div>
+          </div>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-tag tag-weight">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16l-2 14H6L4 6Z"/><path d="M9 6V4h6v2"/><path d="M12 10v6"/></svg>
+          </span>
+          <div class="timeline-item-body">
+            <div class="timeline-line-1">
+              <span class="timeline-time num">08:00</span><span class="timeline-type">孕妈体重</span>
+            </div>
+            <div class="timeline-body num">60.4 kg ・ +0.2 kg</div>
+          </div>
+        </li>
+      </ul>
+      <a href="timeline.html" class="btn ghost" style="display:block; text-align:center; padding: 8px;">查看全部 →</a>
+
+      <div class="section-title">趋势</div>
+      <div class="trend-grid">
+        <div class="trend-card num">
+          <div class="trend-label">胎儿 EFW</div>
+          <div class="trend-value">1320 <span style="font-size:14px; font-weight:600; color:var(--text-2);">g</span></div>
+          <div class="trend-sub">28⁺³ 周</div>
+          <svg class="trend-mini" viewBox="0 0 120 32" preserveAspectRatio="none">
+            <polyline fill="none" stroke="#E89B2C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="2,28 24,22 46,17 68,12 90,8 118,4"/>
+          </svg>
+        </div>
+        <div class="trend-card num">
+          <div class="trend-label">孕妈体重</div>
+          <div class="trend-value">60.4 <span style="font-size:14px; font-weight:600; color:var(--text-2);">kg</span></div>
+          <div class="trend-sub">较孕前 +8.6 kg</div>
+          <svg class="trend-mini" viewBox="0 0 120 32" preserveAspectRatio="none">
+            <polyline fill="none" stroke="#88C9B5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="2,26 22,24 42,22 62,18 82,16 102,12 118,10"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <a class="nav-item active" href="home.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-7 9 7v9a2 2 0 0 1-2 2h-4v-6h-6v6H5a2 2 0 0 1-2-2v-9Z"/></svg>
+          首页
+        </a>
+        <a class="nav-item" href="timeline.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="6" cy="18" r="1.4"/><path d="M11 6h10M11 12h10M11 18h10"/></svg>
+          时间线
+        </a>
+        <div class="fab-slot">
+          <button class="fab" type="button" aria-label="快捷记录">+</button>
+        </div>
+        <a class="nav-item" href="growth.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>
+          资料
+        </a>
+        <a class="nav-item" href="settings.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+          设置
+        </a>
+      </div>
+    </nav>
+  </main>
+</body>
+</html>

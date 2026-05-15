@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F4F6F5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0E1715" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>BabyLog · 成长曲线</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="header with-line">
+      <div class="header-title">曲线</div>
+    </header>
+
+    <div class="content">
+      <div class="segment" style="margin-bottom: 12px;">
+        <button class="active" type="button">胎儿</button>
+        <button type="button">出生后</button>
+      </div>
+      <div class="chip-row" style="margin-bottom: 4px;">
+        <button class="chip selected">EFW</button>
+        <button class="chip">BPD</button>
+        <button class="chip">HC</button>
+        <button class="chip">AC</button>
+        <button class="chip">FL</button>
+      </div>
+
+      <div class="disclaimer">
+        仅供记录和参考，不能替代医生判断。MVP 仅画用户实测数据；P3/P10/P50/P90 参考带为 P1。
+      </div>
+
+      <svg class="curve-svg" viewBox="0 0 360 200" preserveAspectRatio="none" aria-label="EFW 曲线">
+        <!-- 背景网格 -->
+        <g stroke="var(--border)" stroke-width="1" stroke-dasharray="2 4">
+          <line x1="40" y1="30" x2="350" y2="30"/>
+          <line x1="40" y1="70" x2="350" y2="70"/>
+          <line x1="40" y1="110" x2="350" y2="110"/>
+          <line x1="40" y1="150" x2="350" y2="150"/>
+        </g>
+        <!-- Y 轴标签 -->
+        <g fill="var(--text-3)" font-size="10" font-family="-apple-system, sans-serif">
+          <text x="6" y="34">2000</text>
+          <text x="6" y="74">1500</text>
+          <text x="6" y="114">1000</text>
+          <text x="6" y="154">500</text>
+          <text x="14" y="188">g</text>
+        </g>
+        <!-- X 轴 -->
+        <line x1="40" y1="170" x2="350" y2="170" stroke="var(--border)" stroke-width="1.2"/>
+        <g fill="var(--text-3)" font-size="10" font-family="-apple-system, sans-serif" text-anchor="middle">
+          <text x="60"  y="188">22</text>
+          <text x="110" y="188">24</text>
+          <text x="160" y="188">26</text>
+          <text x="210" y="188">28</text>
+          <text x="260" y="188">30</text>
+          <text x="310" y="188">32</text>
+          <text x="350" y="188">周</text>
+        </g>
+        <!-- 数据折线 -->
+        <polyline
+          fill="none"
+          stroke="var(--primary)"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          points="60,160 110,148 160,128 210,100 235,82"
+        />
+        <!-- 数据点 -->
+        <g fill="var(--surface)" stroke="var(--primary)" stroke-width="2.4">
+          <circle cx="60"  cy="160" r="4"/>
+          <circle cx="110" cy="148" r="4"/>
+          <circle cx="160" cy="128" r="4"/>
+          <circle cx="210" cy="100" r="4"/>
+          <circle cx="235" cy="82"  r="5"/>
+        </g>
+        <!-- 最新点高亮注 -->
+        <g fill="var(--text-1)" font-size="11" font-family="-apple-system, sans-serif" font-weight="600">
+          <text x="244" y="76">1320</text>
+        </g>
+      </svg>
+
+      <div class="curve-meta num">
+        <span>当前 EFW</span>
+        <strong>1320 g <span style="font-size:14px; color: var(--text-2); font-weight: 500;">· 28⁺³ 周</span></strong>
+      </div>
+
+      <div class="section-title">历史记录</div>
+      <div class="list">
+        <a class="list-row" href="ultrasound.html">
+          <span class="list-row-label num">28⁺³ 周</span>
+          <span class="list-row-value">1320 g <span class="list-row-chevron">›</span></span>
+        </a>
+        <a class="list-row" href="#">
+          <span class="list-row-label num">26⁺² 周</span>
+          <span class="list-row-value">920 g <span class="list-row-chevron">›</span></span>
+        </a>
+        <a class="list-row" href="#">
+          <span class="list-row-label num">24⁺¹ 周</span>
+          <span class="list-row-value">680 g <span class="list-row-chevron">›</span></span>
+        </a>
+        <a class="list-row" href="#">
+          <span class="list-row-label num">22 周</span>
+          <span class="list-row-value">460 g <span class="list-row-chevron">›</span></span>
+        </a>
+      </div>
+    </div>
+
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <a class="nav-item" href="home.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-7 9 7v9a2 2 0 0 1-2 2h-4v-6h-6v6H5a2 2 0 0 1-2-2v-9Z"/></svg>
+          首页
+        </a>
+        <a class="nav-item" href="timeline.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14M5 12h14M5 19h14"/></svg>
+          时间线
+        </a>
+        <div class="fab-slot">
+          <button class="fab" type="button" aria-label="快捷记录">+</button>
+        </div>
+        <a class="nav-item active" href="growth.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>
+          资料
+        </a>
+        <a class="nav-item" href="settings.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+          设置
+        </a>
+      </div>
+    </nav>
+  </main>
+</body>
+</html>
