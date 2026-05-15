@@ -4,6 +4,7 @@ import type { AttachmentKind, AttachmentRecord, BabyLogEvent, CreateEventInput, 
 import { createBackup } from "./storage/backup";
 import { formatStorageEstimate } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
+import type { LocalRepository } from "./storage/localRepository";
 import { listPendingSyncChanges } from "./storage/syncQueue";
 import { listRecentEvents, recordLocalEvent, recordLocalUltrasound, summarizeEventDay } from "./services/logService";
 import type { LocalUltrasoundFields } from "./services/logService";
@@ -49,6 +50,12 @@ type LibraryItemTemplate = {
   asset: string;
   note: string;
   attachmentKind?: AttachmentKind;
+};
+
+type AttachmentPreviewState = {
+  attachment: AttachmentRecord;
+  imageUrl: string | null;
+  error: string | null;
 };
 
 type UltrasoundFormState = {
@@ -320,7 +327,11 @@ function App() {
           )}
           {activeTab === "timeline" && <TimelineView events={dashboard.recentEvents} />}
           {activeTab === "library" && (
-            <LibraryView attachments={dashboard.attachments} attachmentCounts={dashboard.attachmentCounts} />
+            <LibraryView
+              repository={repository}
+              attachments={dashboard.attachments}
+              attachmentCounts={dashboard.attachmentCounts}
+            />
           )}
           {activeTab === "settings" && (
             <SettingsView
@@ -473,13 +484,16 @@ function TimelineView({ events }: { events: BabyLogEvent[] }) {
 }
 
 function LibraryView({
+  repository,
   attachments,
   attachmentCounts
 }: {
+  repository: LocalRepository;
   attachments: AttachmentRecord[];
   attachmentCounts: Partial<Record<AttachmentKind, number>>;
 }) {
   const [selectedAttachmentKind, setSelectedAttachmentKind] = useState<AttachmentKind | null>(null);
+  const [preview, setPreview] = useState<AttachmentPreviewState | null>(null);
   const libraryItems = buildLibraryItems(attachmentCounts);
   const selectedItem = libraryItems.find((item) => item.attachmentKind === selectedAttachmentKind);
   const selectedAttachments = selectedAttachmentKind
@@ -487,6 +501,35 @@ function LibraryView({
         .filter((attachment) => attachment.kind === selectedAttachmentKind)
         .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     : [];
+
+  useEffect(() => {
+    return () => {
+      if (preview?.imageUrl) {
+        URL.revokeObjectURL(preview.imageUrl);
+      }
+    };
+  }, [preview?.imageUrl]);
+
+  async function handlePreviewAttachment(attachment: AttachmentRecord) {
+    try {
+      const savedBlob = await repository.get("attachmentBlobs", `blob_${attachment.id}`);
+      if (!savedBlob) {
+        setPreview({ attachment, imageUrl: null, error: "本机图片数据未找到" });
+        return;
+      }
+
+      setPreview({ attachment, imageUrl: URL.createObjectURL(savedBlob.blob), error: null });
+    } catch (error) {
+      setPreview({ attachment, imageUrl: null, error: getErrorMessage(error) });
+    }
+  }
+
+  function handleClosePreview() {
+    if (preview?.imageUrl) {
+      URL.revokeObjectURL(preview.imageUrl);
+    }
+    setPreview(null);
+  }
 
   return (
     <div className="view-stack">
@@ -519,8 +562,11 @@ function LibraryView({
           title={selectedItem.title}
           attachments={selectedAttachments}
           onClose={() => setSelectedAttachmentKind(null)}
+          onPreview={handlePreviewAttachment}
         />
       )}
+
+      {preview && <AttachmentPreviewSheet preview={preview} onClose={handleClosePreview} />}
     </div>
   );
 }
@@ -799,11 +845,13 @@ function UltrasoundFormSheet({
 function AttachmentListSheet({
   title,
   attachments,
-  onClose
+  onClose,
+  onPreview
 }: {
   title: string;
   attachments: AttachmentRecord[];
   onClose: () => void;
+  onPreview: (attachment: AttachmentRecord) => void;
 }) {
   return (
     <div className="sheet-layer">
@@ -819,7 +867,12 @@ function AttachmentListSheet({
         <div className="attachment-list">
           {attachments.length > 0 ? (
             attachments.map((attachment) => (
-              <article className="attachment-row" key={attachment.id}>
+              <button
+                className="attachment-row clickable"
+                type="button"
+                key={attachment.id}
+                onClick={() => onPreview(attachment)}
+              >
                 <img src={`${assetBase}/ultrasound-sheet.png`} alt="" />
                 <div>
                   <div className="attachment-line">
@@ -831,12 +884,40 @@ function AttachmentListSheet({
                   </p>
                   <small>{formatOcrStatus(attachment.ocrStatus)}</small>
                 </div>
-              </article>
+              </button>
             ))
           ) : (
             <EmptyState text="这里还没有本机附件。" />
           )}
         </div>
+      </section>
+    </div>
+  );
+}
+
+function AttachmentPreviewSheet({
+  preview,
+  onClose
+}: {
+  preview: AttachmentPreviewState;
+  onClose: () => void;
+}) {
+  return (
+    <div className="sheet-layer">
+      <button className="sheet-scrim" type="button" aria-label={`关闭${preview.attachment.originalName}预览`} onClick={onClose} />
+      <section className="quick-sheet preview-sheet" role="dialog" aria-label={`${preview.attachment.originalName} 预览`}>
+        <div className="sheet-handle" />
+        <div className="section-title">
+          <h2>{preview.attachment.originalName}</h2>
+          <button className="text-button" type="button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+        {preview.imageUrl ? (
+          <img className="attachment-preview" src={preview.imageUrl} alt={preview.attachment.originalName} />
+        ) : (
+          <EmptyState text={preview.error ?? "暂时无法预览这张图片。"} />
+        )}
       </section>
     </div>
   );

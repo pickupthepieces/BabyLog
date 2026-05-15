@@ -159,6 +159,11 @@ describe("BabyLog UI shell", () => {
     expect(within(attachmentList).getByText("scan.jpg")).toBeInTheDocument();
     expect(within(attachmentList).getByText("10 B")).toBeInTheDocument();
     expect(within(attachmentList).getByText("OCR 未启用")).toBeInTheDocument();
+
+    fireEvent.click(within(attachmentList).getByText("scan.jpg"));
+
+    const preview = await screen.findByRole("dialog", { name: "scan.jpg 预览" });
+    expect(within(preview).getByAltText("scan.jpg")).toHaveAttribute("src", "blob:babylog-backup");
   });
 
   it("keeps an invalid ultrasound form from creating pending records", async () => {
