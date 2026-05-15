@@ -18,4 +18,6 @@
     <color name="yellow">#F6CF63</color>
     <color name="peach">#F5A77D</color>
     <color name="danger">#B54E4B</color>
+    <color name="disclaimer">#8A6521</color>
+    <color name="disclaimer_bg">#FFF4D7</color>
 </resources>

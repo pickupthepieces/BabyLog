@@ -98,6 +98,8 @@ public final class MainActivity extends AppCompatActivity {
     private int YELLOW;
     private int PEACH;
     private int DANGER;
+    private int DISCLAIMER;
+    private int DISCLAIMER_BG;
 
     private BabyLogRepository repository;
     private BabyLogService service;
@@ -230,6 +232,8 @@ public final class MainActivity extends AppCompatActivity {
         YELLOW = color(R.color.yellow);
         PEACH = color(R.color.peach);
         DANGER = color(R.color.danger);
+        DISCLAIMER = color(R.color.disclaimer);
+        DISCLAIMER_BG = color(R.color.disclaimer_bg);
     }
 
     private int color(int resId) {
@@ -648,7 +652,8 @@ public final class MainActivity extends AppCompatActivity {
 
         if ("feed".equals(action.eventType)) {
             primaryInput = input("方式，例如 母乳 / 奶瓶 / 辅食", restoredText(restoredState, STATE_PRIMARY), textInput);
-            secondaryInput = input("奶量 ml（可空）", restoredText(restoredState, STATE_SECONDARY), numberInput);
+            secondaryInput = input("奶量（可空）", restoredText(restoredState, STATE_SECONDARY), numberInput);
+            applyTabularNumbers(secondaryInput);
             noteInput = input("备注（可空）", restoredText(restoredState, STATE_NOTE), textInput);
         } else if ("sleep".equals(action.eventType)) {
             primaryInput = input("开始时间，例如 22:10", restoredText(restoredState, STATE_PRIMARY), textInput);
@@ -659,17 +664,29 @@ public final class MainActivity extends AppCompatActivity {
             primaryInput = input("类型，例如 尿 / 便 / 混合", restoredText(restoredState, STATE_PRIMARY), textInput);
             secondaryInput = input("性状 / 颜色 / 备注", restoredText(restoredState, STATE_SECONDARY), textInput);
         } else if ("temperature".equals(action.eventType)) {
-            primaryInput = input("体温 ℃", restoredText(restoredState, STATE_PRIMARY), numberInput);
+            primaryInput = input("体温", restoredText(restoredState, STATE_PRIMARY), numberInput);
+            applyTabularNumbers(primaryInput);
             secondaryInput = input("测量方式，例如 腋温 / 耳温", restoredText(restoredState, STATE_SECONDARY), textInput);
             noteInput = input("备注（可空）", restoredText(restoredState, STATE_NOTE), textInput);
         } else {
             primaryInput = input("药名", restoredText(restoredState, STATE_PRIMARY), textInput);
-            secondaryInput = input("剂量和单位，例如 2 ml", restoredText(restoredState, STATE_SECONDARY), textInput);
+            secondaryInput = input("剂量数值，例如 2", restoredText(restoredState, STATE_SECONDARY), numberInput);
+            applyTabularNumbers(secondaryInput);
             tertiaryInput = input("原因，例如 发热", restoredText(restoredState, STATE_TERTIARY), textInput);
         }
 
         body.addView(primaryInput, matchWrapWithBottom(8));
-        body.addView(secondaryInput, matchWrapWithBottom(8));
+        if ("feed".equals(action.eventType)) {
+            body.addView(unitInputRow(secondaryInput, "ml"), matchWrapWithBottom(8));
+        } else if ("temperature".equals(action.eventType)) {
+            body.removeView(primaryInput);
+            body.addView(unitInputRow(primaryInput, "℃"), matchWrapWithBottom(8));
+            body.addView(secondaryInput, matchWrapWithBottom(8));
+        } else if ("medication".equals(action.eventType)) {
+            body.addView(unitInputRow(secondaryInput, "ml"), matchWrapWithBottom(8));
+        } else {
+            body.addView(secondaryInput, matchWrapWithBottom(8));
+        }
         if (tertiaryInput != null) {
             body.addView(tertiaryInput, matchWrapWithBottom(8));
         }
@@ -764,7 +781,14 @@ public final class MainActivity extends AppCompatActivity {
         if ("temperature".equals(eventType)) {
             return BabyLogService.BabyCareInput.temperature(text(primaryInput), text(secondaryInput), text(noteInput));
         }
-        return BabyLogService.BabyCareInput.medication(text(primaryInput), text(secondaryInput), text(tertiaryInput));
+        return BabyLogService.BabyCareInput.medication(text(primaryInput), dosageWithDefaultUnit(text(secondaryInput), "ml"), text(tertiaryInput));
+    }
+
+    private String dosageWithDefaultUnit(String value, String unit) {
+        if (value.isEmpty()) {
+            return "";
+        }
+        return BabyLogFormatters.parseOptionalNumber(value) == null ? value : value + " " + unit;
     }
 
     private void showUltrasoundForm() {
@@ -1138,7 +1162,7 @@ public final class MainActivity extends AppCompatActivity {
         if (!normalizedUrl.isEmpty()) {
             new AlertDialog.Builder(this)
                     .setTitle("确认启用同步")
-                    .setMessage("启用后，家庭记录、医疗相关记录和本机待上传队列会发送到你配置的服务器。请确认服务器地址、地域和数据合规风险都已知晓。")
+                    .setMessage("启用后会按你配置的地址尝试上传；当前后端仍未就绪，记录会保留在本机待同步队列中。请确认服务器地址、地域和数据合规风险都已知晓。")
                     .setNegativeButton("返回修改", null)
                     .setPositiveButton("我已知晓并保存", (dialog, which) -> persistSyncSettings(normalizedUrl))
                     .show();
@@ -1429,9 +1453,9 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private View disclaimer(String text) {
-        TextView view = label(text, 13, 0xFF8A6521, false);
+        TextView view = label(text, 13, DISCLAIMER, false);
         view.setPadding(dp(14), dp(12), dp(14), dp(12));
-        view.setBackground(round(0xFFFFF4D7, 14, 0));
+        view.setBackground(round(DISCLAIMER_BG, 14, 0));
         return view;
     }
 
@@ -1478,13 +1502,14 @@ public final class MainActivity extends AppCompatActivity {
     private View unitInputRow(EditText input, String unit) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(dp(48));
         row.addView(input, weightWrap(1f));
         TextView badge = label(unit, 13, PRIMARY, true);
         applyTabularNumbers(badge);
         badge.setGravity(Gravity.CENTER);
         badge.setPadding(dp(12), 0, dp(12), 0);
         badge.setBackground(round(PRIMARY_SOFT, 999, 0));
-        row.addView(badge, new LinearLayout.LayoutParams(dp(60), dp(48)));
+        row.addView(badge, new LinearLayout.LayoutParams(dp(60), LinearLayout.LayoutParams.MATCH_PARENT));
         return row;
     }
 

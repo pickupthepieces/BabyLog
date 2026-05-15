@@ -38,6 +38,8 @@ cd android-native
 
 APK 输出：`android-native/app/build/outputs/apk/debug/app-debug.apk`。
 
+Release APK 体积预算：阶段一控制在 8 MiB 内；当前 signed release 实测 `app-release.apk` 为 4,178,567 B（3.98 MiB）。
+
 详见 `android-native/README.md`。
 
 ## PWA 本地开发（参考）
