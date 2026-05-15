@@ -38,8 +38,25 @@ Thumbs.db
 # Generated archives
 *.zip
 
+# Android Gradle / SDK
+android-native/local.properties
+android-native/.gradle/
+android-native/build/
+android-native/**/build/
+android-native/captures/
+android-native/.cxx/
+android-native/app/release/
+android-native/signing.properties
+
+# Android signing & artifacts
+*.apk
+*.aab
+*.keystore
+*.jks
+
 # Local AI collaboration notes
 AI交接说明.md
 Claude评审意见.md
 UI评审-Claude.md
 UI实现说明-Codex.md
+Android补充清单-Claude.md
