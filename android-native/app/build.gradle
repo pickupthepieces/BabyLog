@@ -1,0 +1,14 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'app.babylog.nativeapp'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'app.babylog.nativeapp'
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+}
