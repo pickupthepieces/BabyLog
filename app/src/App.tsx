@@ -125,7 +125,7 @@ const quickActions: QuickAction[] = [
   }
 ];
 
-const trendCards = [
+const fallbackTrendCards = [
   { title: "胎儿 EFW", value: "1320 g", caption: "28+3 周", tone: "rose" as ToneKey, points: "4,30 26,24 48,20 70,14 92,11 116,6" },
   { title: "孕妈体重", value: "60.4 kg", caption: "较孕前 +8.6 kg", tone: "green" as ToneKey, points: "4,28 22,26 42,24 62,20 82,17 102,12 116,8" }
 ];
@@ -391,6 +391,7 @@ function HomeView({
   onShowTimeline: () => void;
 }) {
   const highlights = buildTodayHighlights(dashboard);
+  const trendCards = buildTrendCards(dashboard);
   const recentRows = dashboard.recentEvents.slice(0, 3).map(eventToTimelineItem);
 
   return (
@@ -1171,6 +1172,35 @@ function buildTodayHighlights(dashboard: DashboardState): Array<{ label: string;
       sub: "服务器未配置"
     }
   ];
+}
+
+function buildTrendCards(dashboard: DashboardState): typeof fallbackTrendCards {
+  const latestUltrasound = dashboard.recentEvents.find((event) => event.eventType === "ultrasound");
+  if (!latestUltrasound) {
+    return fallbackTrendCards;
+  }
+
+  return [
+    {
+      ...fallbackTrendCards[0],
+      value:
+        typeof latestUltrasound.payload.efwGram === "number"
+          ? `${latestUltrasound.payload.efwGram} g`
+          : "待补充",
+      caption:
+        typeof latestUltrasound.payload.gestationalAgeDays === "number"
+          ? formatGestationalAgeCaption(latestUltrasound.payload.gestationalAgeDays)
+          : "最新 B 超"
+    },
+    fallbackTrendCards[1]
+  ];
+}
+
+function formatGestationalAgeCaption(days: number): string {
+  const weeks = Math.floor(days / 7);
+  const remainingDays = days % 7;
+
+  return `${weeks}+${remainingDays} 周`;
 }
 
 function eventToTimelineItem(event: BabyLogEvent): TimelineItem {

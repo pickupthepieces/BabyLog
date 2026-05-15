@@ -126,7 +126,7 @@ describe("BabyLog UI shell", () => {
     fireEvent.change(screen.getByLabelText("头围 HC"), { target: { value: "258" } });
     fireEvent.change(screen.getByLabelText("腹围 AC"), { target: { value: "235" } });
     fireEvent.change(screen.getByLabelText("股骨长 FL"), { target: { value: "54" } });
-    fireEvent.change(screen.getByLabelText("估计胎重 EFW"), { target: { value: "1320" } });
+    fireEvent.change(screen.getByLabelText("估计胎重 EFW"), { target: { value: "1420" } });
     fireEvent.change(screen.getByLabelText("B 超单照片"), {
       target: {
         files: [new File(["scan-image"], "scan.jpg", { type: "image/jpeg" })]
@@ -135,12 +135,13 @@ describe("BabyLog UI shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存 B 超记录" }));
 
     expect(await screen.findByText(/B 超已保存到本机/)).toBeInTheDocument();
+    expect(await screen.findByText("1420 g")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "时间线" }));
 
     const timeline = await screen.findByLabelText("时间线记录");
     expect(await within(timeline).findByText("B 超")).toBeInTheDocument();
-    expect(await within(timeline).findByText("28+3 周 · EFW 1320 g · BPD 71 mm")).toBeInTheDocument();
+    expect(await within(timeline).findByText("28+3 周 · EFW 1420 g · BPD 71 mm")).toBeInTheDocument();
     expect(await within(timeline).findByLabelText("含 1 张附件")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
