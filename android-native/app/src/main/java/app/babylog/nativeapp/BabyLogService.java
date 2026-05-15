@@ -2,6 +2,7 @@ package app.babylog.nativeapp;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Environment;
 import android.util.Base64;
 
 import org.json.JSONArray;
@@ -193,15 +194,35 @@ public final class BabyLogService {
         if (input == null) {
             throw new IOException("无法读取图片");
         }
-        File output = createAttachmentFile(nameHint == null ? "selected.jpg" : nameHint);
-        try (InputStream in = input; FileOutputStream out = new FileOutputStream(output)) {
+        File raw = createCameraCaptureFile("selected-original.jpg");
+        try (InputStream in = input; FileOutputStream out = new FileOutputStream(raw)) {
             byte[] buffer = new byte[8192];
             int read;
             while ((read = in.read(buffer)) != -1) {
                 out.write(buffer, 0, read);
             }
         }
+        try {
+            return compressImageFileToPrivateFile(raw, nameHint == null ? "selected.jpg" : nameHint);
+        } finally {
+            raw.delete();
+        }
+    }
+
+    public String compressImageFileToPrivateFile(File source, String nameHint) throws IOException {
+        File output = createAttachmentFile(nameHint == null ? "scan.jpg" : nameHint);
+        BabyLogImageUtils.compressFileToJpeg(source, output);
         return output.getAbsolutePath();
+    }
+
+    public File createCameraCaptureFile(String nameHint) throws IOException {
+        File base = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File dir = new File(base == null ? context.getFilesDir() : base, "camera-captures");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException("无法创建拍照目录");
+        }
+        String safeName = nameHint == null ? "scan.jpg" : nameHint.replaceAll("[^A-Za-z0-9._-]", "_");
+        return File.createTempFile("babylog-", "-" + safeName, dir);
     }
 
     public File createAttachmentFile(String nameHint) {

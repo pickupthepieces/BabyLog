@@ -1,13 +1,16 @@
 package app.babylog.nativeapp;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.InputType;
@@ -24,7 +27,6 @@ import android.widget.Toast;
 import org.json.JSONException;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -42,6 +44,8 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_PICK_ULTRASOUND = 1202;
     private static final int REQUEST_EXPORT_BACKUP = 1203;
     private static final int REQUEST_IMPORT_BACKUP = 1204;
+    private static final int REQUEST_PERMISSION_CAMERA = 2201;
+    private static final int REQUEST_PERMISSION_IMAGES = 2202;
 
     private static final int BG = 0xFFEEF7F2;
     private static final int SURFACE = 0xFFFFFFFF;
@@ -68,6 +72,8 @@ public final class MainActivity extends Activity {
     private String pendingBackupJson;
     private String currentPhotoPath = "";
     private String currentPhotoName = "";
+    private File pendingCameraFile;
+    private Uri pendingCameraUri;
     private ImageView photoPreview;
     private EditText examDateInput;
     private EditText gestationalAgeInput;
@@ -328,6 +334,7 @@ public final class MainActivity extends Activity {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(4), dp(8), dp(4), 0);
+        body.addView(disclaimer("仅供家庭记录和复诊沟通参考，不能替代医生判断。"), matchWrapWithBottom(10));
         examDateInput = input("检查日期 yyyy-MM-dd", BabyLogFormatters.todayDateInput(), InputType.TYPE_CLASS_DATETIME);
         gestationalAgeInput = input("孕周，例如 28+3", "28+3", InputType.TYPE_CLASS_TEXT);
         bpdInput = input("双顶径 BPD mm", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
@@ -363,15 +370,43 @@ public final class MainActivity extends Activity {
     }
 
     private void launchCamera() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_PERMISSION_CAMERA);
+            return;
+        }
+        startCameraCapture();
+    }
+
+    private void startCameraCapture() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (intent.resolveActivity(getPackageManager()) == null) {
             Toast.makeText(this, "没有找到系统相机", Toast.LENGTH_SHORT).show();
             return;
         }
-        startActivityForResult(intent, REQUEST_CAPTURE_ULTRASOUND);
+        try {
+            pendingCameraFile = service.createCameraCaptureFile("ultrasound-scan.jpg");
+            pendingCameraUri = BabyLogFileProvider.getUriForFile(this, pendingCameraFile);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            grantCameraUriPermissions(intent);
+            startActivityForResult(intent, REQUEST_CAPTURE_ULTRASOUND);
+        } catch (IOException error) {
+            Toast.makeText(this, "启动相机失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+            cleanupPendingCamera();
+        }
     }
 
     private void pickImage() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES}, REQUEST_PERMISSION_IMAGES);
+            return;
+        }
+        startImagePicker();
+    }
+
+    private void startImagePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("image/*");
@@ -413,10 +448,13 @@ public final class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK) {
+            if (requestCode == REQUEST_CAPTURE_ULTRASOUND) {
+                cleanupPendingCamera();
+            }
             return;
         }
         if (requestCode == REQUEST_CAPTURE_ULTRASOUND) {
-            saveCameraThumbnail(data);
+            importCapturedImage();
         } else if (requestCode == REQUEST_PICK_ULTRASOUND && data != null && data.getData() != null) {
             copyPickedImage(data.getData());
         } else if (requestCode == REQUEST_EXPORT_BACKUP && data != null && data.getData() != null) {
@@ -426,25 +464,40 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void saveCameraThumbnail(Intent data) {
-        Object bitmapData = data == null || data.getExtras() == null ? null : data.getExtras().get("data");
-        if (!(bitmapData instanceof Bitmap)) {
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_PERMISSION_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCameraCapture();
+            } else {
+                Toast.makeText(this, "未授权相机，无法拍 B 超单", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == REQUEST_PERMISSION_IMAGES) {
+            if (grantResults.length == 0 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "未授权媒体读取，改用系统文件选择器", Toast.LENGTH_SHORT).show();
+            }
+            startImagePicker();
+        }
+    }
+
+    private void importCapturedImage() {
+        if (pendingCameraFile == null || !pendingCameraFile.exists() || pendingCameraFile.length() == 0) {
             Toast.makeText(this, "相机未返回图片", Toast.LENGTH_SHORT).show();
+            cleanupPendingCamera();
             return;
         }
         try {
-            File file = service.createAttachmentFile("scan.jpg");
-            try (FileOutputStream output = new FileOutputStream(file)) {
-                ((Bitmap) bitmapData).compress(Bitmap.CompressFormat.JPEG, 90, output);
-            }
-            currentPhotoPath = file.getAbsolutePath();
-            currentPhotoName = file.getName();
+            currentPhotoPath = service.compressImageFileToPrivateFile(pendingCameraFile, "scan.jpg");
+            currentPhotoName = new File(currentPhotoPath).getName();
             if (photoPreview != null) {
                 photoPreview.setImageBitmap(BitmapFactory.decodeFile(currentPhotoPath));
             }
-            Toast.makeText(this, "照片已保存到本机", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "照片已压缩保存到本机", Toast.LENGTH_SHORT).show();
         } catch (IOException error) {
             Toast.makeText(this, "保存照片失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        } finally {
+            cleanupPendingCamera();
         }
     }
 
@@ -459,6 +512,30 @@ public final class MainActivity extends Activity {
         } catch (IOException error) {
             Toast.makeText(this, "读取图片失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void grantCameraUriPermissions(Intent intent) {
+        if (pendingCameraUri == null) {
+            return;
+        }
+        int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+        List<ResolveInfo> resolved = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+        for (ResolveInfo info : resolved) {
+            if (info.activityInfo != null) {
+                grantUriPermission(info.activityInfo.packageName, pendingCameraUri, flags);
+            }
+        }
+    }
+
+    private void cleanupPendingCamera() {
+        if (pendingCameraUri != null) {
+            revokeUriPermission(pendingCameraUri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            pendingCameraUri = null;
+        }
+        if (pendingCameraFile != null && pendingCameraFile.exists()) {
+            pendingCameraFile.delete();
+        }
+        pendingCameraFile = null;
     }
 
     private void exportBackup() {
