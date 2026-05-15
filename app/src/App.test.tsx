@@ -17,6 +17,7 @@ describe("BabyLog UI shell", () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:babylog-backup");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    localStorage.clear();
   });
 
   it("renders the pregnancy home workspace", () => {
@@ -117,6 +118,30 @@ describe("BabyLog UI shell", () => {
     expect(await screen.findByText(/同步失败：后端未配置/)).toBeInTheDocument();
     expect(await screen.findByText("1 条待上传")).toBeInTheDocument();
     expect(screen.getByText("1 条需重试")).toBeInTheDocument();
+  });
+
+  it("saves local sync settings before a real backend is connected", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.change(screen.getByLabelText("服务器地址"), {
+      target: { value: " https://example.invalid/api/ " }
+    });
+    fireEvent.change(screen.getByLabelText("服务端地域"), { target: { value: "Tokyo" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存同步配置" }));
+
+    expect(await screen.findByText(/同步配置已保存到本机/)).toBeInTheDocument();
+    expect(screen.getByText("已配置")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://example.invalid/api")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /喂养/ }));
+    await screen.findByText(/喂养已保存到本机/);
+
+    fireEvent.click(screen.getByRole("button", { name: "立即同步" }));
+
+    expect(await screen.findByText(/同步失败：后端不可达/)).toBeInTheDocument();
+    expect(await screen.findByText("1 条需重试")).toBeInTheDocument();
   });
 
   it("exports local records as a JSON backup", async () => {

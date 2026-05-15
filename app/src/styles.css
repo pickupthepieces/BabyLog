@@ -1000,6 +1000,11 @@ p {
   outline: 2px solid var(--primary-soft);
 }
 
+.sync-config-form {
+  grid-template-columns: 1fr;
+  margin-top: 12px;
+}
+
 .file-field {
   grid-column: 1 / -1;
 }

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { estimateStorageUsage } from "./adapters/storage";
-import { createDefaultBackendConfig, createMockSyncAdapter } from "./adapters/backend";
-import type { AttachmentKind, AttachmentRecord, BabyLogEvent, CreateEventInput, EventType } from "./domain/types";
+import { createMockSyncAdapter } from "./adapters/backend";
+import type { AttachmentKind, AttachmentRecord, BabyLogEvent, BackendConfig, CreateEventInput, EventType } from "./domain/types";
 import { createCompleteBackup, parseBackup, restoreAttachmentBlobRecord } from "./storage/backup";
 import { base64ToBlob, formatStorageEstimate, isBlobLike } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
 import type { LocalRepository } from "./storage/localRepository";
+import { loadSyncSettings, saveSyncSettings } from "./storage/syncSettings";
 import { listUnsyncedSyncChanges } from "./storage/syncQueue";
 import { listRecentEvents, recordLocalEvent, recordLocalUltrasound, summarizeEventDay } from "./services/logService";
 import type { LocalUltrasoundFields } from "./services/logService";
@@ -70,6 +71,11 @@ type UltrasoundFormState = {
   flMm: string;
   efwGram: string;
   imageFile?: File;
+};
+
+type SyncSettingsFormState = {
+  backendBaseUrl: string;
+  region: string;
 };
 
 const assetBase = "/assets/kindergarten-vivid";
@@ -191,7 +197,8 @@ const eventTones: Record<EventType, ToneKey> = {
 
 function App() {
   const repository = useMemo(() => createLocalRepository(localDbName), []);
-  const syncAdapter = useMemo(() => createMockSyncAdapter(createDefaultBackendConfig()), []);
+  const initialSyncSettings = useMemo(() => loadSyncSettings(), []);
+  const syncAdapter = useMemo(() => createMockSyncAdapter(initialSyncSettings), [initialSyncSettings]);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [isQuickSheetOpen, setQuickSheetOpen] = useState(false);
   const [isUltrasoundFormOpen, setUltrasoundFormOpen] = useState(false);
@@ -199,6 +206,10 @@ function App() {
   const [isSavingUltrasound, setSavingUltrasound] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [isSyncing, setSyncing] = useState(false);
+  const [syncSettings, setSyncSettings] = useState<BackendConfig>(initialSyncSettings);
+  const [syncSettingsForm, setSyncSettingsForm] = useState<SyncSettingsFormState>(() =>
+    createSyncSettingsForm(initialSyncSettings)
+  );
   const [ultrasoundForm, setUltrasoundForm] = useState<UltrasoundFormState>(() => createDefaultUltrasoundForm());
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [dashboard, setDashboard] = useState<DashboardState>({
@@ -215,6 +226,10 @@ function App() {
   const refreshLocalData = useCallback(() => {
     setRefreshVersion((version) => version + 1);
   }, []);
+
+  useEffect(() => {
+    syncAdapter.configure(syncSettings);
+  }, [syncAdapter, syncSettings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,6 +381,20 @@ function App() {
     }
   }
 
+  function handleSaveSyncSettings() {
+    const saved = saveSyncSettings({
+      ...syncSettings,
+      enabled: syncSettingsForm.backendBaseUrl.trim() !== "",
+      backendBaseUrl: syncSettingsForm.backendBaseUrl,
+      region: syncSettingsForm.region,
+      lastHealthCheck: null
+    });
+
+    setSyncSettings(saved);
+    setSyncSettingsForm(createSyncSettingsForm(saved));
+    setToast(saved.enabled ? "同步配置已保存到本机，等待后端接入验证" : "同步配置已清空，当前为本机模式");
+  }
+
   return (
     <main className="app-shell">
       <section className="phone-frame" aria-label="BabyLog PWA 工作区">
@@ -391,7 +420,11 @@ function App() {
               pendingSyncCount={dashboard.pendingSyncCount}
               failedSyncCount={dashboard.failedSyncCount}
               storageUsage={dashboard.storageUsage}
+              syncSettings={syncSettings}
+              syncSettingsForm={syncSettingsForm}
               isSyncing={isSyncing}
+              onSyncSettingsFormChange={(patch) => setSyncSettingsForm((current) => ({ ...current, ...patch }))}
+              onSaveSyncSettings={handleSaveSyncSettings}
               onExportBackup={handleExportBackup}
               onImportBackup={handleImportBackup}
               onSyncNow={handleSyncNow}
@@ -643,7 +676,11 @@ function SettingsView({
   pendingSyncCount,
   failedSyncCount,
   storageUsage,
+  syncSettings,
+  syncSettingsForm,
   isSyncing,
+  onSyncSettingsFormChange,
+  onSaveSyncSettings,
   onExportBackup,
   onImportBackup,
   onSyncNow
@@ -651,7 +688,11 @@ function SettingsView({
   pendingSyncCount: number;
   failedSyncCount: number;
   storageUsage: string;
+  syncSettings: BackendConfig;
+  syncSettingsForm: SyncSettingsFormState;
   isSyncing: boolean;
+  onSyncSettingsFormChange: (patch: Partial<SyncSettingsFormState>) => void;
+  onSaveSyncSettings: () => void;
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
   onSyncNow: () => void;
@@ -676,16 +717,39 @@ function SettingsView({
 
       <section className="settings-panel" aria-label="同步">
         <h2>同步</h2>
-        <SettingRow label="后端" value="后端未配置" />
+        <SettingRow label="后端" value={syncSettings.enabled ? "已配置" : "后端未配置"} />
         <SettingRow label="待同步记录" value={`${pendingSyncCount} 条待上传`} />
         <SettingRow label="失败记录" value={`${failedSyncCount} 条需重试`} />
-        <SettingRow label="服务端地域" value="—" />
+        <SettingRow label="服务端地域" value={syncSettings.region || "—"} />
         <SettingRow label="最近健康检查" value="—" />
+        <div className="form-grid sync-config-form">
+          <label>
+            <span>服务器地址</span>
+            <input
+              inputMode="url"
+              placeholder="https://your-domain.example/api"
+              value={syncSettingsForm.backendBaseUrl}
+              onChange={(event) => onSyncSettingsFormChange({ backendBaseUrl: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>服务端地域</span>
+            <input
+              inputMode="text"
+              placeholder="Tokyo / Singapore"
+              value={syncSettingsForm.region}
+              onChange={(event) => onSyncSettingsFormChange({ region: event.currentTarget.value })}
+            />
+          </label>
+        </div>
+        <button className="primary-button outline" type="button" onClick={onSaveSyncSettings}>
+          保存同步配置
+        </button>
         <button className="primary-button outline" type="button" disabled={isSyncing} onClick={onSyncNow}>
           {isSyncing ? "同步中" : "立即同步"}
         </button>
         <p className="settings-hint">
-          当前所有记录先保存到本机 IndexedDB；启用同步后，再把 pending 队列上传到你选定的服务器。
+          当前所有记录先保存到本机 IndexedDB；服务器地址只保存在当前浏览器，后续接入后端后再上传 pending 队列。
         </p>
       </section>
 
@@ -1129,6 +1193,13 @@ function createDefaultUltrasoundForm(): UltrasoundFormState {
     acMm: "",
     flMm: "",
     efwGram: ""
+  };
+}
+
+function createSyncSettingsForm(config: BackendConfig): SyncSettingsFormState {
+  return {
+    backendBaseUrl: config.backendBaseUrl,
+    region: config.region
   };
 }
 
