@@ -43,8 +43,9 @@ npm run build
 
 ## 部署
 
-腾讯云服务器部署说明见：
+服务器部署说明见：
 
+- `Vultr部署说明.md`
 - `腾讯云部署说明.md`
 - `iOS部署说明.md`
 - `deploy/nginx-babylog.conf`
