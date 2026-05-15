@@ -5,7 +5,8 @@ import { createBackup } from "./storage/backup";
 import { formatStorageEstimate } from "./storage/attachments";
 import { createLocalRepository } from "./storage/localRepository";
 import { listPendingSyncChanges } from "./storage/syncQueue";
-import { listRecentEvents, recordLocalEvent, summarizeEventDay } from "./services/logService";
+import { listRecentEvents, recordLocalEvent, recordLocalUltrasound, summarizeEventDay } from "./services/logService";
+import type { LocalUltrasoundFields } from "./services/logService";
 import type { EventDaySummary } from "./services/logService";
 import "./styles.css";
 
@@ -38,6 +39,17 @@ type DashboardState = {
   pendingSyncCount: number;
   storageUsage: string;
   isLoading: boolean;
+};
+
+type UltrasoundFormState = {
+  examDate: string;
+  gestationalAge: string;
+  bpdMm: string;
+  hcMm: string;
+  acMm: string;
+  flMm: string;
+  efwGram: string;
+  imageFile?: File;
 };
 
 const assetBase = "/assets/kindergarten-vivid";
@@ -155,8 +167,11 @@ function App() {
   const repository = useMemo(() => createLocalRepository(localDbName), []);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [isQuickSheetOpen, setQuickSheetOpen] = useState(false);
+  const [isUltrasoundFormOpen, setUltrasoundFormOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [isSavingUltrasound, setSavingUltrasound] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [ultrasoundForm, setUltrasoundForm] = useState<UltrasoundFormState>(() => createDefaultUltrasoundForm());
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [dashboard, setDashboard] = useState<DashboardState>({
     recentEvents: [],
@@ -206,6 +221,13 @@ function App() {
   }, [repository, refreshVersion]);
 
   async function handleQuickRecord(action: QuickAction) {
+    if (action.eventType === "ultrasound") {
+      setQuickSheetOpen(false);
+      setUltrasoundForm(createDefaultUltrasoundForm());
+      setUltrasoundFormOpen(true);
+      return;
+    }
+
     setBusyAction(action.label);
     try {
       await recordLocalEvent(repository, createQuickEventInput(action));
@@ -216,6 +238,26 @@ function App() {
       setToast(`保存失败：${getErrorMessage(error)}`);
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  async function handleSaveUltrasound() {
+    setSavingUltrasound(true);
+    try {
+      await recordLocalUltrasound(repository, {
+        familyId: localFamilyId,
+        childId: localChildId,
+        occurredAt: createOccurredAtFromDate(ultrasoundForm.examDate),
+        fields: buildUltrasoundFields(ultrasoundForm),
+        imageFile: ultrasoundForm.imageFile
+      });
+      setUltrasoundFormOpen(false);
+      setToast("B 超已保存到本机，等待同步");
+      refreshLocalData();
+    } catch (error) {
+      setToast(`B 超保存失败：${getErrorMessage(error)}`);
+    } finally {
+      setSavingUltrasound(false);
     }
   }
 
@@ -271,6 +313,16 @@ function App() {
           busyAction={busyAction}
           onClose={() => setQuickSheetOpen(false)}
           onRecord={handleQuickRecord}
+        />
+      )}
+
+      {isUltrasoundFormOpen && (
+        <UltrasoundFormSheet
+          form={ultrasoundForm}
+          isSaving={isSavingUltrasound}
+          onChange={(patch) => setUltrasoundForm((current) => ({ ...current, ...patch }))}
+          onClose={() => setUltrasoundFormOpen(false)}
+          onSave={handleSaveUltrasound}
         />
       )}
     </main>
@@ -580,6 +632,113 @@ function QuickSheet({
   );
 }
 
+function UltrasoundFormSheet({
+  form,
+  isSaving,
+  onChange,
+  onClose,
+  onSave
+}: {
+  form: UltrasoundFormState;
+  isSaving: boolean;
+  onChange: (patch: Partial<UltrasoundFormState>) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="sheet-layer">
+      <button className="sheet-scrim" type="button" aria-label="关闭 B 超记录" onClick={onClose} />
+      <section className="quick-sheet form-sheet" role="dialog" aria-label="B 超记录">
+        <div className="sheet-handle" />
+        <div className="section-title">
+          <h2>B 超记录</h2>
+          <button className="text-button" type="button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+        <div className="form-grid">
+          <label>
+            <span>检查日期</span>
+            <input
+              type="date"
+              value={form.examDate}
+              onChange={(event) => onChange({ examDate: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>孕周</span>
+            <input
+              inputMode="text"
+              placeholder="28+3"
+              value={form.gestationalAge}
+              onChange={(event) => onChange({ gestationalAge: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>双顶径 BPD</span>
+            <input
+              inputMode="decimal"
+              placeholder="mm"
+              value={form.bpdMm}
+              onChange={(event) => onChange({ bpdMm: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>头围 HC</span>
+            <input
+              inputMode="decimal"
+              placeholder="mm"
+              value={form.hcMm}
+              onChange={(event) => onChange({ hcMm: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>腹围 AC</span>
+            <input
+              inputMode="decimal"
+              placeholder="mm"
+              value={form.acMm}
+              onChange={(event) => onChange({ acMm: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>股骨长 FL</span>
+            <input
+              inputMode="decimal"
+              placeholder="mm"
+              value={form.flMm}
+              onChange={(event) => onChange({ flMm: event.currentTarget.value })}
+            />
+          </label>
+          <label>
+            <span>估计胎重 EFW</span>
+            <input
+              inputMode="decimal"
+              placeholder="g"
+              value={form.efwGram}
+              onChange={(event) => onChange({ efwGram: event.currentTarget.value })}
+            />
+          </label>
+          <label className="file-field">
+            <span>B 超单照片</span>
+            <input
+              type="file"
+              aria-label="B 超单照片"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => onChange({ imageFile: event.currentTarget.files?.[0] })}
+            />
+            <small>{form.imageFile ? form.imageFile.name : "可直接拍照或选择相册图片"}</small>
+          </label>
+        </div>
+        <button className="primary-button full-width" type="button" disabled={isSaving} onClick={onSave}>
+          {isSaving ? "保存中" : "保存 B 超记录"}
+        </button>
+      </section>
+    </div>
+  );
+}
+
 function TimelineRow({
   day,
   time,
@@ -675,6 +834,70 @@ function createQuickEventInput(action: QuickAction): CreateEventInput {
       quickAction: action.label
     }
   };
+}
+
+function createDefaultUltrasoundForm(): UltrasoundFormState {
+  return {
+    examDate: formatDateInputValue(new Date()),
+    gestationalAge: "28+3",
+    bpdMm: "",
+    hcMm: "",
+    acMm: "",
+    flMm: "",
+    efwGram: ""
+  };
+}
+
+function buildUltrasoundFields(form: UltrasoundFormState): LocalUltrasoundFields {
+  return {
+    examDate: form.examDate,
+    gestationalAgeDays: parseGestationalAgeDays(form.gestationalAge),
+    bpdMm: parseOptionalNumber(form.bpdMm),
+    hcMm: parseOptionalNumber(form.hcMm),
+    acMm: parseOptionalNumber(form.acMm),
+    flMm: parseOptionalNumber(form.flMm),
+    efwGram: parseOptionalNumber(form.efwGram)
+  };
+}
+
+function parseGestationalAgeDays(value: string): number | undefined {
+  const match = value.trim().match(/^(\d{1,2})(?:\s*\+\s*(\d))?/);
+  if (!match) {
+    return undefined;
+  }
+
+  return Number(match[1]) * 7 + Number(match[2] ?? 0);
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+  const normalized = value.trim();
+  if (normalized === "") {
+    return undefined;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function createOccurredAtFromDate(date: string): string {
+  if (!date) {
+    return new Date().toISOString();
+  }
+
+  const now = new Date();
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  const second = String(now.getSeconds()).padStart(2, "0");
+
+  return new Date(`${date}T${hour}:${minute}:${second}`).toISOString();
+}
+
+function formatDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function buildTodayHighlights(dashboard: DashboardState): Array<{ label: string; value: string; sub: string }> {

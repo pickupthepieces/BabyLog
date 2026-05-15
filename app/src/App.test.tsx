@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "./App";
 
 describe("BabyLog UI shell", () => {
@@ -110,5 +110,41 @@ describe("BabyLog UI shell", () => {
 
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
     expect(await screen.findByText(/备份已生成/)).toBeInTheDocument();
+  });
+
+  it("records ultrasound measurements and a scan image locally", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷记录" }));
+    fireEvent.click(screen.getByRole("button", { name: /B超/ }));
+
+    expect(await screen.findByRole("dialog", { name: "B 超记录" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("检查日期"), { target: { value: "2026-05-15" } });
+    fireEvent.change(screen.getByLabelText("孕周"), { target: { value: "28+3" } });
+    fireEvent.change(screen.getByLabelText("双顶径 BPD"), { target: { value: "71" } });
+    fireEvent.change(screen.getByLabelText("头围 HC"), { target: { value: "258" } });
+    fireEvent.change(screen.getByLabelText("腹围 AC"), { target: { value: "235" } });
+    fireEvent.change(screen.getByLabelText("股骨长 FL"), { target: { value: "54" } });
+    fireEvent.change(screen.getByLabelText("估计胎重 EFW"), { target: { value: "1320" } });
+    fireEvent.change(screen.getByLabelText("B 超单照片"), {
+      target: {
+        files: [new File(["scan-image"], "scan.jpg", { type: "image/jpeg" })]
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存 B 超记录" }));
+
+    expect(await screen.findByText(/B 超已保存到本机/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "时间线" }));
+
+    const timeline = await screen.findByLabelText("时间线记录");
+    expect(within(timeline).getByText("B 超")).toBeInTheDocument();
+    expect(within(timeline).getByText("28+3 周 · EFW 1320 g · BPD 71 mm")).toBeInTheDocument();
+    expect(within(timeline).getByLabelText("含 1 张附件")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+
+    expect(await screen.findByText("2 条待上传")).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createEvent } from "../domain/types";
 import { createLocalRepository } from "../storage/localRepository";
 import { listPendingSyncChanges } from "../storage/syncQueue";
-import { listRecentEvents, recordLocalEvent, summarizeEventDay } from "./logService";
+import { listRecentEvents, recordLocalEvent, recordLocalUltrasound, summarizeEventDay } from "./logService";
 
 describe("local log service", () => {
   beforeEach(() => {
@@ -32,6 +32,54 @@ describe("local log service", () => {
         status: "pending"
       }
     ]);
+  });
+
+  it("records ultrasound measurements with an optional local image attachment", async () => {
+    const repository = createLocalRepository("babylog-service-test");
+    const image = new File(["scan-image"], "scan.jpg", { type: "image/jpeg" });
+
+    const event = await recordLocalUltrasound(repository, {
+      familyId: "family-1",
+      childId: "child-1",
+      occurredAt: "2026-05-15T09:30:00+08:00",
+      fields: {
+        examDate: "2026-05-15",
+        gestationalAgeDays: 199,
+        bpdMm: 71,
+        hcMm: 258,
+        acMm: 235,
+        flMm: 54,
+        efwGram: 1320
+      },
+      imageFile: image
+    });
+
+    const attachments = await repository.listByFamily("attachments", "family-1");
+    const savedBlob = await repository.get("attachmentBlobs", `blob_${attachments[0].id}`);
+    const pendingChanges = await listPendingSyncChanges(repository, "family-1");
+
+    expect(event.eventType).toBe("ultrasound");
+    expect(event.attachmentIds).toEqual([attachments[0].id]);
+    expect(event.payload).toMatchObject({
+      bpdMm: 71,
+      efwGram: 1320,
+      summary: "28+3 周 · EFW 1320 g · BPD 71 mm"
+    });
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]).toMatchObject({
+      kind: "ultrasound_image",
+      originalName: "scan.jpg",
+      mimeType: "image/jpeg",
+      byteSize: image.size,
+      ocrStatus: "not-requested"
+    });
+    expect(savedBlob?.blob).toBeTruthy();
+    expect(pendingChanges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entityType: "event", entityId: event.id, operation: "upsert" }),
+        expect.objectContaining({ entityType: "attachment", entityId: attachments[0].id, operation: "upsert" })
+      ])
+    );
   });
 
   it("lists recent active events newest first with a limit", async () => {

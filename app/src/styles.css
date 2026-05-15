@@ -843,6 +843,65 @@ p {
   white-space: nowrap;
 }
 
+.form-sheet {
+  max-height: min(88svh, 760px);
+  overflow-y: auto;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-grid label span {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.form-grid input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-1);
+  background: var(--surface-2);
+  font: inherit;
+}
+
+.form-grid input:focus {
+  border-color: var(--primary);
+  outline: 2px solid var(--primary-soft);
+}
+
+.file-field {
+  grid-column: 1 / -1;
+}
+
+.file-field input {
+  height: auto;
+  padding: 10px 12px;
+}
+
+.file-field small {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.full-width {
+  width: 100%;
+}
+
 @keyframes sheet-in {
   from {
     transform: translateY(22px);
@@ -871,6 +930,10 @@ p {
 
   .sheet-grid {
     gap: 8px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 
   .setting-row strong {
