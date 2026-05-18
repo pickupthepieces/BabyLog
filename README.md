@@ -1,75 +1,70 @@
 # BabyLog
 
-BabyLog 是一个家庭自用的孕育记录 App，目标覆盖怀孕全阶段到宝宝 3 岁。当前阶段一优先做 Android 原生 APK，先在小米真机上跑通；PWA 路径在 `app/` 暂搁置作为参考实现。本地优先，后端、同步和 OCR 都先保留接口，不阻塞本地使用。
+家庭自用的孕育记录 App，覆盖怀孕全阶段到宝宝 3 岁。本地优先，单胎单宝宝，医疗内容只做记录、趋势与参考提示，不做诊断。
 
-## 当前范围
+## 当前状态
 
-- **阶段一**：Android 原生 APK（`android-native/`，Java + AndroidX AppCompat）。
-- **阶段二**：再评估 PWA / iOS 走向；`app/` (Vite + React + TS) 仍维护数据模型与字段定义作为参考。
-- 当前 App 仅支持单胎/单宝宝 UI；数据模型保留 `familyId` / `childId`，为后续扩展预留。
-- 本地优先，原生用 `SharedPreferences` JSON（计划迁 Room）；PWA 用 IndexedDB。
-- 后端技术栈未决，倾向 PocketBase，FastAPI 仍为候选。
-- 医疗内容只做记录、趋势和参考提示，不做诊断。
+| 项 | 内容 |
+|---|---|
+| 主线 | **Android 原生 APK**（`android-native/`） |
+| UI 技术 | **Jetpack Compose**（单一 UI；早期 Java 手写 View 已废弃删除） |
+| 逻辑层 | Java（Domain / Service / Repository / Formatters / FileProvider / ImageUtils），Compose 复用 |
+| 数据 | 本机 `SharedPreferences` JSON（后续视情况迁 Room） |
+| 同步 | VPS 已就绪；按 `familyId` 的 push/pull 在重构后续阶段做，未配置时纯本机可用 |
+| 后端 | PocketBase（已定） |
+| 范围 | 单胎/单宝宝；多胎仅数据模型 1:N 预留，UI 不实现 |
 
-## 项目结构
+阶段二（PWA / iOS）暂搁置，详见下方"参考与历史"。
+
+## 仓库结构
+
+### 主线（在用）
 
 | 路径 | 说明 |
 |---|---|
-| `android-native/` | **阶段一主线**：Java + AndroidX AppCompat 原生 APK |
-| `android-native/app/src/main/java/app/babylog/nativeapp/` | Activity、Domain、Repository、Service、Formatters |
-| `android-native/smoke-tests/` | 离线可跑的纯 JVM smoke test |
-| `app/` | 参考实现：Vite + React + TypeScript PWA（阶段二再评估） |
-| `app/src/domain/` | 数据模型、孕周/年龄计算、B 超字段定义（双端共享 schema） |
-| `app/src/storage/` | IndexedDB repository、备份、附件、同步队列 |
-| `app/src/adapters/` | 后端、OCR、浏览器存储适配层 |
-| `app/src/services/` | UI 可复用的应用服务层 |
-| `deploy/` | Nginx 配置和 Windows 部署脚本（PWA 路径） |
-| `prototype/` | 静态 HTML 原型（设计参考） |
-| `*.md` | 立项、需求、UI、Android 补充、部署文档 |
+| `android-native/` | Android 原生 APK 工程；`ComposeMainActivity.kt` 为唯一 Activity |
+| `android-native/app/src/main/java/app/babylog/nativeapp/` | Compose UI + Java 逻辑层（Domain / Service / Repository / Formatters / FileProvider / ImageUtils） |
+| `android-native/smoke-tests/` | 离线可跑的纯 JVM smoke test（Domain / Service / Formatters / ImageUtils） |
+| `android-native/README.md` | 构建、签名、离线缓存说明 |
+| `.github/workflows/android-native.yml` | CI：JVM smoke test + `assembleDebug` + 条件 signed release |
 
-## Android 原生构建（阶段一）
+### 产品与设计文档
 
-要求：JDK 17、Android SDK（验证使用 `compileSdk 36`）。
+| 路径 | 说明 |
+|---|---|
+| `项目立项书.md` | 产品定位、范围、数据模型、里程碑、非目标 |
+| `需求评估表.md` | 需求优先级、MVP 裁剪、风险 |
+| `UI设计书.md` | UI 方向、design tokens、组件、屏幕规格 |
+| `docs/BabyLog阶段主线重构计划.md` | 阶段投影（孕期 / 出生后）重构计划与验收标准 |
+| `docs/BabyLog重构前逻辑核查.md` | 重构前锁定的逻辑缺陷与门禁（L-1~L-13） |
+| `docs/Piyo对标差异与BabyLog产品方向.md` | 对标 Piyo日志的产品方向分析 |
+
+### 参考与历史（不在主线迭代）
+
+| 路径 | 说明 |
+|---|---|
+| `app/` | Vite + React + TS 的 PWA 实现；阶段二再评估，当前仅作数据模型 / 字段定义 / 业务逻辑的参考，UI 部分已被 Android 主线取代 |
+| `prototype/` | 早期静态 HTML 原型，设计已演进，仅留作设计史 |
+| `deploy/`、`Vultr部署说明.md`、`腾讯云部署说明.md`、`iOS部署说明.md` | **PWA / 阶段二** 的服务器部署资料，与当前 Android 主线无关 |
+
+> 仓库内不写入服务器 IP、域名、SSH 用户、Android keystore 等敏感参数；部署时通过脚本参数或 CI Secrets 注入。
+
+## 构建 Android（主线）
+
+要求：JDK 17、Android SDK（`compileSdk 36`）。首次构建需联网，让 Gradle 缓存 Compose / Kotlin / AndroidX 依赖；之后可离线构建。
 
 ```powershell
 cd android-native
-.\gradlew.bat "-Pandroid.aapt2FromMavenOverride=$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\aapt2.exe" clean :app:assembleDebug --offline --console=plain
+.\gradlew.bat "-Pandroid.aapt2FromMavenOverride=$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\aapt2.exe" :app:assembleDebug --console=plain
 ```
 
 APK 输出：`android-native/app/build/outputs/apk/debug/app-debug.apk`。
 
-Release APK 体积预算：阶段一控制在 8 MiB 内；当前 signed release 实测 `app-release.apk` 为 4,178,567 B（3.98 MiB）。
+Release 签名走本机 `android-native/signing.properties` 或 CI Secrets 注入；CI 配置 `BABYLOG_RELEASE_KEYSTORE_BASE64` 等 Secret 后构建 signed release。详见 `android-native/README.md`。
 
-详见 `android-native/README.md`。
+## 非目标
 
-## PWA 本地开发（参考）
-
-```powershell
-cd app
-npm install
-npm run dev
-```
-
-```powershell
-cd app
-npm test
-npm run build
-```
-
-PWA 最近一次验证：`9 files / 40 tests passed`，`npm run build` passed。
-
-## 部署
-
-PWA 服务器部署说明：
-
-- `Vultr部署说明.md`
-- `腾讯云部署说明.md`
-- `iOS部署说明.md`
-- `deploy/nginx-babylog.conf`
-- `deploy/deploy-pwa.ps1`
-
-Android APK 分发：`android-native/app/build.gradle` 已支持通过本机 `android-native/signing.properties`
-或 CI Secrets 注入 release keystore；`.github/workflows/android-native.yml` 会构建 debug 包，并在配置
-`BABYLOG_RELEASE_KEYSTORE_BASE64` 等 Secrets 后构建 signed release 包。
-
-服务器 IP、域名、SSH 用户、Android keystore 等敏感参数不写入仓库。
+- 不做公开 SaaS / 多家庭运营 / 商业化（自家 + 至多月嫂的小范围使用）
+- 不做第三方账户（Google / Apple / 微信）；同步只做家庭密钥校验
+- 不做医疗诊断；曲线和范围只作记录与参考提示
+- 阶段一不做 OCR、不做完整云同步、不迁 Room（接口/字段预留，能力后置）
