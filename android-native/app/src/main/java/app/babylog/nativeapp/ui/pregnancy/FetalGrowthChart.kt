@@ -64,9 +64,23 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
         extractFetalGrowthPoints(events, selectedMetric)
     }
     val latest = points.maxByOrNull { it.gestationalAgeDays }
+    val latestReference = latest?.let {
+        BabyLogFetalGrowthReference.evaluate(BabyLogFetalGrowthReference.DEFAULT_STANDARD, selectedMetric.key, it.gestationalAgeDays, it.value)
+    }
 
     Panel {
-        SectionHeader(title = "胎儿成长曲线", action = "自有 B 超数据")
+        SectionHeader(title = "胎儿成长曲线", action = "近似参考")
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = BabyLogFetalGrowthReference.approximationNotice(),
+            color = Color(0xFF7C4A21),
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFEBCB), RoundedCornerShape(12.dp))
+                .padding(12.dp)
+        )
         Spacer(Modifier.height(10.dp))
         Row(
             modifier = Modifier
@@ -108,13 +122,13 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
             FetalGrowthCanvas(points, selectedMetric)
             Row(Modifier.fillMaxWidth()) {
                 Text(
-                    text = BabyLogFormatters.formatGestationalAge(points.first().gestationalAgeDays),
+                    text = "14 周",
                     color = ChestnutPalette.Text3,
                     fontSize = 11.sp
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = BabyLogFormatters.formatGestationalAge(points.last().gestationalAgeDays),
+                    text = "40 周",
                     color = ChestnutPalette.Text3,
                     fontSize = 11.sp
                 )
@@ -129,7 +143,14 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
                 fontSize = 13.sp
             )
             Text(
-                text = if (points.size == 1) "已有 1 次 B 超指标，继续录入后会形成趋势。" else "共 ${points.size} 个数据点，仅展示自有记录，不叠加参考曲线。",
+                text = latestReference?.let {
+                    "${it.standardLabel} · ${BabyLogFetalGrowthReference.formatResult(it)} · 未校准 P10/P50/P90"
+                } ?: "参考曲线需要有效孕周和 ${selectedMetric.label} 数值。",
+                color = ChestnutPalette.Muted,
+                fontSize = 12.sp
+            )
+            Text(
+                text = if (points.size == 1) "已有 1 次 B 超指标；当前百分位和 Z-score 是未校准近似值。" else "共 ${points.size} 个数据点；当前百分位和 Z-score 是未校准近似值。",
                 color = ChestnutPalette.Text3,
                 fontSize = 12.sp
             )
@@ -153,12 +174,24 @@ private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowt
         val plotWidth = max(1f, right - left)
         val plotHeight = max(1f, bottom - top)
 
-        val minWeek = points.minOf { it.gestationalAgeDays }
-        val maxWeek = points.maxOf { it.gestationalAgeDays }
-        val minValue = points.minOf { it.value }
-        val maxValue = points.maxOf { it.value }
+        val minWeek = 14 * 7
+        val maxWeek = 40 * 7
+        val referenceWeeks = (14..40).map { it * 7 }
+        val p10Values = referenceWeeks.map {
+            BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, -1.2815515655446004)
+        }
+        val p50Values = referenceWeeks.map {
+            BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, 0.0)
+        }
+        val p90Values = referenceWeeks.map {
+            BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, 1.2815515655446004)
+        }
+        val allValues = (points.map { it.value } + p10Values + p90Values)
+            .filter { !it.isNaN() && !it.isInfinite() }
+        val minValue = allValues.minOrNull() ?: points.minOf { it.value }
+        val maxValue = allValues.maxOrNull() ?: points.maxOf { it.value }
         val weekSpan = max(7, maxWeek - minWeek)
-        val valuePadding = max(1.0, (maxValue - minValue) * 0.18)
+        val valuePadding = max(1.0, (maxValue - minValue) * 0.10)
         val yMin = minValue - valuePadding
         val yMax = maxValue + valuePadding
         val valueSpan = max(1.0, yMax - yMin)
@@ -185,16 +218,36 @@ private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowt
             strokeWidth = 1.2.dp.toPx()
         )
 
-        fun toOffset(point: FetalGrowthPoint): Offset {
-            val xRatio = (point.gestationalAgeDays - minWeek).toFloat() / weekSpan.toFloat()
-            val yRatio = ((point.value - yMin) / valueSpan).toFloat()
+        fun toOffset(gestationalAgeDays: Int, value: Double): Offset {
+            val xRatio = (gestationalAgeDays - minWeek).toFloat() / weekSpan.toFloat()
+            val yRatio = ((value - yMin) / valueSpan).toFloat()
             return Offset(
                 x = left + plotWidth * xRatio,
                 y = bottom - plotHeight * yRatio
             )
         }
 
-        val offsets = points.map(::toOffset)
+        fun drawReference(values: List<Double>, color: Color, strokeWidth: Float) {
+            referenceWeeks.zip(values)
+                .filter { !it.second.isNaN() && !it.second.isInfinite() }
+                .map { toOffset(it.first, it.second) }
+                .zipWithNext()
+                .forEach { (start, end) ->
+                    drawLine(
+                        color = color,
+                        start = start,
+                        end = end,
+                        strokeWidth = strokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                }
+        }
+
+        drawReference(p10Values, ChestnutPalette.Blue.copy(alpha = 0.48f), 1.4.dp.toPx())
+        drawReference(p50Values, ChestnutPalette.Green.copy(alpha = 0.58f), 1.8.dp.toPx())
+        drawReference(p90Values, ChestnutPalette.Peach.copy(alpha = 0.48f), 1.4.dp.toPx())
+
+        val offsets = points.map { toOffset(it.gestationalAgeDays, it.value) }
         offsets.zipWithNext().forEach { (start, end) ->
             drawLine(
                 color = metric.tone,

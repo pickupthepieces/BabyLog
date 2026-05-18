@@ -327,10 +327,21 @@ BabyLog 的目标使用者是一个真实家庭：爸爸、妈妈、爷爷奶奶
 | R-10.4 | B 超单识别 SHOULD 使用用户本机配置的 OpenAI-compatible 多模态模型 |
 | R-10.5 | 大模型配置 MUST 包含 `baseUrl`、`model` 和本机加密保存的 `apiKey` |
 | R-10.6 | `apiKey` MUST NOT 进入 `FamilyProfile`、`ChildProfile`、backup JSON、sync payload 或日志 |
-| R-10.7 | 识别候选字段 MUST 覆盖 BPD、HC、AC、FL、EFW、AFI、最大羊水池、胎盘位置、胎盘成熟度、胎位、脐动脉 S/D、PI、RI |
+| R-10.7 | B 超单识别 v1 MUST 只自动生成检查日期、BPD、HC、AC、FL、明确 EFW 候选；孕周 MUST 由用户根据报告手动填写或由预产期计算，不得由模型识别或推断；AFI、最大羊水池、胎盘、胎位、宫颈、侧脑室、脐血流等 MUST 留在 `rawText`/`warnings` 或手动录入，不得自动应用 |
 | R-10.8 | 识别结果 MUST 显示置信度或警告，单位不确定、字段冲突、日期/孕周歧义必须要求人工核对 |
 | R-10.9 | 用户取消候选确认时，MUST 保留附件但不得新增或修改 B 超事件 |
 | R-10.10 | 识别失败、超时或模型未配置时，MUST 保留手动录入路径 |
+| R-10.11 | 保存 B 超事件 MUST 至少包含一张有效 B 超单图片，或 BPD/HC/AC/FL/EFW 任一生长指标；检查日期、孕周、羊水、胎盘等不能单独形成记录 |
+
+### R-11 FGR Reference Curves
+
+| 要求 | 规则 |
+|---|---|
+| R-11.1 | FGR 参考第一轮 MUST 只做香港近似参考，不做诊断结论，不暴露多标准切换器；在真实 Leung 2008/CUHK 参数和 HK EFW 出处接入前不得称为精确香港曲线 |
+| R-11.2 | 百分位计算 MUST 使用用户手动填写或按预产期推导的孕周；MUST NOT 使用 OCR 推断孕周 |
+| R-11.3 | UI 可显示 P10/P50/P90 参考带、当前值百分位和 Z-score；当前实现 MUST 标注“未校准近似引擎 / 仅供记录和复诊沟通参考，不能替代医生判断” |
+| R-11.4 | Z-score v1 MAY 使用近似模型以达到现用小程序同级体验，但 UI/文档 MUST 标注为记录参考；拿到同一参考标准的均值/SD、LMS 参数或官方公式后 SHOULD 替换为精确计算 |
+| R-11.5 | 详细集成边界见 `docs/FGR参考曲线集成评估.md` |
 
 ## Data Model
 
@@ -496,7 +507,7 @@ Phase 2-5 的阶段投影 UI MUST 在 `ComposeMainActivity.kt` 实现。`MainAct
 | AC-30 | App 不出现 Google/Apple/微信等第三方账户登录入口；服务器接入后也只做家庭身份校验和同步授权 |
 | AC-31 | 长文本备注、产检结论、医生建议类字段支持多行输入，并可通过系统键盘语音输入 |
 | AC-32 | B 超单识别未配置模型时不影响拍照、选图、手动保存 B 超 |
-| AC-33 | B 超单识别成功后只展示候选字段；未点击确认前不写入事件库 |
+| AC-33 | B 超单识别成功后只展示生长指标候选字段；未点击确认前不写入事件库，非生长医学描述不得自动应用 |
 | AC-34 | 导出备份和同步 payload 不包含用户大模型 API Key |
 
 ## Claude Review Checklist
