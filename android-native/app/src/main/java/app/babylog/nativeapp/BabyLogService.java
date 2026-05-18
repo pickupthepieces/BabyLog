@@ -38,7 +38,7 @@ public final class BabyLogService {
 
     public BabyLogDomain.BabyLogEvent recordQuickEvent(QuickAction action) throws JSONException {
         JSONObject payload = new JSONObject();
-        payload.put("summary", action.summary);
+        payload.put("summary", action.label);
         payload.put("quickAction", action.label);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 action.eventType,
@@ -1095,18 +1095,14 @@ public final class BabyLogService {
     public static final class QuickAction {
         public final String label;
         public final String hint;
-        public final int assetResId;
         public final int toneColor;
         public final String eventType;
-        public final String summary;
 
-        public QuickAction(String label, String hint, int assetResId, int toneColor, String eventType, String summary) {
+        public QuickAction(String label, String hint, int toneColor, String eventType) {
             this.label = label;
             this.hint = hint;
-            this.assetResId = assetResId;
             this.toneColor = toneColor;
             this.eventType = eventType;
-            this.summary = summary;
         }
     }
 

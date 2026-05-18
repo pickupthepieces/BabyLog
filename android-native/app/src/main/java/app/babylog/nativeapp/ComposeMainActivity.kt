@@ -71,7 +71,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -864,21 +863,21 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun quickActionsForStage(stage: String): List<BabyLogService.QuickAction> {
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             return listOf(
-                BabyLogService.QuickAction("B超", "指标 / 照片 / 识别", R.drawable.ultrasound_sheet, ChestnutPalette.RoseArgb, "ultrasound", "B 超快捷记录 · 待补指标/照片"),
-                BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", R.drawable.baby_diary_notebook, ChestnutPalette.VioletArgb, "pregnancy_checkup", "产检快捷记录"),
-                BabyLogService.QuickAction("胎动", "会话计数 / 10 次目标", R.drawable.family_heart, ChestnutPalette.GreenArgb, "fetal_movement", "胎动快捷记录"),
-                BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", R.drawable.icon_chart, ChestnutPalette.PeachArgb, "contraction", "宫缩快捷记录"),
-                BabyLogService.QuickAction("孕妈指标", "体重 / 血压 / 血糖", R.drawable.growth_ruler, ChestnutPalette.BlueArgb, "maternal_metric", "孕妈指标快捷记录")
+                BabyLogService.QuickAction("B超", "指标 / 照片 / 识别", ChestnutPalette.RoseArgb, "ultrasound"),
+                BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", ChestnutPalette.VioletArgb, "pregnancy_checkup"),
+                BabyLogService.QuickAction("胎动", "会话计数 / 10 次目标", ChestnutPalette.GreenArgb, "fetal_movement"),
+                BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", ChestnutPalette.PeachArgb, "contraction"),
+                BabyLogService.QuickAction("孕妈指标", "体重 / 血压 / 血糖", ChestnutPalette.BlueArgb, "maternal_metric")
             )
         }
         if (stage == BabyLogDomain.STAGE_BABY) {
             return listOf(
-                BabyLogService.QuickAction("母乳", "", R.drawable.family_heart, ChestnutPalette.PeachArgb, "breastfeed", "母乳快捷记录"),
-                BabyLogService.QuickAction("奶瓶", "", R.drawable.feeding_bottle, ChestnutPalette.BlueArgb, "bottle", "奶瓶快捷记录"),
-                BabyLogService.QuickAction("睡眠", "", R.drawable.sleep_moon, ChestnutPalette.VioletArgb, "sleep", "睡眠快捷记录"),
-                BabyLogService.QuickAction("起床", "", R.drawable.star_mascot, ChestnutPalette.GreenArgb, "wake", "起床快捷记录"),
-                BabyLogService.QuickAction("尿尿", "", R.drawable.diaper, ChestnutPalette.YellowArgb, "pee", "尿尿快捷记录"),
-                BabyLogService.QuickAction("便便", "", R.drawable.diaper, ChestnutPalette.PeachArgb, "poop", "便便快捷记录")
+                BabyLogService.QuickAction("母乳", "", ChestnutPalette.PeachArgb, "breastfeed"),
+                BabyLogService.QuickAction("奶瓶", "", ChestnutPalette.BlueArgb, "bottle"),
+                BabyLogService.QuickAction("睡眠", "", ChestnutPalette.VioletArgb, "sleep"),
+                BabyLogService.QuickAction("起床", "", ChestnutPalette.GreenArgb, "wake"),
+                BabyLogService.QuickAction("尿尿", "", ChestnutPalette.YellowArgb, "pee"),
+                BabyLogService.QuickAction("便便", "", ChestnutPalette.PeachArgb, "poop")
             )
         }
         return emptyList()
@@ -1643,23 +1642,23 @@ private fun LibraryScreen(
         val title: String,
         val count: String,
         val note: String,
-        val asset: Int,
+        val icon: LineIcon,
         val detailAttachments: List<BabyLogDomain.AttachmentRecord>?
     )
     val ultrasoundAttachments = attachments.filter { it.kind == "ultrasound_image" }
     val documentAttachments = attachments.filter { it.kind == "document_image" }
     val vaccineAttachments = attachments.filter { it.kind == "vaccine_image" }
     val pregnancyEntries = listOf(
-        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "已保存本机；表单内可识别字段", R.drawable.ultrasound_sheet, ultrasoundAttachments),
-        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", R.drawable.baby_diary_notebook, documentAttachments),
-        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", R.drawable.vaccine_card, null),
-        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", R.drawable.vaccine_card, vaccineAttachments)
+        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "已保存本机；表单内可识别字段", LineIcon.Ultrasound, ultrasoundAttachments),
+        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, documentAttachments),
+        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", LineIcon.File, null),
+        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, vaccineAttachments)
     )
     val babyEntries = listOf(
-        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", R.drawable.vaccine_card, null),
-        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", R.drawable.vaccine_card, vaccineAttachments),
-        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "孕期资料仍可查看", R.drawable.ultrasound_sheet, ultrasoundAttachments),
-        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", R.drawable.baby_diary_notebook, documentAttachments)
+        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", LineIcon.File, null),
+        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, vaccineAttachments),
+        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "孕期资料仍可查看", LineIcon.Ultrasound, ultrasoundAttachments),
+        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, documentAttachments)
     )
     val entries = if (stage == BabyLogDomain.STAGE_BABY) babyEntries else pregnancyEntries
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1668,7 +1667,7 @@ private fun LibraryScreen(
                 title = entry.title,
                 count = entry.count,
                 note = entry.note,
-                asset = entry.asset,
+                icon = entry.icon,
                 onClick = entry.detailAttachments?.let { files -> { onShowAttachments(entry.title, files) } }
             )
         }
@@ -2791,9 +2790,9 @@ private fun AttachmentListDialog(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(
-                                painter = painterResource(R.drawable.ultrasound_sheet),
-                                contentDescription = null,
+                            BabyLogLineIcon(
+                                icon = LineIcon.File,
+                                tint = ChestnutPalette.Primary,
                                 modifier = Modifier.size(42.dp)
                             )
                             Spacer(Modifier.width(12.dp))
@@ -2966,7 +2965,7 @@ private fun LibraryItem(
     title: String,
     count: String,
     note: String,
-    asset: Int,
+    icon: LineIcon,
     onClick: (() -> Unit)?
 ) {
     Card(
@@ -2982,7 +2981,11 @@ private fun LibraryItem(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(painter = painterResource(asset), contentDescription = null, modifier = Modifier.size(58.dp))
+            BabyLogLineIcon(
+                icon = icon,
+                tint = ChestnutPalette.Primary,
+                modifier = Modifier.size(40.dp)
+            )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, color = ChestnutPalette.Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
