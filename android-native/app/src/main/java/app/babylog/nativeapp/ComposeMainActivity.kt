@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -65,7 +66,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -1017,10 +1021,11 @@ private fun BabyLogApp(
                     backgroundColor = ChestnutPalette.Surface,
                     contentColor = ChestnutPalette.Primary
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.button_plus),
-                        contentDescription = "快捷记录",
-                        modifier = Modifier.size(54.dp)
+                    BabyLogLineIcon(
+                        icon = LineIcon.Plus,
+                        tint = ChestnutPalette.Primary,
+                        modifier = Modifier.size(34.dp),
+                        strokeWidth = 2.4.dp
                     )
                 }
             }
@@ -1813,11 +1818,10 @@ private fun BabyQuickRail(
                     .padding(vertical = 11.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Image(
-                    painter = painterResource(action.assetResId),
-                    contentDescription = action.label,
-                    modifier = Modifier.size(38.dp),
-                    contentScale = ContentScale.Fit
+                BabyLogLineIcon(
+                    icon = quickActionIcon(action.eventType),
+                    tint = Color(action.toneColor),
+                    modifier = Modifier.size(34.dp)
                 )
                 Spacer(Modifier.height(5.dp))
                 Text(
@@ -1854,9 +1858,9 @@ private fun QuickActionDialog(
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource(action.assetResId),
-                            contentDescription = null,
+                        BabyLogLineIcon(
+                            icon = quickActionIcon(action.eventType),
+                            tint = Color(action.toneColor),
                             modifier = Modifier.size(42.dp)
                         )
                         Spacer(Modifier.width(12.dp))
@@ -3028,43 +3032,186 @@ private fun ActionRow(
 }
 
 @Composable
+private fun BabyLogLineIcon(
+    icon: LineIcon,
+    tint: Color,
+    modifier: Modifier = Modifier.size(24.dp),
+    strokeWidth: androidx.compose.ui.unit.Dp = 2.dp
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
+        fun p(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(w * x, h * y)
+        fun path(vararg points: Pair<Float, Float>) = Path().apply {
+            if (points.isNotEmpty()) {
+                moveTo(w * points[0].first, h * points[0].second)
+                points.drop(1).forEach { lineTo(w * it.first, h * it.second) }
+            }
+        }
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float) {
+            drawLine(tint, p(x1, y1), p(x2, y2), stroke.width, StrokeCap.Round)
+        }
+        fun circle(x: Float, y: Float, r: Float) {
+            drawCircle(tint, radius = minOf(w, h) * r, center = p(x, y), style = stroke)
+        }
+        fun rect(left: Float, top: Float, right: Float, bottom: Float) {
+            drawRoundRect(
+                color = tint,
+                topLeft = p(left, top),
+                size = androidx.compose.ui.geometry.Size(w * (right - left), h * (bottom - top)),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.06f, h * 0.06f),
+                style = stroke
+            )
+        }
+
+        when (icon) {
+            LineIcon.Home -> {
+                drawPath(path(0.16f to 0.48f, 0.50f to 0.20f, 0.84f to 0.48f), tint, style = stroke)
+                rect(0.26f, 0.46f, 0.74f, 0.82f)
+                line(0.50f, 0.82f, 0.50f, 0.62f)
+            }
+            LineIcon.Timeline -> {
+                line(0.28f, 0.18f, 0.28f, 0.82f)
+                circle(0.28f, 0.26f, 0.07f)
+                circle(0.28f, 0.50f, 0.07f)
+                circle(0.28f, 0.74f, 0.07f)
+                line(0.44f, 0.26f, 0.80f, 0.26f)
+                line(0.44f, 0.50f, 0.70f, 0.50f)
+                line(0.44f, 0.74f, 0.82f, 0.74f)
+            }
+            LineIcon.Library -> {
+                rect(0.18f, 0.22f, 0.78f, 0.82f)
+                line(0.32f, 0.22f, 0.32f, 0.82f)
+                line(0.44f, 0.34f, 0.68f, 0.34f)
+                line(0.44f, 0.50f, 0.68f, 0.50f)
+            }
+            LineIcon.Settings -> {
+                circle(0.50f, 0.50f, 0.18f)
+                listOf(0.18f to 0.50f, 0.82f to 0.50f, 0.50f to 0.18f, 0.50f to 0.82f, 0.28f to 0.28f, 0.72f to 0.72f).forEach { (x, y) ->
+                    line(0.50f + (x - 0.50f) * 0.72f, 0.50f + (y - 0.50f) * 0.72f, x, y)
+                }
+            }
+            LineIcon.Plus -> {
+                line(0.50f, 0.22f, 0.50f, 0.78f)
+                line(0.22f, 0.50f, 0.78f, 0.50f)
+            }
+            LineIcon.Ultrasound -> {
+                rect(0.16f, 0.22f, 0.84f, 0.76f)
+                drawPath(path(0.26f to 0.60f, 0.38f to 0.48f, 0.50f to 0.60f, 0.62f to 0.42f, 0.74f to 0.54f), tint, style = stroke)
+                line(0.28f, 0.84f, 0.72f, 0.84f)
+            }
+            LineIcon.Checkup -> {
+                rect(0.24f, 0.18f, 0.76f, 0.84f)
+                line(0.38f, 0.34f, 0.62f, 0.34f)
+                drawPath(path(0.34f to 0.58f, 0.46f to 0.70f, 0.68f to 0.48f), tint, style = stroke)
+            }
+            LineIcon.Movement -> {
+                drawPath(path(0.14f to 0.54f, 0.28f to 0.54f, 0.36f to 0.34f, 0.48f to 0.72f, 0.58f to 0.44f, 0.72f to 0.44f, 0.86f to 0.44f), tint, style = stroke)
+            }
+            LineIcon.Contraction -> {
+                circle(0.50f, 0.54f, 0.28f)
+                line(0.50f, 0.54f, 0.50f, 0.36f)
+                line(0.50f, 0.54f, 0.64f, 0.62f)
+                line(0.40f, 0.16f, 0.60f, 0.16f)
+            }
+            LineIcon.Metric -> {
+                line(0.20f, 0.80f, 0.82f, 0.80f)
+                line(0.20f, 0.80f, 0.20f, 0.22f)
+                drawPath(path(0.26f to 0.68f, 0.40f to 0.58f, 0.52f to 0.62f, 0.70f to 0.34f, 0.82f to 0.42f), tint, style = stroke)
+            }
+            LineIcon.Breastfeed -> {
+                drawPath(path(0.50f to 0.78f, 0.24f to 0.52f, 0.24f to 0.34f, 0.40f to 0.28f, 0.50f to 0.42f, 0.60f to 0.28f, 0.76f to 0.34f, 0.76f to 0.52f, 0.50f to 0.78f), tint, style = stroke)
+            }
+            LineIcon.Bottle -> {
+                rect(0.36f, 0.30f, 0.64f, 0.84f)
+                rect(0.40f, 0.16f, 0.60f, 0.30f)
+                line(0.42f, 0.48f, 0.58f, 0.48f)
+                line(0.42f, 0.62f, 0.58f, 0.62f)
+            }
+            LineIcon.Sleep -> {
+                drawArc(tint, startAngle = 112f, sweepAngle = 250f, useCenter = false, topLeft = p(0.22f, 0.20f), size = androidx.compose.ui.geometry.Size(w * 0.52f, h * 0.62f), style = stroke)
+                drawArc(tint, startAngle = 112f, sweepAngle = 250f, useCenter = false, topLeft = p(0.40f, 0.20f), size = androidx.compose.ui.geometry.Size(w * 0.42f, h * 0.62f), style = stroke)
+            }
+            LineIcon.Wake -> {
+                circle(0.50f, 0.50f, 0.18f)
+                line(0.50f, 0.12f, 0.50f, 0.24f)
+                line(0.50f, 0.76f, 0.50f, 0.88f)
+                line(0.12f, 0.50f, 0.24f, 0.50f)
+                line(0.76f, 0.50f, 0.88f, 0.50f)
+                line(0.24f, 0.24f, 0.32f, 0.32f)
+                line(0.76f, 0.24f, 0.68f, 0.32f)
+                line(0.24f, 0.76f, 0.32f, 0.68f)
+                line(0.76f, 0.76f, 0.68f, 0.68f)
+            }
+            LineIcon.Diaper -> {
+                drawPath(path(0.18f to 0.34f, 0.34f to 0.74f, 0.50f to 0.82f, 0.66f to 0.74f, 0.82f to 0.34f), tint, style = stroke)
+                line(0.18f, 0.34f, 0.38f, 0.44f)
+                line(0.82f, 0.34f, 0.62f, 0.44f)
+            }
+            LineIcon.File -> {
+                drawPath(path(0.24f to 0.16f, 0.62f to 0.16f, 0.78f to 0.32f, 0.78f to 0.84f, 0.24f to 0.84f, 0.24f to 0.16f), tint, style = stroke)
+                line(0.62f, 0.16f, 0.62f, 0.32f)
+                line(0.62f, 0.32f, 0.78f, 0.32f)
+                line(0.36f, 0.50f, 0.66f, 0.50f)
+                line(0.36f, 0.64f, 0.66f, 0.64f)
+            }
+            LineIcon.Vaccine -> {
+                line(0.28f, 0.72f, 0.72f, 0.28f)
+                line(0.58f, 0.18f, 0.82f, 0.42f)
+                line(0.20f, 0.80f, 0.34f, 0.66f)
+                line(0.34f, 0.54f, 0.46f, 0.66f)
+                line(0.46f, 0.42f, 0.58f, 0.54f)
+            }
+        }
+    }
+}
+
+private fun quickActionIcon(eventType: String): LineIcon {
+    return when (eventType) {
+        "ultrasound" -> LineIcon.Ultrasound
+        "pregnancy_checkup" -> LineIcon.Checkup
+        "fetal_movement" -> LineIcon.Movement
+        "contraction" -> LineIcon.Contraction
+        "maternal_metric" -> LineIcon.Metric
+        "breastfeed" -> LineIcon.Breastfeed
+        "bottle" -> LineIcon.Bottle
+        "sleep" -> LineIcon.Sleep
+        "wake" -> LineIcon.Wake
+        "pee", "poop", "diaper" -> LineIcon.Diaper
+        else -> LineIcon.File
+    }
+}
+
+@Composable
 private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
     val items = listOf(
-        NavItem("home", "首页", R.drawable.baby_diary_notebook),
-        NavItem("timeline", "时间线", R.drawable.calendar),
-        NavItem("library", "资料", R.drawable.growth_ruler),
-        NavItem("settings", "设置", R.drawable.icon_settings)
+        NavItem("home", "首页", LineIcon.Home),
+        NavItem("timeline", "时间线", LineIcon.Timeline),
+        NavItem("library", "资料", LineIcon.Library),
+        NavItem("settings", "设置", LineIcon.Settings)
     )
     BottomNavigation(
         backgroundColor = ChestnutPalette.Surface,
         contentColor = ChestnutPalette.Primary,
-        elevation = 9.dp
+        elevation = 0.dp
     ) {
         items.forEach { item ->
+            val selected = activeTab == item.key
             BottomNavigationItem(
-                selected = activeTab == item.key,
+                selected = selected,
                 onClick = { onTabSelected(item.key) },
                 icon = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .width(24.dp)
-                                .height(3.dp)
-                                .clip(CircleShape)
-                                .background(if (activeTab == item.key) ChestnutPalette.Primary else Color.Transparent)
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Image(
-                            painter = painterResource(item.asset),
-                            contentDescription = null,
-                            modifier = Modifier.size(25.dp)
-                        )
-                    }
+                    BabyLogLineIcon(
+                        icon = item.icon,
+                        tint = if (selected) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                        modifier = Modifier.size(24.dp)
+                    )
                 },
                 label = {
                     Text(
                         item.label,
-                        color = if (activeTab == item.key) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                        color = if (selected) ChestnutPalette.Primary else ChestnutPalette.Muted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -3076,7 +3223,27 @@ private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
     }
 }
 
-private data class NavItem(val key: String, val label: String, val asset: Int)
+private data class NavItem(val key: String, val label: String, val icon: LineIcon)
+
+private enum class LineIcon {
+    Home,
+    Timeline,
+    Library,
+    Settings,
+    Plus,
+    Ultrasound,
+    Checkup,
+    Movement,
+    Contraction,
+    Metric,
+    Breastfeed,
+    Bottle,
+    Sleep,
+    Wake,
+    Diaper,
+    File,
+    Vaccine
+}
 
 private data class BabyCareLabels(
     val primary: String,
