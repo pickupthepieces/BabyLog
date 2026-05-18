@@ -10,7 +10,9 @@ BabyLog Android 原生 MVP，优先验证小米真机上的 APK 方向。当前 
 - B 超记录表单：检查日期、孕周、BPD、HC、AC、FL、EFW，以及羊水、胎盘、胎位、脐动脉血流。
 - 调用系统相机拍 B 超单，使用 `content://` 临时文件接收全尺寸照片，压缩后保存到 App 私有目录。
 - 从系统相册/文件选择图片，压缩后保存到 App 私有目录。
-- 用户可本机配置 OpenAI-compatible 多模态模型 API，用于主动识别 B 超单并生成候选字段；确认前不入库。
+- 用户可本机配置 OpenAI-compatible 多模态模型 API，用于主动识别 B 超单并生成候选字段；确认前不入库。设置页提供 Qwen / OpenAI 预设，API Key 仅本机加密保存，不进备份和同步。
+- B 超单识别 v1 只自动候选检查日期和 BPD/HC/AC/FL/EFW；孕周不由模型识别或推断，羊水、胎盘、胎位、宫颈、侧脑室、脐血流等保留手动核对。
+- B 超单识别上传前复用本机图片压缩策略（长边 2048px / JPEG 82），避免原图 base64 直接发送。
 - 本机事件仓库：`events / attachments / syncChanges / syncSettings`。
 - 同步占位：本机 pending 队列，后端未配置时标记为可重试失败。
 - 资料库：B 超单、检查单、出生证明、疫苗本入口。

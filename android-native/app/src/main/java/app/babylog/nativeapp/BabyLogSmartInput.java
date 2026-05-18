@@ -60,30 +60,96 @@ public final class BabyLogSmartInput {
         if (matcher.find()) {
             return matcher.group(1).trim();
         }
+        if (!trimmed.startsWith("{")) {
+            String object = extractFirstJsonObject(trimmed);
+            if (object != null) {
+                return object;
+            }
+        }
         return trimmed;
     }
 
+    private static String extractFirstJsonObject(String content) {
+        int start = content.indexOf('{');
+        if (start < 0) {
+            return null;
+        }
+        int depth = 0;
+        boolean inString = false;
+        boolean escaping = false;
+        for (int i = start; i < content.length(); i++) {
+            char current = content.charAt(i);
+            if (inString) {
+                if (escaping) {
+                    escaping = false;
+                } else if (current == '\\') {
+                    escaping = true;
+                } else if (current == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (current == '"') {
+                inString = true;
+            } else if (current == '{') {
+                depth++;
+            } else if (current == '}') {
+                depth--;
+                if (depth == 0) {
+                    return content.substring(start, i + 1).trim();
+                }
+            }
+        }
+        return null;
+    }
+
     public static UltrasoundOcrCandidate fromCandidateJson(String json) {
-        Map<String, Object> object = requireObject(JsonParser.parse(json), "ultrasound OCR candidate");
+        Map<String, Object> object = unwrapCandidateObject(requireObject(JsonParser.parse(json), "ultrasound OCR candidate"));
+        String rawText = optionalString(object, "rawText");
         return new UltrasoundOcrCandidate(
                 stringField(object, "examDate"),
-                stringField(object, "gestationalAge"),
-                numberField(object, "bpdMm"),
-                numberField(object, "hcMm"),
-                numberField(object, "acMm"),
-                numberField(object, "flMm"),
-                numberField(object, "efwGram"),
-                numberField(object, "afiCm"),
-                numberField(object, "deepestPocketCm"),
-                stringField(object, "placentaLocation"),
-                stringField(object, "placentaGrade"),
-                stringField(object, "fetalPresentation"),
-                numberField(object, "umbilicalSd"),
-                numberField(object, "umbilicalPi"),
-                numberField(object, "umbilicalRi"),
+                emptyStringField(),
+                metricNumberField(object, "bpdMm", UnitKind.MM),
+                metricNumberField(object, "hcMm", UnitKind.MM),
+                metricNumberField(object, "acMm", UnitKind.MM),
+                metricNumberField(object, "flMm", UnitKind.MM),
+                efwField(object, rawText),
+                emptyNumberField(),
+                emptyNumberField(),
+                emptyStringField(),
+                emptyStringField(),
+                emptyStringField(),
+                emptyNumberField(),
+                emptyNumberField(),
+                emptyNumberField(),
                 warnings(object),
-                optionalString(object, "rawText")
+                rawText
         );
+    }
+
+    private static Map<String, Object> unwrapCandidateObject(Map<String, Object> object) {
+        if (hasCandidateField(object)) {
+            return object;
+        }
+        String[] wrapperKeys = {"result", "data", "candidate", "fields"};
+        for (String key : wrapperKeys) {
+            Map<String, Object> nested = asObject(object.get(key));
+            if (nested != null && hasCandidateField(nested)) {
+                return nested;
+            }
+        }
+        return object;
+    }
+
+    private static boolean hasCandidateField(Map<String, Object> object) {
+        return object.containsKey("examDate")
+                || object.containsKey("bpdMm")
+                || object.containsKey("hcMm")
+                || object.containsKey("acMm")
+                || object.containsKey("flMm")
+                || object.containsKey("efwGram")
+                || object.containsKey("rawText")
+                || object.containsKey("warnings");
     }
 
     private static FieldCandidate<String> stringField(Map<String, Object> object, String name) {
@@ -91,9 +157,59 @@ public final class BabyLogSmartInput {
         return new FieldCandidate<>(value, value);
     }
 
-    private static FieldCandidate<Double> numberField(Map<String, Object> object, String name) {
+    private static FieldCandidate<Double> metricNumberField(Map<String, Object> object, String name, UnitKind unitKind) {
         String rawValue = optionalString(object, name);
-        return new FieldCandidate<>(BabyLogFormatters.parseOptionalNumber(rawValue), rawValue);
+        return new FieldCandidate<>(parseMetricNumber(rawValue, unitKind), rawValue);
+    }
+
+    private static FieldCandidate<Double> efwField(Map<String, Object> object, String rawText) {
+        if (!hasEfwEvidence(rawText)) {
+            return emptyNumberField();
+        }
+        return metricNumberField(object, "efwGram", UnitKind.GRAM);
+    }
+
+    private static Double parseMetricNumber(String rawValue, UnitKind unitKind) {
+        if (rawValue == null || rawValue.trim().isEmpty()) {
+            return null;
+        }
+        Double parsed = BabyLogFormatters.parseOptionalNumber(rawValue);
+        if (parsed == null) {
+            Matcher matcher = Pattern.compile("[-+]?\\d+(?:\\.\\d+)?").matcher(rawValue);
+            if (!matcher.find()) {
+                return null;
+            }
+            parsed = BabyLogFormatters.parseOptionalNumber(matcher.group());
+        }
+        if (parsed == null) {
+            return null;
+        }
+        String normalized = rawValue.toLowerCase();
+        if (unitKind == UnitKind.MM && normalized.contains("cm") && !normalized.contains("mm")) {
+            parsed *= 10.0;
+        } else if (unitKind == UnitKind.GRAM && normalized.contains("kg")) {
+            parsed *= 1000.0;
+        }
+        return parsed.isNaN() || parsed.isInfinite() ? null : parsed;
+    }
+
+    private static boolean hasEfwEvidence(String rawText) {
+        if (rawText == null) {
+            return false;
+        }
+        String normalized = rawText.toLowerCase();
+        return normalized.contains("efw")
+                || rawText.contains("估重")
+                || rawText.contains("胎儿体重")
+                || rawText.contains("胎重");
+    }
+
+    private static FieldCandidate<String> emptyStringField() {
+        return new FieldCandidate<>(null, null);
+    }
+
+    private static FieldCandidate<Double> emptyNumberField() {
+        return new FieldCandidate<>(null, null);
     }
 
     private static String optionalString(Map<String, Object> object, String name) {
@@ -176,6 +292,11 @@ public final class BabyLogSmartInput {
             this.value = value;
             this.rawValue = rawValue;
         }
+    }
+
+    private enum UnitKind {
+        MM,
+        GRAM
     }
 
     public static final class UltrasoundOcrCandidate {

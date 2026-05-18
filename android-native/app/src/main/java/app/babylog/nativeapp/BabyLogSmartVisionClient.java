@@ -21,6 +21,19 @@ import java.nio.charset.StandardCharsets;
 public final class BabyLogSmartVisionClient {
     private static final int CONNECT_TIMEOUT_MS = 20_000;
     private static final int READ_TIMEOUT_MS = 60_000;
+    private static final int MAX_ERROR_BODY_CHARS = 480;
+    private final UploadImagePreparer uploadImagePreparer;
+
+    public BabyLogSmartVisionClient() {
+        this(BabyLogSmartVisionClient::compressImageToTemporaryJpeg);
+    }
+
+    public BabyLogSmartVisionClient(UploadImagePreparer uploadImagePreparer) {
+        if (uploadImagePreparer == null) {
+            throw new IllegalArgumentException("uploadImagePreparer is required");
+        }
+        this.uploadImagePreparer = uploadImagePreparer;
+    }
 
     public BabyLogSmartInput.UltrasoundOcrCandidate recognizeUltrasoundImage(
             File image,
@@ -33,13 +46,25 @@ public final class BabyLogSmartVisionClient {
             throw new IOException("请先配置多模态模型 API");
         }
 
-        JSONObject request = buildChatCompletionsRequest(config.getModel(), imageToDataUrl(image));
-        String response = postJson(resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+        File uploadImage = prepareImageForUpload(image);
         try {
-            return BabyLogSmartInput.fromOpenAiVisionResponse(response);
-        } catch (IllegalArgumentException error) {
-            throw new IOException("模型返回内容无法解析：" + error.getMessage(), error);
+            JSONObject request = buildChatCompletionsRequest(config.getModel(), imageToDataUrl(uploadImage));
+            String response = postJson(resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+            try {
+                return BabyLogSmartInput.fromOpenAiVisionResponse(response);
+            } catch (IllegalArgumentException error) {
+                throw new IOException("模型返回内容无法解析：" + error.getMessage(), error);
+            }
+        } finally {
+            if (uploadImage != null && !image.equals(uploadImage) && uploadImage.exists()) {
+                // Best-effort cleanup; a leftover temp upload image is safe but wastes storage.
+                uploadImage.delete();
+            }
         }
+    }
+
+    public File prepareImageForUpload(File image) throws IOException {
+        return uploadImagePreparer.prepare(image);
     }
 
     public static JSONObject buildChatCompletionsRequest(String model, String imageDataUrl) throws JSONException {
@@ -51,7 +76,7 @@ public final class BabyLogSmartVisionClient {
         JSONArray userContent = new JSONArray();
         userContent.put(new JSONObject()
                 .put("type", "text")
-                .put("text", "请识别这张 B 超单，返回 JSON，字段固定为：examDate, gestationalAge, bpdMm, hcMm, acMm, flMm, efwGram, afiCm, deepestPocketCm, placentaLocation, placentaGrade, fetalPresentation, umbilicalSd, umbilicalPi, umbilicalRi, warnings, rawText。数值字段只填数字，不确定就省略或放入 warnings。"));
+                .put("text", ultrasoundRecognitionPrompt()));
         userContent.put(new JSONObject()
                 .put("type", "image_url")
                 .put("image_url", new JSONObject().put("url", imageDataUrl)));
@@ -66,6 +91,15 @@ public final class BabyLogSmartVisionClient {
                 .put("response_format", new JSONObject().put("type", "json_object"));
     }
 
+    public static String ultrasoundRecognitionPrompt() {
+        return "请识别这张 B 超单，只提取胎儿生长指标并返回 JSON object。字段固定为：examDate, bpdMm, hcMm, acMm, flMm, efwGram, warnings, rawText。"
+                + "只在报告文字明确出现时填写字段：BPD/双顶径、HC/头围、AC/腹围、FL/股骨长、EFW/估重/胎儿体重。"
+                + "不要识别、返回或推断孕周；孕周由用户根据报告手动填写或由预产期计算。"
+                + "efwGram 只在明确出现 EFW、估重、胎儿体重或胎重时填写；不要把胎心率 143bpm 当 EFW。"
+                + "不要填写 AFI、羊水最大深度、胎心率、胎盘、胎位、宫颈管长度、侧脑室宽度、脐血流等非生长指标；可放入 warnings 或 rawText 供人工核对。"
+                + "数值字段只填数字，单位按字段要求换算为 mm 或 g；不确定就省略或放入 warnings。";
+    }
+
     public static String resolveChatCompletionsUrl(String baseUrl) {
         String normalized = BabyLogFormatters.normalizeBackendBaseUrl(baseUrl);
         if (normalized.endsWith("/chat/completions")) {
@@ -77,8 +111,37 @@ public final class BabyLogSmartVisionClient {
         return normalized + "/v1/chat/completions";
     }
 
+    public static String formatApiErrorMessage(int code, String response) {
+        String body = response == null ? "" : response.trim();
+        if (body.isEmpty()) {
+            body = "无响应内容";
+        }
+        body = body
+                .replaceAll("sk-[A-Za-z0-9_\\-]{8,}", "sk-***")
+                .replaceAll("Bearer\\s+[A-Za-z0-9._\\-]{8,}", "Bearer ***");
+        if (body.length() > MAX_ERROR_BODY_CHARS) {
+            body = body.substring(0, MAX_ERROR_BODY_CHARS) + "…";
+        }
+        return "模型 API 返回 " + code + "：" + body;
+    }
+
     private static String imageToDataUrl(File image) throws IOException {
         return "data:image/jpeg;base64," + Base64.encodeToString(readAllBytes(image), Base64.NO_WRAP);
+    }
+
+    private static File compressImageToTemporaryJpeg(File image) throws IOException {
+        File parent = image.getParentFile();
+        File output = File.createTempFile("babylog-vision-", ".jpg",
+                parent != null && parent.exists() ? parent : null);
+        try {
+            BabyLogImageUtils.compressFileToJpeg(image, output);
+            return output;
+        } catch (IOException error) {
+            if (output.exists()) {
+                output.delete();
+            }
+            throw error;
+        }
     }
 
     private static byte[] readAllBytes(File image) throws IOException {
@@ -112,7 +175,7 @@ public final class BabyLogSmartVisionClient {
         InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
         String response = readResponse(stream);
         if (code < 200 || code >= 300) {
-            throw new IOException("模型 API 返回 " + code + "：" + response);
+            throw new IOException(formatApiErrorMessage(code, response));
         }
         return response;
     }
@@ -129,5 +192,9 @@ public final class BabyLogSmartVisionClient {
             }
         }
         return builder.toString();
+    }
+
+    public interface UploadImagePreparer {
+        File prepare(File source) throws IOException;
     }
 }

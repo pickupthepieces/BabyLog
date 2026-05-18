@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -30,10 +29,7 @@ public final class BabyLogSmartConfigStore {
     private static final String PREF_API_KEY_IV = "api_key_iv";
 
     private static final int GCM_TAG_BITS = 128;
-    private static final int GCM_IV_BYTES = 12;
-
     private final Context appContext;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     public BabyLogSmartConfigStore(Context context) {
         if (context == null) {
@@ -98,12 +94,13 @@ public final class BabyLogSmartConfigStore {
     }
 
     private EncryptedValue encrypt(String plainText) throws GeneralSecurityException, IOException {
-        byte[] iv = new byte[GCM_IV_BYTES];
-        secureRandom.nextBytes(iv);
-
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey(), new GCMParameterSpec(GCM_TAG_BITS, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey());
         byte[] cipherBytes = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+        byte[] iv = cipher.getIV();
+        if (iv == null || iv.length == 0) {
+            throw new GeneralSecurityException("Keystore did not provide an IV");
+        }
         return new EncryptedValue(encode(cipherBytes), encode(iv));
     }
 
