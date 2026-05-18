@@ -24,6 +24,7 @@ public final class BabyLogDomain {
             "ultrasound",
             "fetal_movement",
             "contraction",
+            "maternal_metric",
             "birth",
             "feed",
             "breastfeed",

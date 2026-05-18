@@ -49,9 +49,24 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals("baby", BabyLogFormatters.timelineFilterGroup("pee"));
         assertEquals("baby", BabyLogFormatters.timelineFilterGroup("poop"));
         assertEquals("pregnancy", BabyLogFormatters.timelineFilterGroup("fetal_movement"));
+        assertEquals("pregnancy", BabyLogFormatters.timelineFilterGroup("maternal_metric"));
         assertEquals("ultrasound", BabyLogFormatters.timelineFilterGroup("ultrasound"));
         assertEquals("temperature", BabyLogFormatters.timelineFilterGroup("temperature"));
         assertEquals("checkup", BabyLogFormatters.timelineFilterGroup("pregnancy_checkup"));
+        assertEquals("孕妈指标", BabyLogFormatters.eventLabel("maternal_metric"));
+        assertEquals(
+                "空腹血糖高于 5.1 mmol/L；非诊断，仅提示，请遵医嘱",
+                BabyLogFormatters.formatMaternalGlucoseWarning(5.2, "fasting")
+        );
+        assertEquals(
+                "餐后1h血糖高于 10.0 mmol/L；非诊断，仅提示，请遵医嘱",
+                BabyLogFormatters.formatMaternalGlucoseWarning(10.1, "after_1h")
+        );
+        assertEquals(
+                "餐后2h血糖高于 8.5 mmol/L；非诊断，仅提示，请遵医嘱",
+                BabyLogFormatters.formatMaternalGlucoseWarning(8.6, "after_2h")
+        );
+        assertEquals("", BabyLogFormatters.formatMaternalGlucoseWarning(7.0, "random"));
         assertEquals("2026-05-17", BabyLogFormatters.recordDay("2026-05-18T02:30:00.000+0800", 4));
         assertEquals("2026-05-18", BabyLogFormatters.recordDay("2026-05-18T04:00:00.000+0800", 4));
         assertEquals("2026-05-17", BabyLogFormatters.offsetDateInput("2026-05-18", -1));

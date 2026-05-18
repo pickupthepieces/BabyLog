@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,6 +100,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var showQuickSheet by mutableStateOf(false)
     private var babyCareAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var pregnancyAction by mutableStateOf<BabyLogService.QuickAction?>(null)
+    private var showMaternalMetricForm by mutableStateOf(false)
     private var showUltrasoundForm by mutableStateOf(false)
     private var showSyncSettings by mutableStateOf(false)
     private var showClearLocalConfirm by mutableStateOf(false)
@@ -176,6 +178,16 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onSave = { input ->
                             pregnancyAction = null
                             recordPregnancy(input)
+                        }
+                    )
+                }
+
+                if (showMaternalMetricForm) {
+                    MaternalMetricDialog(
+                        onDismiss = { showMaternalMetricForm = false },
+                        onSave = { input ->
+                            showMaternalMetricForm = false
+                            recordMaternalMetric(input)
                         }
                     )
                 }
@@ -378,6 +390,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             babyCareAction = action
         } else if (isPregnancyFormAction(action.eventType)) {
             pregnancyAction = action
+        } else if (action.eventType == "maternal_metric") {
+            showMaternalMetricForm = true
         } else if (action.eventType == "ultrasound") {
             openUltrasoundForm()
         } else {
@@ -405,6 +419,18 @@ public final class ComposeMainActivity : ComponentActivity() {
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存记录")
+            }
+        }
+    }
+
+    private fun recordMaternalMetric(input: BabyLogService.MaternalMetricInput) {
+        runInBackground {
+            try {
+                service.recordMaternalMetric(input)
+                showToast("已保存孕妈指标")
+                reloadData()
+            } catch (error: JSONException) {
+                showInfo("保存失败", error.message ?: "无法保存孕妈指标")
             }
         }
     }
@@ -626,7 +652,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 BabyLogService.QuickAction("B超", "指标 / 照片 / OCR占位", R.drawable.ultrasound_sheet, ChestnutPalette.RoseArgb, "ultrasound", "B 超快捷记录 · 待补指标/照片"),
                 BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", R.drawable.baby_diary_notebook, ChestnutPalette.VioletArgb, "pregnancy_checkup", "产检快捷记录"),
                 BabyLogService.QuickAction("胎动", "时段 / 次数 / 备注", R.drawable.family_heart, ChestnutPalette.GreenArgb, "fetal_movement", "胎动快捷记录"),
-                BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", R.drawable.icon_chart, ChestnutPalette.PeachArgb, "contraction", "宫缩快捷记录")
+                BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", R.drawable.icon_chart, ChestnutPalette.PeachArgb, "contraction", "宫缩快捷记录"),
+                BabyLogService.QuickAction("孕妈指标", "体重 / 血压 / 血糖", R.drawable.growth_ruler, ChestnutPalette.BlueArgb, "maternal_metric", "孕妈指标快捷记录")
             )
         }
         if (stage == BabyLogDomain.STAGE_BABY) {
@@ -1721,6 +1748,76 @@ private fun PregnancyEventDialog(
 }
 
 @Composable
+private fun MaternalMetricDialog(
+    onDismiss: () -> Unit,
+    onSave: (BabyLogService.MaternalMetricInput) -> Unit
+) {
+    var weight by rememberSaveable { mutableStateOf("") }
+    var systolic by rememberSaveable { mutableStateOf("") }
+    var diastolic by rememberSaveable { mutableStateOf("") }
+    var glucose by rememberSaveable { mutableStateOf("") }
+    var glucoseContext by rememberSaveable { mutableStateOf("fasting") }
+    var note by rememberSaveable { mutableStateOf("") }
+    val glucoseWarning = BabyLogFormatters.formatMaternalGlucoseWarning(
+        BabyLogFormatters.parseOptionalNumber(glucose),
+        glucoseContext
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("孕妈指标", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                UnitInputRow("体重", weight, { weight = it }, "kg")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    UnitInputRow("收缩压", systolic, { systolic = it }, "mmHg", Modifier.weight(1f))
+                    UnitInputRow("舒张压", diastolic, { diastolic = it }, "mmHg", Modifier.weight(1f))
+                }
+                UnitInputRow("血糖", glucose, { glucose = it }, "mmol/L")
+                GlucoseContextRow(glucoseContext, onSelect = { glucoseContext = it })
+                if (glucoseWarning.isNotBlank()) {
+                    Text(
+                        text = glucoseWarning,
+                        color = ChestnutPalette.Accent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                ChestnutTextField("备注，可空", note, { note = it }, KeyboardType.Text)
+                Text(
+                    text = "血糖提示只用于提醒复核，不构成诊断；保存后进入孕期首页和历史时间线。",
+                    color = ChestnutPalette.Text3,
+                    fontSize = 12.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        BabyLogService.MaternalMetricInput.create(
+                            weight,
+                            systolic,
+                            diastolic,
+                            glucose,
+                            glucoseContext,
+                            note
+                        )
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
+            ) {
+                Text("保存", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
+        },
+        backgroundColor = ChestnutPalette.Bg
+    )
+}
+
+@Composable
 private fun UltrasoundDialog(
     photoPath: String?,
     photoName: String?,
@@ -2236,6 +2333,87 @@ private fun EmptyPanel(text: String) {
             .padding(18.dp),
         textAlign = TextAlign.Center
     )
+}
+
+@Composable
+private fun UnitInputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    unit: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(ChestnutPalette.Surface),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            textStyle = TextStyle(fontFeatureSettings = "tnum"),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            colors = TextFieldDefaults.textFieldColors(
+                backgroundColor = ChestnutPalette.Surface,
+                focusedIndicatorColor = ChestnutPalette.Primary,
+                unfocusedIndicatorColor = ChestnutPalette.Border,
+                textColor = ChestnutPalette.Ink,
+                focusedLabelColor = ChestnutPalette.Primary,
+                unfocusedLabelColor = ChestnutPalette.Muted,
+                cursorColor = ChestnutPalette.Primary
+            )
+        )
+        Box(
+            modifier = Modifier
+                .height(58.dp)
+                .background(ChestnutPalette.PrimarySoft)
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                unit,
+                color = ChestnutPalette.Primary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlucoseContextRow(selected: String, onSelect: (String) -> Unit) {
+    val options = listOf(
+        "fasting" to "空腹",
+        "after_1h" to "餐后1h",
+        "after_2h" to "餐后2h",
+        "random" to "随机"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (key, label) ->
+            OutlinedButton(
+                onClick = { onSelect(key) },
+                border = BorderStroke(1.dp, if (selected == key) ChestnutPalette.Primary else ChestnutPalette.Border),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    backgroundColor = if (selected == key) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface,
+                    contentColor = ChestnutPalette.Ink
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
 }
 
 @Composable

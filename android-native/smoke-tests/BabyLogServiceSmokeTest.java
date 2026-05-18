@@ -59,6 +59,12 @@ public final class BabyLogServiceSmokeTest {
                         BabyLogService.PregnancyInput.contraction("22:10", "5", "40", "")
                 )
         );
+        assertEquals(
+                "孕妈指标 · 体重 60.4 kg · 血压 118/76 mmHg · 血糖 空腹 5.2 mmol/L",
+                BabyLogService.formatMaternalMetricSummary(
+                        BabyLogService.MaternalMetricInput.create("60.4", "118", "76", "5.2", "fasting", "")
+                )
+        );
     }
 
     private static void assertEquals(Object expected, Object actual) {

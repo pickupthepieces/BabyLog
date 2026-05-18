@@ -87,6 +87,20 @@ public final class BabyLogService {
         return event;
     }
 
+    public BabyLogDomain.BabyLogEvent recordMaternalMetric(MaternalMetricInput input) throws JSONException {
+        JSONObject payload = buildMaternalMetricPayload(input);
+        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                "maternal_metric",
+                BabyLogFormatters.nowIso(),
+                payload,
+                Collections.emptyList(),
+                "manual"
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
     public static JSONObject buildBabyCarePayload(BabyCareInput input) throws JSONException {
         JSONObject payload = new JSONObject();
 
@@ -139,6 +153,24 @@ public final class BabyLogService {
         }
 
         payload.put("summary", formatPregnancySummary(input));
+        return payload;
+    }
+
+    public static JSONObject buildMaternalMetricPayload(MaternalMetricInput input) throws JSONException {
+        JSONObject payload = new JSONObject();
+        Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
+        Double systolic = BabyLogFormatters.parseOptionalNumber(input.systolicBp);
+        Double diastolic = BabyLogFormatters.parseOptionalNumber(input.diastolicBp);
+        Double glucose = BabyLogFormatters.parseOptionalNumber(input.glucoseMmolL);
+        putNumberIfNotNull(payload, "weightKg", weight);
+        putNumberIfNotNull(payload, "systolicBp", systolic);
+        putNumberIfNotNull(payload, "diastolicBp", diastolic);
+        putNumberIfNotNull(payload, "glucoseMmolL", glucose);
+        putStringIfNotBlank(payload, "glucoseContext", input.glucoseContext);
+        putStringIfNotBlank(payload, "note", input.note);
+        String warning = BabyLogFormatters.formatMaternalGlucoseWarning(glucose, input.glucoseContext);
+        putStringIfNotBlank(payload, "warningText", warning);
+        payload.put("summary", formatMaternalMetricSummary(input));
         return payload;
     }
 
@@ -198,6 +230,29 @@ public final class BabyLogService {
             }
         }
         if (summary.toString().equals(BabyLogFormatters.eventLabel(input.eventType))) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
+    public static String formatMaternalMetricSummary(MaternalMetricInput input) {
+        StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel("maternal_metric"));
+        Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
+        if (weight != null) {
+            appendSummary(summary, "体重 " + BabyLogFormatters.formatNumber(weight) + " kg");
+        }
+        Double systolic = BabyLogFormatters.parseOptionalNumber(input.systolicBp);
+        Double diastolic = BabyLogFormatters.parseOptionalNumber(input.diastolicBp);
+        if (systolic != null && diastolic != null) {
+            appendSummary(summary, "血压 " + BabyLogFormatters.formatNumber(systolic) + "/" + BabyLogFormatters.formatNumber(diastolic) + " mmHg");
+        }
+        Double glucose = BabyLogFormatters.parseOptionalNumber(input.glucoseMmolL);
+        if (glucose != null) {
+            String context = BabyLogFormatters.maternalGlucoseContextLabel(input.glucoseContext);
+            String prefix = context.isEmpty() ? "血糖 " : "血糖 " + context + " ";
+            appendSummary(summary, prefix + BabyLogFormatters.formatNumber(glucose) + " mmol/L");
+        }
+        if (summary.toString().equals(BabyLogFormatters.eventLabel("maternal_metric"))) {
             summary.append(" · 待补充详情");
         }
         return summary.toString();
@@ -641,6 +696,42 @@ public final class BabyLogService {
 
         public static PregnancyInput contraction(String startTime, String intervalMinutes, String durationSeconds, String note) {
             return new PregnancyInput("contraction", startTime, intervalMinutes, durationSeconds, note);
+        }
+    }
+
+    public static final class MaternalMetricInput {
+        public final String weightKg;
+        public final String systolicBp;
+        public final String diastolicBp;
+        public final String glucoseMmolL;
+        public final String glucoseContext;
+        public final String note;
+
+        private MaternalMetricInput(
+                String weightKg,
+                String systolicBp,
+                String diastolicBp,
+                String glucoseMmolL,
+                String glucoseContext,
+                String note
+        ) {
+            this.weightKg = weightKg;
+            this.systolicBp = systolicBp;
+            this.diastolicBp = diastolicBp;
+            this.glucoseMmolL = glucoseMmolL;
+            this.glucoseContext = glucoseContext;
+            this.note = note;
+        }
+
+        public static MaternalMetricInput create(
+                String weightKg,
+                String systolicBp,
+                String diastolicBp,
+                String glucoseMmolL,
+                String glucoseContext,
+                String note
+        ) {
+            return new MaternalMetricInput(weightKg, systolicBp, diastolicBp, glucoseMmolL, glucoseContext, note);
         }
     }
 

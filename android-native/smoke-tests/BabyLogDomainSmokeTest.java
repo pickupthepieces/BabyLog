@@ -26,11 +26,24 @@ public final class BabyLogDomainSmokeTest {
         assertEquals(BabyLogDomain.LOCAL_MEMBER_ID, manager.id);
         assertEquals("manager", manager.role);
         assertEquals("active", manager.status);
+
+        if (!contains(BabyLogDomain.EVENT_TYPES, "maternal_metric")) {
+            throw new AssertionError("maternal_metric should be a first-class event type");
+        }
     }
 
     private static void assertEquals(Object expected, Object actual) {
         if (expected == null ? actual != null : !expected.equals(actual)) {
             throw new AssertionError("expected " + expected + " but got " + actual);
         }
+    }
+
+    private static boolean contains(String[] values, String expected) {
+        for (String value : values) {
+            if (expected.equals(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -219,6 +219,39 @@ public final class BabyLogFormatters {
         return warnings.toString();
     }
 
+    public static String formatMaternalGlucoseWarning(Double glucoseMmolL, String context) {
+        if (glucoseMmolL == null) {
+            return "";
+        }
+        String normalized = context == null ? "" : context.trim();
+        double threshold;
+        String label;
+        if ("fasting".equals(normalized)) {
+            threshold = 5.1;
+            label = "空腹";
+        } else if ("after_1h".equals(normalized)) {
+            threshold = 10.0;
+            label = "餐后1h";
+        } else if ("after_2h".equals(normalized)) {
+            threshold = 8.5;
+            label = "餐后2h";
+        } else {
+            return "";
+        }
+        if (glucoseMmolL <= threshold) {
+            return "";
+        }
+        return label + "血糖高于 " + String.format(Locale.US, "%.1f", threshold) + " mmol/L；非诊断，仅提示，请遵医嘱";
+    }
+
+    public static String maternalGlucoseContextLabel(String context) {
+        if ("fasting".equals(context)) return "空腹";
+        if ("after_1h".equals(context)) return "餐后1h";
+        if ("after_2h".equals(context)) return "餐后2h";
+        if ("random".equals(context)) return "随机";
+        return context == null || context.trim().isEmpty() ? "" : context.trim();
+    }
+
     public static boolean isOutsideSoftRange(Double value, double min, double max) {
         return value != null && (value < min || value > max);
     }
@@ -228,6 +261,7 @@ public final class BabyLogFormatters {
         if ("ultrasound".equals(eventType)) return "B 超";
         if ("fetal_movement".equals(eventType)) return "胎动";
         if ("contraction".equals(eventType)) return "宫缩";
+        if ("maternal_metric".equals(eventType)) return "孕妈指标";
         if ("birth".equals(eventType)) return "出生";
         if ("feed".equals(eventType)) return "喂养";
         if ("breastfeed".equals(eventType)) return "母乳";
@@ -391,7 +425,8 @@ public final class BabyLogFormatters {
             return "checkup";
         }
         if ("fetal_movement".equals(eventType)
-                || "contraction".equals(eventType)) {
+                || "contraction".equals(eventType)
+                || "maternal_metric".equals(eventType)) {
             return "pregnancy";
         }
         if ("birth".equals(eventType)
