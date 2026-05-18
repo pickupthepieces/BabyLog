@@ -30,6 +30,20 @@ public final class BabyLogRepository {
         putJson(EVENTS_KEY, event.id, event.toJson());
     }
 
+    public BabyLogDomain.BabyLogEvent findEventById(String eventId) {
+        if (eventId == null || eventId.trim().isEmpty()) {
+            return null;
+        }
+        JSONArray array = readArray(EVENTS_KEY);
+        for (int i = 0; i < array.length(); i++) {
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(array.optJSONObject(i));
+            if (event != null && BabyLogDomain.FAMILY_ID.equals(event.familyId) && eventId.equals(event.id)) {
+                return event;
+            }
+        }
+        return null;
+    }
+
     public BabyLogDomain.FamilyProfile loadFamilyProfile() {
         String raw = preferences.getString(FAMILY_PROFILE_KEY, "");
         if (raw == null || raw.trim().isEmpty()) {
@@ -102,8 +116,34 @@ public final class BabyLogRepository {
         return events;
     }
 
+    public List<BabyLogDomain.BabyLogEvent> listDeletedEvents() {
+        JSONArray array = readArray(EVENTS_KEY);
+        List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(array.optJSONObject(i));
+            if (event != null && BabyLogDomain.FAMILY_ID.equals(event.familyId) && event.deletedAt != null) {
+                events.add(event);
+            }
+        }
+        return events;
+    }
+
     public void putAttachment(BabyLogDomain.AttachmentRecord attachment) throws JSONException {
         putJson(ATTACHMENTS_KEY, attachment.id, attachment.toJson());
+    }
+
+    public BabyLogDomain.AttachmentRecord findAttachmentById(String attachmentId) {
+        if (attachmentId == null || attachmentId.trim().isEmpty()) {
+            return null;
+        }
+        JSONArray array = readArray(ATTACHMENTS_KEY);
+        for (int i = 0; i < array.length(); i++) {
+            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(array.optJSONObject(i));
+            if (attachment != null && BabyLogDomain.FAMILY_ID.equals(attachment.familyId) && attachmentId.equals(attachment.id)) {
+                return attachment;
+            }
+        }
+        return null;
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachments() {
@@ -116,6 +156,14 @@ public final class BabyLogRepository {
             }
         }
         return attachments;
+    }
+
+    public void hardDeleteEvent(String eventId) {
+        hardDeleteJson(EVENTS_KEY, eventId);
+    }
+
+    public void hardDeleteAttachment(String attachmentId) {
+        hardDeleteJson(ATTACHMENTS_KEY, attachmentId);
     }
 
     public void putSyncChange(BabyLogDomain.SyncChange change) throws JSONException {
@@ -239,6 +287,22 @@ public final class BabyLogRepository {
         }
         if (!replaced) {
             updated.put(next);
+        }
+        preferences.edit().putString(key, updated.toString()).commit();
+    }
+
+    private void hardDeleteJson(String key, String id) {
+        if (id == null || id.trim().isEmpty()) {
+            return;
+        }
+        JSONArray array = readArray(key);
+        JSONArray updated = new JSONArray();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject current = array.optJSONObject(i);
+            if (current == null || id.equals(current.optString("id"))) {
+                continue;
+            }
+            updated.put(current);
         }
         preferences.edit().putString(key, updated.toString()).commit();
     }

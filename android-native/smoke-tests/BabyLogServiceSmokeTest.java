@@ -1,6 +1,9 @@
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogService;
 
+import java.io.File;
+import java.nio.file.Files;
+
 public final class BabyLogServiceSmokeTest {
     public static void main(String[] args) throws Exception {
         assertEquals(
@@ -81,28 +84,15 @@ public final class BabyLogServiceSmokeTest {
         );
         assertEquals(
                 "羊水 AFI 12.3 cm · 最大羊水池 5.1 cm · 胎盘 前壁 · 成熟度 I 级 · 胎位 头位 · 脐动脉 S/D 2.5 · PI 0.9 · RI 0.6",
-                BabyLogService.formatUltrasoundClinicalDetails(
-                        new BabyLogService.UltrasoundInput(
-                                "2026-05-18",
-                                "22+5",
-                                "55",
-                                "205",
-                                "180",
-                                "38",
-                                "520",
-                                "12.3",
-                                "5.1",
-                                "前壁",
-                                "I 级",
-                                "头位",
-                                "2.5",
-                                "0.9",
-                                "0.6",
-                                "",
-                                ""
-                        )
-                )
+                BabyLogService.formatUltrasoundClinicalDetails(ultrasound("2026-05-18", "22+5", "55", "205", "180", "38", "520", "12.3", "5.1", "前壁", "I 级", "头位", "2.5", "0.9", "0.6", "", ""))
         );
+        assertFalse(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "")));
+        assertFalse(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "22+5", "", "", "", "", "", "12.3", "", "前壁", "", "", "", "", "", "", "")));
+        assertTrue(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "22+5", "45", "", "", "", "", "", "", "", "", "", "", "", "", "", "")));
+        File ultrasoundPhoto = File.createTempFile("babylog-ultrasound", ".jpg");
+        ultrasoundPhoto.deleteOnExit();
+        Files.write(ultrasoundPhoto.toPath(), new byte[] { 1, 2, 3 });
+        assertTrue(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ultrasoundPhoto.getAbsolutePath(), "ultrasound.jpg")));
 
         BabyLogDomain.ChildProfile birthProfile = BabyLogService.withBirthDateFromBirthEvent(
                 BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-09-16", "", "auto", true),
@@ -115,5 +105,57 @@ public final class BabyLogServiceSmokeTest {
         if (expected == null ? actual != null : !expected.equals(actual)) {
             throw new AssertionError("expected " + expected + " but got " + actual);
         }
+    }
+
+    private static void assertTrue(boolean actual) {
+        if (!actual) {
+            throw new AssertionError("expected true but got false");
+        }
+    }
+
+    private static void assertFalse(boolean actual) {
+        if (actual) {
+            throw new AssertionError("expected false but got true");
+        }
+    }
+
+    private static BabyLogService.UltrasoundInput ultrasound(
+            String examDate,
+            String gestationalAge,
+            String bpdMm,
+            String hcMm,
+            String acMm,
+            String flMm,
+            String efwGram,
+            String afiCm,
+            String deepestPocketCm,
+            String placentaLocation,
+            String placentaGrade,
+            String fetalPresentation,
+            String umbilicalSd,
+            String umbilicalPi,
+            String umbilicalRi,
+            String photoPath,
+            String photoName
+    ) {
+        return new BabyLogService.UltrasoundInput(
+                examDate,
+                gestationalAge,
+                bpdMm,
+                hcMm,
+                acMm,
+                flMm,
+                efwGram,
+                afiCm,
+                deepestPocketCm,
+                placentaLocation,
+                placentaGrade,
+                fetalPresentation,
+                umbilicalSd,
+                umbilicalPi,
+                umbilicalRi,
+                photoPath,
+                photoName
+        );
     }
 }

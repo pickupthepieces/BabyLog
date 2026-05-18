@@ -1,7 +1,10 @@
 import app.babylog.nativeapp.BabyLogDomain;
+import app.babylog.nativeapp.BabyLogService;
+
+import java.util.Arrays;
 
 public final class BabyLogDomainSmokeTest {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         BabyLogDomain.FamilyProfile family = BabyLogDomain.FamilyProfile.localDefault();
         assertEquals(BabyLogDomain.FAMILY_ID, family.id);
         assertEquals("我的家庭", family.name);
@@ -30,6 +33,39 @@ public final class BabyLogDomainSmokeTest {
         if (!contains(BabyLogDomain.EVENT_TYPES, "maternal_metric")) {
             throw new AssertionError("maternal_metric should be a first-class event type");
         }
+
+        BabyLogDomain.BabyLogEvent event = new BabyLogDomain.BabyLogEvent(
+                "evt_test",
+                BabyLogDomain.FAMILY_ID,
+                BabyLogDomain.CHILD_ID,
+                "fetal_movement",
+                "2026-05-18T20:17:00.000+0800",
+                null,
+                Arrays.asList("att_1"),
+                "manual",
+                "2026-05-18T20:00:00.000+0800",
+                "2026-05-18T20:00:00.000+0800",
+                BabyLogDomain.UPDATED_BY_LOCAL,
+                BabyLogDomain.SCHEMA_VERSION,
+                null
+        );
+        BabyLogDomain.BabyLogEvent deleted = event.withDeletedAt("2026-05-18T20:30:00.000+0800");
+        assertEquals(event.id, deleted.id);
+        assertEquals(event.eventType, deleted.eventType);
+        assertEquals(event.occurredAt, deleted.occurredAt);
+        assertEquals(1, deleted.attachmentIds.size());
+        assertEquals("att_1", deleted.attachmentIds.get(0));
+        assertEquals("2026-05-18T20:30:00.000+0800", deleted.deletedAt);
+        assertEquals("2026-05-18T20:30:00.000+0800", deleted.updatedAt);
+
+        BabyLogDomain.BabyLogEvent restored = deleted.withRestoredAt("2026-05-18T20:35:00.000+0800");
+        assertEquals(event.id, restored.id);
+        assertEquals(event.eventType, restored.eventType);
+        assertEquals(null, restored.deletedAt);
+        assertEquals("2026-05-18T20:35:00.000+0800", restored.updatedAt);
+
+        assertEquals(false, BabyLogService.isTrashExpired("2026-05-18T20:30:00.000+0800", "2026-05-25T20:29:59.000+0800"));
+        assertEquals(true, BabyLogService.isTrashExpired("2026-05-18T20:30:00.000+0800", "2026-05-25T20:30:00.000+0800"));
     }
 
     private static void assertEquals(Object expected, Object actual) {

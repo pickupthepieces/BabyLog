@@ -438,7 +438,7 @@ public final class BabyLogDomain {
         public final int schemaVersion;
         public final String deletedAt;
 
-        BabyLogEvent(
+        public BabyLogEvent(
                 String id,
                 String familyId,
                 String childId,
@@ -484,6 +484,48 @@ public final class BabyLogDomain {
             json.put("schemaVersion", schemaVersion);
             json.put("deletedAt", deletedAt == null ? JSONObject.NULL : deletedAt);
             return json;
+        }
+
+        public BabyLogEvent withDeletedAt(String nextDeletedAt) {
+            String timestamp = nextDeletedAt == null || nextDeletedAt.trim().isEmpty()
+                    ? BabyLogFormatters.nowIso()
+                    : nextDeletedAt;
+            return new BabyLogEvent(
+                    id,
+                    familyId,
+                    childId,
+                    eventType,
+                    occurredAt,
+                    payload,
+                    new ArrayList<>(attachmentIds),
+                    source,
+                    createdAt,
+                    timestamp,
+                    updatedBy,
+                    schemaVersion,
+                    timestamp
+            );
+        }
+
+        public BabyLogEvent withRestoredAt(String restoredAt) {
+            String timestamp = restoredAt == null || restoredAt.trim().isEmpty()
+                    ? BabyLogFormatters.nowIso()
+                    : restoredAt;
+            return new BabyLogEvent(
+                    id,
+                    familyId,
+                    childId,
+                    eventType,
+                    occurredAt,
+                    payload,
+                    new ArrayList<>(attachmentIds),
+                    source,
+                    createdAt,
+                    timestamp,
+                    updatedBy,
+                    schemaVersion,
+                    null
+            );
         }
 
         public static BabyLogEvent fromJson(JSONObject json) {
@@ -590,6 +632,58 @@ public final class BabyLogDomain {
             json.put("schemaVersion", schemaVersion);
             json.put("deletedAt", deletedAt == null ? JSONObject.NULL : deletedAt);
             return json;
+        }
+
+        public AttachmentRecord withDeletedAt(String nextDeletedAt) {
+            String timestamp = nextDeletedAt == null || nextDeletedAt.trim().isEmpty()
+                    ? BabyLogFormatters.nowIso()
+                    : nextDeletedAt;
+            return new AttachmentRecord(
+                    id,
+                    familyId,
+                    childId,
+                    kind,
+                    originalName,
+                    mimeType,
+                    byteSize,
+                    localPath,
+                    widthPx,
+                    heightPx,
+                    contentHash,
+                    remoteUrl,
+                    ocrStatus,
+                    createdAt,
+                    timestamp,
+                    updatedBy,
+                    schemaVersion,
+                    timestamp
+            );
+        }
+
+        public AttachmentRecord withRestoredAt(String restoredAt) {
+            String timestamp = restoredAt == null || restoredAt.trim().isEmpty()
+                    ? BabyLogFormatters.nowIso()
+                    : restoredAt;
+            return new AttachmentRecord(
+                    id,
+                    familyId,
+                    childId,
+                    kind,
+                    originalName,
+                    mimeType,
+                    byteSize,
+                    localPath,
+                    widthPx,
+                    heightPx,
+                    contentHash,
+                    remoteUrl,
+                    ocrStatus,
+                    createdAt,
+                    timestamp,
+                    updatedBy,
+                    schemaVersion,
+                    null
+            );
         }
 
         public static AttachmentRecord fromJson(JSONObject json) {

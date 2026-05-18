@@ -25,6 +25,8 @@ import java.util.UUID;
 public final class BabyLogService {
     public static final String BACKUP_FORMAT = "babylog.backup";
     public static final int BACKUP_VERSION = 1;
+    public static final int TRASH_RETENTION_DAYS = 7;
+    private static final long TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24L * 60L * 60L * 1000L;
 
     private final Context context;
     private final BabyLogRepository repository;
@@ -120,6 +122,97 @@ public final class BabyLogService {
         repository.putEvent(event);
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
         return event;
+    }
+
+    public BabyLogDomain.BabyLogEvent deleteEvent(String eventId) throws JSONException {
+        BabyLogDomain.BabyLogEvent event = repository.findEventById(eventId);
+        if (event == null || event.deletedAt != null) {
+            throw new JSONException("记录不存在或已删除");
+        }
+        String deletedAt = BabyLogFormatters.nowIso();
+        BabyLogDomain.BabyLogEvent deleted = event.withDeletedAt(deletedAt);
+        repository.putEvent(deleted);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", deleted.id, "delete"));
+        for (String attachmentId : event.attachmentIds) {
+            BabyLogDomain.AttachmentRecord attachment = repository.findAttachmentById(attachmentId);
+            if (attachment == null || attachment.deletedAt != null) {
+                continue;
+            }
+            repository.putAttachment(attachment.withDeletedAt(deletedAt));
+            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "delete"));
+        }
+        if ("birth".equals(event.eventType)) {
+            repository.saveChildProfile(repository.loadChildProfile().withBirthDate(""));
+        }
+        return deleted;
+    }
+
+    public BabyLogDomain.BabyLogEvent restoreEvent(String eventId) throws JSONException {
+        BabyLogDomain.BabyLogEvent event = repository.findEventById(eventId);
+        if (event == null || event.deletedAt == null) {
+            throw new JSONException("记录不存在或不在回收站");
+        }
+        String restoredAt = BabyLogFormatters.nowIso();
+        BabyLogDomain.BabyLogEvent restored = event.withRestoredAt(restoredAt);
+        repository.putEvent(restored);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", restored.id, "upsert"));
+        for (String attachmentId : event.attachmentIds) {
+            BabyLogDomain.AttachmentRecord attachment = repository.findAttachmentById(attachmentId);
+            if (attachment == null || attachment.deletedAt == null) {
+                continue;
+            }
+            repository.putAttachment(attachment.withRestoredAt(restoredAt));
+            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
+        }
+        if ("birth".equals(restored.eventType)) {
+            repository.saveChildProfile(withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt));
+        }
+        return restored;
+    }
+
+    public int purgeExpiredTrash() {
+        String now = BabyLogFormatters.nowIso();
+        int count = 0;
+        for (BabyLogDomain.BabyLogEvent event : repository.listDeletedEvents()) {
+            if (!isTrashExpired(event.deletedAt, now)) {
+                continue;
+            }
+            for (String attachmentId : event.attachmentIds) {
+                BabyLogDomain.AttachmentRecord attachment = repository.findAttachmentById(attachmentId);
+                if (attachment != null) {
+                    deleteLocalFile(attachment.localPath);
+                    repository.hardDeleteAttachment(attachment.id);
+                }
+            }
+            repository.hardDeleteEvent(event.id);
+            count += 1;
+        }
+        return count;
+    }
+
+    public List<BabyLogDomain.BabyLogEvent> listTrashEvents() {
+        List<BabyLogDomain.BabyLogEvent> events = repository.listDeletedEvents();
+        Collections.sort(events, (left, right) -> Long.compare(parseTime(right.deletedAt), parseTime(left.deletedAt)));
+        return events;
+    }
+
+    public static boolean isTrashExpired(String deletedAt, String nowIso) {
+        long deleted = BabyLogFormatters.parseIsoMillis(deletedAt);
+        long now = BabyLogFormatters.parseIsoMillis(nowIso);
+        return deleted > 0 && now > 0 && now - deleted >= TRASH_RETENTION_MS;
+    }
+
+    public static int trashRemainingDays(String deletedAt, String nowIso) {
+        long deleted = BabyLogFormatters.parseIsoMillis(deletedAt);
+        long now = BabyLogFormatters.parseIsoMillis(nowIso);
+        if (deleted <= 0 || now <= 0) {
+            return TRASH_RETENTION_DAYS;
+        }
+        long remaining = TRASH_RETENTION_MS - Math.max(0L, now - deleted);
+        if (remaining <= 0L) {
+            return 0;
+        }
+        return (int) Math.ceil(remaining / (24.0 * 60.0 * 60.0 * 1000.0));
     }
 
     public static JSONObject buildBabyCarePayload(BabyCareInput input) throws JSONException {
@@ -313,6 +406,26 @@ public final class BabyLogService {
         return summary.toString();
     }
 
+    public static boolean hasUltrasoundMinimumContent(UltrasoundInput input) {
+        if (input == null) {
+            return false;
+        }
+        return hasUsableUltrasoundPhoto(input.photoPath)
+                || BabyLogFormatters.parseOptionalNumber(input.bpdMm) != null
+                || BabyLogFormatters.parseOptionalNumber(input.hcMm) != null
+                || BabyLogFormatters.parseOptionalNumber(input.acMm) != null
+                || BabyLogFormatters.parseOptionalNumber(input.flMm) != null
+                || BabyLogFormatters.parseOptionalNumber(input.efwGram) != null;
+    }
+
+    private static boolean hasUsableUltrasoundPhoto(String photoPath) {
+        if (isBlank(photoPath)) {
+            return false;
+        }
+        File image = new File(photoPath);
+        return image.isFile() && image.length() > 0;
+    }
+
     public static String formatMaternalMetricSummary(MaternalMetricInput input) {
         StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel("maternal_metric"));
         Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
@@ -337,6 +450,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent recordUltrasound(UltrasoundInput input) throws JSONException {
+        if (!hasUltrasoundMinimumContent(input)) {
+            throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
+        }
         List<String> attachmentIds = new ArrayList<>();
         if (input.photoPath != null && !input.photoPath.isEmpty()) {
             File image = new File(input.photoPath);
@@ -356,12 +472,23 @@ public final class BabyLogService {
 
         JSONObject payload = new JSONObject();
         payload.put("examDate", input.examDate);
+        Double bpd = BabyLogFormatters.parseOptionalNumber(input.bpdMm);
+        Double hc = BabyLogFormatters.parseOptionalNumber(input.hcMm);
+        Double ac = BabyLogFormatters.parseOptionalNumber(input.acMm);
+        Double fl = BabyLogFormatters.parseOptionalNumber(input.flMm);
+        Double efw = BabyLogFormatters.parseOptionalNumber(input.efwGram);
+        if (efw == null) {
+            efw = BabyLogFetalGrowthReference.estimateEfwHadlock3Gram(bpd, ac, fl);
+            if (efw != null) {
+                payload.put("efwMethod", "hadlock3");
+            }
+        }
         putIfNotNull(payload, "gestationalAgeDays", BabyLogFormatters.parseGestationalAgeDays(input.gestationalAge));
-        putIfNotNull(payload, "bpdMm", BabyLogFormatters.parseOptionalNumber(input.bpdMm));
-        putIfNotNull(payload, "hcMm", BabyLogFormatters.parseOptionalNumber(input.hcMm));
-        putIfNotNull(payload, "acMm", BabyLogFormatters.parseOptionalNumber(input.acMm));
-        putIfNotNull(payload, "flMm", BabyLogFormatters.parseOptionalNumber(input.flMm));
-        putIfNotNull(payload, "efwGram", BabyLogFormatters.parseOptionalNumber(input.efwGram));
+        putIfNotNull(payload, "bpdMm", bpd);
+        putIfNotNull(payload, "hcMm", hc);
+        putIfNotNull(payload, "acMm", ac);
+        putIfNotNull(payload, "flMm", fl);
+        putIfNotNull(payload, "efwGram", efw);
         putIfNotNull(payload, "afiCm", BabyLogFormatters.parseOptionalNumber(input.afiCm));
         putIfNotNull(payload, "deepestPocketCm", BabyLogFormatters.parseOptionalNumber(input.deepestPocketCm));
         putStringIfNotBlank(payload, "placentaLocation", input.placentaLocation);
@@ -552,6 +679,16 @@ public final class BabyLogService {
 
     private long estimateAttachmentBytes() {
         return directoryBytes(new File(context.getFilesDir(), "attachments"));
+    }
+
+    private void deleteLocalFile(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return;
+        }
+        File file = new File(path);
+        if (file.isFile()) {
+            file.delete();
+        }
     }
 
     private void deleteRecursively(File file) {
