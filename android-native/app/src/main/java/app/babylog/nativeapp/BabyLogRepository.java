@@ -16,6 +16,9 @@ public final class BabyLogRepository {
     private static final String ATTACHMENTS_KEY = "attachments";
     private static final String SYNC_CHANGES_KEY = "syncChanges";
     private static final String SETTINGS_KEY = "syncSettings";
+    private static final String FAMILY_PROFILE_KEY = "familyProfile";
+    private static final String CHILD_PROFILE_KEY = "childProfile";
+    private static final String CURRENT_MEMBER_KEY = "currentMember";
 
     private final SharedPreferences preferences;
 
@@ -25,6 +28,66 @@ public final class BabyLogRepository {
 
     public void putEvent(BabyLogDomain.BabyLogEvent event) throws JSONException {
         putJson(EVENTS_KEY, event.id, event.toJson());
+    }
+
+    public BabyLogDomain.FamilyProfile loadFamilyProfile() {
+        String raw = preferences.getString(FAMILY_PROFILE_KEY, "");
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return BabyLogDomain.FamilyProfile.fromJson(new JSONObject(raw));
+        } catch (JSONException ignored) {
+            return null;
+        }
+    }
+
+    public BabyLogDomain.ChildProfile loadChildProfile() {
+        String raw = preferences.getString(CHILD_PROFILE_KEY, "");
+        if (raw == null || raw.trim().isEmpty()) {
+            return BabyLogDomain.ChildProfile.empty();
+        }
+        try {
+            BabyLogDomain.ChildProfile profile = BabyLogDomain.ChildProfile.fromJson(new JSONObject(raw));
+            return profile == null ? BabyLogDomain.ChildProfile.empty() : profile;
+        } catch (JSONException ignored) {
+            return BabyLogDomain.ChildProfile.empty();
+        }
+    }
+
+    public BabyLogDomain.FamilyMember loadCurrentMember() {
+        String raw = preferences.getString(CURRENT_MEMBER_KEY, "");
+        if (raw == null || raw.trim().isEmpty()) {
+            return BabyLogDomain.FamilyMember.localManager();
+        }
+        try {
+            BabyLogDomain.FamilyMember member = BabyLogDomain.FamilyMember.fromJson(new JSONObject(raw));
+            return member == null ? BabyLogDomain.FamilyMember.localManager() : member;
+        } catch (JSONException ignored) {
+            return BabyLogDomain.FamilyMember.localManager();
+        }
+    }
+
+    public boolean hasCompletedSetup() {
+        return loadChildProfile().setupCompleted;
+    }
+
+    public void saveProfileBundle(
+            BabyLogDomain.FamilyProfile family,
+            BabyLogDomain.ChildProfile child,
+            BabyLogDomain.FamilyMember member
+    ) throws JSONException {
+        preferences.edit()
+                .putString(FAMILY_PROFILE_KEY, (family == null ? BabyLogDomain.FamilyProfile.localDefault() : family).toJson().toString())
+                .putString(CHILD_PROFILE_KEY, (child == null ? BabyLogDomain.ChildProfile.empty() : child).toJson().toString())
+                .putString(CURRENT_MEMBER_KEY, (member == null ? BabyLogDomain.FamilyMember.localManager() : member).toJson().toString())
+                .commit();
+    }
+
+    public void saveChildProfile(BabyLogDomain.ChildProfile child) throws JSONException {
+        preferences.edit()
+                .putString(CHILD_PROFILE_KEY, (child == null ? BabyLogDomain.ChildProfile.empty() : child).toJson().toString())
+                .commit();
     }
 
     public List<BabyLogDomain.BabyLogEvent> listEvents() {
@@ -76,8 +139,34 @@ public final class BabyLogRepository {
     }
 
     public BabyLogDomain.BackendConfig saveSyncSettings(BabyLogDomain.BackendConfig config) throws JSONException {
-        preferences.edit().putString(SETTINGS_KEY, config.toJson().toString()).apply();
+        preferences.edit().putString(SETTINGS_KEY, config.toJson().toString()).commit();
         return config;
+    }
+
+    public JSONArray exportFamilyProfiles() throws JSONException {
+        JSONArray array = new JSONArray();
+        BabyLogDomain.FamilyProfile profile = loadFamilyProfile();
+        if (profile != null) {
+            array.put(profile.toJson());
+        }
+        return array;
+    }
+
+    public JSONArray exportChildProfiles() throws JSONException {
+        JSONArray array = new JSONArray();
+        BabyLogDomain.ChildProfile profile = loadChildProfile();
+        if (profile.setupCompleted) {
+            array.put(profile.toJson());
+        }
+        return array;
+    }
+
+    public JSONArray exportFamilyMembers() throws JSONException {
+        JSONArray array = new JSONArray();
+        if (loadChildProfile().setupCompleted) {
+            array.put(loadCurrentMember().toJson());
+        }
+        return array;
     }
 
     public JSONArray exportEvents() {
@@ -92,12 +181,22 @@ public final class BabyLogRepository {
         return readArray(SYNC_CHANGES_KEY);
     }
 
-    public void importData(JSONArray events, JSONArray attachments, JSONArray syncChanges) {
-        preferences.edit()
+    public void importData(
+            JSONArray familyProfiles,
+            JSONArray childProfiles,
+            JSONArray familyMembers,
+            JSONArray events,
+            JSONArray attachments,
+            JSONArray syncChanges
+    ) {
+        SharedPreferences.Editor editor = preferences.edit()
                 .putString(EVENTS_KEY, events == null ? "[]" : events.toString())
                 .putString(ATTACHMENTS_KEY, attachments == null ? "[]" : attachments.toString())
-                .putString(SYNC_CHANGES_KEY, syncChanges == null ? "[]" : syncChanges.toString())
-                .apply();
+                .putString(SYNC_CHANGES_KEY, syncChanges == null ? "[]" : syncChanges.toString());
+        putFirstObjectOrRemove(editor, FAMILY_PROFILE_KEY, familyProfiles);
+        putFirstObjectOrRemove(editor, CHILD_PROFILE_KEY, childProfiles);
+        putFirstObjectOrRemove(editor, CURRENT_MEMBER_KEY, familyMembers);
+        editor.commit();
     }
 
     public void clearLocalData() {
@@ -105,7 +204,10 @@ public final class BabyLogRepository {
                 .putString(EVENTS_KEY, "[]")
                 .putString(ATTACHMENTS_KEY, "[]")
                 .putString(SYNC_CHANGES_KEY, "[]")
-                .apply();
+                .remove(FAMILY_PROFILE_KEY)
+                .remove(CHILD_PROFILE_KEY)
+                .remove(CURRENT_MEMBER_KEY)
+                .commit();
     }
 
     public long estimateLocalBytes() {
@@ -113,6 +215,9 @@ public final class BabyLogRepository {
         bytes += preferences.getString(EVENTS_KEY, "[]").length();
         bytes += preferences.getString(ATTACHMENTS_KEY, "[]").length();
         bytes += preferences.getString(SYNC_CHANGES_KEY, "[]").length();
+        bytes += preferences.getString(FAMILY_PROFILE_KEY, "").length();
+        bytes += preferences.getString(CHILD_PROFILE_KEY, "").length();
+        bytes += preferences.getString(CURRENT_MEMBER_KEY, "").length();
         return bytes;
     }
 
@@ -135,7 +240,7 @@ public final class BabyLogRepository {
         if (!replaced) {
             updated.put(next);
         }
-        preferences.edit().putString(key, updated.toString()).apply();
+        preferences.edit().putString(key, updated.toString()).commit();
     }
 
     private JSONArray readArray(String key) {
@@ -143,6 +248,15 @@ public final class BabyLogRepository {
             return new JSONArray(preferences.getString(key, "[]"));
         } catch (JSONException ignored) {
             return new JSONArray();
+        }
+    }
+
+    private void putFirstObjectOrRemove(SharedPreferences.Editor editor, String key, JSONArray array) {
+        JSONObject first = array == null ? null : array.optJSONObject(0);
+        if (first == null) {
+            editor.remove(key);
+        } else {
+            editor.putString(key, first.toString());
         }
     }
 }

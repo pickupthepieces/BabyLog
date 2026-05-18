@@ -1,10 +1,17 @@
 import app.babylog.nativeapp.BabyLogFormatters;
+import app.babylog.nativeapp.BabyLogDomain;
 
 public final class BabyLogFormattersSmokeTest {
     public static void main(String[] args) {
         assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28+3"));
+        assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28＋3"));
+        assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28周3"));
+        assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28w3"));
         assertEquals(196, BabyLogFormatters.parseGestationalAgeDays("28"));
+        assertEquals(196, BabyLogFormatters.parseGestationalAgeDays("28周"));
         assertEquals(null, BabyLogFormatters.parseGestationalAgeDays("28+x"));
+        assertEquals(null, BabyLogFormatters.parseOptionalNumber("NaN"));
+        assertEquals(null, BabyLogFormatters.parseOptionalNumber("Infinity"));
         assertEquals("28+3 周", BabyLogFormatters.formatGestationalAge(199));
         assertEquals(
                 "28+3 周 · EFW 1420 g · BPD 71 mm",
@@ -35,10 +42,34 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals(1, BabyLogFormatters.backupAgeLevel(now - 7L * 86_400_000L, now));
         assertEquals(2, BabyLogFormatters.backupAgeLevel(now - 30L * 86_400_000L, now));
         assertEquals("baby", BabyLogFormatters.timelineFilterGroup("feed"));
+        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("birth"));
+        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("breastfeed"));
+        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("bottle"));
+        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("wake"));
+        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("pee"));
+        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("poop"));
         assertEquals("pregnancy", BabyLogFormatters.timelineFilterGroup("fetal_movement"));
         assertEquals("ultrasound", BabyLogFormatters.timelineFilterGroup("ultrasound"));
         assertEquals("temperature", BabyLogFormatters.timelineFilterGroup("temperature"));
         assertEquals("checkup", BabyLogFormatters.timelineFilterGroup("pregnancy_checkup"));
+        assertEquals("2026-05-17", BabyLogFormatters.recordDay("2026-05-18T02:30:00.000+0800", 4));
+        assertEquals("2026-05-18", BabyLogFormatters.recordDay("2026-05-18T04:00:00.000+0800", 4));
+        assertEquals("pregnancy", BabyLogFormatters.resolveCareStage(
+                BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "", "auto", true),
+                "2026-05-18"
+        ));
+        assertEquals("baby", BabyLogFormatters.resolveCareStage(
+                BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "2026-05-01", "auto", true),
+                "2026-05-18"
+        ));
+        assertEquals("pregnancy", BabyLogFormatters.resolveCareStage(
+                BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "2026-05-01", "pregnancy", true),
+                "2026-05-18"
+        ));
+        assertEquals("unknown", BabyLogFormatters.resolveCareStage(
+                BabyLogDomain.ChildProfile.createForNewFamily("", "unknown", "", "", "auto", true),
+                "2026-05-18"
+        ));
         if (!BabyLogFormatters.matchesTimelineFilter("feed", "baby")) {
             throw new AssertionError("feed should match baby filter");
         }

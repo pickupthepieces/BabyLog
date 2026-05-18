@@ -11,8 +11,13 @@ import java.util.UUID;
 public final class BabyLogDomain {
     public static final String FAMILY_ID = "family_local";
     public static final String CHILD_ID = "child_singleton";
+    public static final String LOCAL_MEMBER_ID = "member_local_manager";
     public static final String UPDATED_BY_LOCAL = "local";
     public static final int SCHEMA_VERSION = 1;
+    public static final String STAGE_AUTO = "auto";
+    public static final String STAGE_PREGNANCY = "pregnancy";
+    public static final String STAGE_BABY = "baby";
+    public static final String STAGE_UNKNOWN = "unknown";
 
     public static final String[] EVENT_TYPES = {
             "pregnancy_checkup",
@@ -21,8 +26,13 @@ public final class BabyLogDomain {
             "contraction",
             "birth",
             "feed",
+            "breastfeed",
+            "bottle",
             "sleep",
+            "wake",
             "diaper",
+            "pee",
+            "poop",
             "temperature",
             "medication",
             "illness",
@@ -132,6 +142,284 @@ public final class BabyLogDomain {
             return null;
         }
         return json.optString(key, null);
+    }
+
+    static String optStringOrEmpty(JSONObject json, String key) {
+        if (json == null || json.isNull(key)) {
+            return "";
+        }
+        return json.optString(key, "");
+    }
+
+    public static final class FamilyProfile {
+        public final String id;
+        public final String name;
+        public final String status;
+        public final String createdAt;
+        public final String updatedAt;
+        public final int schemaVersion;
+
+        FamilyProfile(
+                String id,
+                String name,
+                String status,
+                String createdAt,
+                String updatedAt,
+                int schemaVersion
+        ) {
+            this.id = id == null || id.isEmpty() ? FAMILY_ID : id;
+            this.name = name == null || name.trim().isEmpty() ? "我的家庭" : name.trim();
+            this.status = status == null || status.isEmpty() ? "active" : status;
+            this.createdAt = createdAt == null ? "" : createdAt;
+            this.updatedAt = updatedAt == null ? "" : updatedAt;
+            this.schemaVersion = schemaVersion;
+        }
+
+        public static FamilyProfile localDefault() {
+            String now = BabyLogFormatters.nowIso();
+            return new FamilyProfile(FAMILY_ID, "我的家庭", "active", now, now, SCHEMA_VERSION);
+        }
+
+        public JSONObject toJson() throws JSONException {
+            JSONObject json = new JSONObject();
+            json.put("id", id);
+            json.put("name", name);
+            json.put("status", status);
+            json.put("createdAt", createdAt);
+            json.put("updatedAt", updatedAt);
+            json.put("schemaVersion", schemaVersion);
+            return json;
+        }
+
+        public static FamilyProfile fromJson(JSONObject json) {
+            if (json == null) {
+                return null;
+            }
+            return new FamilyProfile(
+                    json.optString("id", FAMILY_ID),
+                    json.optString("name", "我的家庭"),
+                    json.optString("status", "active"),
+                    json.optString("createdAt"),
+                    json.optString("updatedAt"),
+                    json.optInt("schemaVersion", SCHEMA_VERSION)
+            );
+        }
+    }
+
+    public static final class ChildProfile {
+        public final String id;
+        public final String familyId;
+        public final String nickname;
+        public final String sex;
+        public final String expectedDueDate;
+        public final String birthDate;
+        public final String stageOverride;
+        public final boolean setupCompleted;
+        public final String createdAt;
+        public final String updatedAt;
+        public final int schemaVersion;
+
+        ChildProfile(
+                String id,
+                String familyId,
+                String nickname,
+                String sex,
+                String expectedDueDate,
+                String birthDate,
+                String stageOverride,
+                boolean setupCompleted,
+                String createdAt,
+                String updatedAt,
+                int schemaVersion
+        ) {
+            this.id = id == null || id.isEmpty() ? CHILD_ID : id;
+            this.familyId = familyId == null || familyId.isEmpty() ? FAMILY_ID : familyId;
+            this.nickname = nickname == null ? "" : nickname.trim();
+            this.sex = normalizeSex(sex);
+            this.expectedDueDate = expectedDueDate == null ? "" : expectedDueDate.trim();
+            this.birthDate = birthDate == null ? "" : birthDate.trim();
+            this.stageOverride = normalizeStageOverride(stageOverride);
+            this.setupCompleted = setupCompleted;
+            this.createdAt = createdAt == null ? "" : createdAt;
+            this.updatedAt = updatedAt == null ? "" : updatedAt;
+            this.schemaVersion = schemaVersion;
+        }
+
+        public static ChildProfile empty() {
+            String now = BabyLogFormatters.nowIso();
+            return new ChildProfile(CHILD_ID, FAMILY_ID, "", "unknown", "", "", STAGE_AUTO, false, now, now, SCHEMA_VERSION);
+        }
+
+        public static ChildProfile createForNewFamily(
+                String nickname,
+                String sex,
+                String expectedDueDate,
+                String birthDate,
+                String stageOverride,
+                boolean setupCompleted
+        ) {
+            String now = BabyLogFormatters.nowIso();
+            return new ChildProfile(
+                    CHILD_ID,
+                    FAMILY_ID,
+                    nickname,
+                    sex,
+                    expectedDueDate,
+                    birthDate,
+                    stageOverride,
+                    setupCompleted,
+                    now,
+                    now,
+                    SCHEMA_VERSION
+            );
+        }
+
+        public ChildProfile withBirthDate(String nextBirthDate) {
+            return new ChildProfile(
+                    id,
+                    familyId,
+                    nickname,
+                    sex,
+                    expectedDueDate,
+                    nextBirthDate,
+                    stageOverride,
+                    setupCompleted,
+                    createdAt,
+                    BabyLogFormatters.nowIso(),
+                    schemaVersion
+            );
+        }
+
+        public JSONObject toJson() throws JSONException {
+            JSONObject json = new JSONObject();
+            json.put("id", id);
+            json.put("familyId", familyId);
+            json.put("nickname", nickname);
+            json.put("sex", sex);
+            json.put("expectedDueDate", expectedDueDate);
+            json.put("birthDate", birthDate);
+            json.put("stageOverride", stageOverride);
+            json.put("setupCompleted", setupCompleted);
+            json.put("createdAt", createdAt);
+            json.put("updatedAt", updatedAt);
+            json.put("schemaVersion", schemaVersion);
+            return json;
+        }
+
+        public static ChildProfile fromJson(JSONObject json) {
+            if (json == null) {
+                return null;
+            }
+            return new ChildProfile(
+                    json.optString("id", CHILD_ID),
+                    json.optString("familyId", FAMILY_ID),
+                    optStringOrEmpty(json, "nickname"),
+                    json.optString("sex", "unknown"),
+                    optStringOrEmpty(json, "expectedDueDate"),
+                    optStringOrEmpty(json, "birthDate"),
+                    json.optString("stageOverride", STAGE_AUTO),
+                    json.optBoolean("setupCompleted", true),
+                    json.optString("createdAt"),
+                    json.optString("updatedAt"),
+                    json.optInt("schemaVersion", SCHEMA_VERSION)
+            );
+        }
+    }
+
+    public static final class FamilyMember {
+        public final String id;
+        public final String familyId;
+        public final String displayName;
+        public final String role;
+        public final String status;
+        public final String createdAt;
+        public final String updatedAt;
+        public final int schemaVersion;
+
+        FamilyMember(
+                String id,
+                String familyId,
+                String displayName,
+                String role,
+                String status,
+                String createdAt,
+                String updatedAt,
+                int schemaVersion
+        ) {
+            this.id = id == null || id.isEmpty() ? LOCAL_MEMBER_ID : id;
+            this.familyId = familyId == null || familyId.isEmpty() ? FAMILY_ID : familyId;
+            this.displayName = displayName == null || displayName.trim().isEmpty() ? "本机主人" : displayName.trim();
+            this.role = normalizeRole(role);
+            this.status = normalizeMemberStatus(status);
+            this.createdAt = createdAt == null ? "" : createdAt;
+            this.updatedAt = updatedAt == null ? "" : updatedAt;
+            this.schemaVersion = schemaVersion;
+        }
+
+        public static FamilyMember localManager() {
+            String now = BabyLogFormatters.nowIso();
+            return new FamilyMember(LOCAL_MEMBER_ID, FAMILY_ID, "本机主人", "manager", "active", now, now, SCHEMA_VERSION);
+        }
+
+        public JSONObject toJson() throws JSONException {
+            JSONObject json = new JSONObject();
+            json.put("id", id);
+            json.put("familyId", familyId);
+            json.put("displayName", displayName);
+            json.put("role", role);
+            json.put("status", status);
+            json.put("createdAt", createdAt);
+            json.put("updatedAt", updatedAt);
+            json.put("schemaVersion", schemaVersion);
+            return json;
+        }
+
+        public static FamilyMember fromJson(JSONObject json) {
+            if (json == null) {
+                return null;
+            }
+            return new FamilyMember(
+                    json.optString("id", LOCAL_MEMBER_ID),
+                    json.optString("familyId", FAMILY_ID),
+                    json.optString("displayName", "本机主人"),
+                    json.optString("role", "manager"),
+                    json.optString("status", "active"),
+                    json.optString("createdAt"),
+                    json.optString("updatedAt"),
+                    json.optInt("schemaVersion", SCHEMA_VERSION)
+            );
+        }
+    }
+
+    private static String normalizeSex(String sex) {
+        if ("male".equals(sex) || "female".equals(sex)) {
+            return sex;
+        }
+        return "unknown";
+    }
+
+    private static String normalizeStageOverride(String value) {
+        if (STAGE_PREGNANCY.equals(value) || STAGE_BABY.equals(value) || STAGE_UNKNOWN.equals(value)) {
+            return value;
+        }
+        return STAGE_AUTO;
+    }
+
+    private static String normalizeRole(String role) {
+        if ("manager".equals(role) || "family".equals(role) || "caregiver".equals(role)) {
+            return role;
+        }
+        if ("owner".equals(role) || "parent".equals(role)) {
+            return "manager";
+        }
+        return "manager";
+    }
+
+    private static String normalizeMemberStatus(String status) {
+        if ("stopped".equals(status) || "revoked".equals(status) || "expired".equals(status)) {
+            return "stopped";
+        }
+        return "active";
     }
 
     public static final class BabyLogEvent {

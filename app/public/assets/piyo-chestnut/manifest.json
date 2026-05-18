@@ -1,0 +1,975 @@
+{
+  "source": "C:\\Users\\yangxueju\\.codex\\generated_images\\019e2ad1-f51b-78c1-85ca-0a0929b2a9c5\\ig_0be609f91df5cff7016a06dde803e4819b8bace9285e874bfb.png",
+  "source_size": [
+    1254,
+    1254
+  ],
+  "assets": [
+    {
+      "file": "cutouts/01_app_icon_card.png",
+      "source_box": [
+        38,
+        38,
+        306,
+        308
+      ],
+      "trimmed_source_box": [
+        40,
+        39,
+        306,
+        308
+      ],
+      "size": [
+        266,
+        269
+      ],
+      "opaque_pixels_approx": 63528
+    },
+    {
+      "file": "cutouts/02_chestnut_mascot_large.png",
+      "source_box": [
+        318,
+        54,
+        570,
+        306
+      ],
+      "trimmed_source_box": [
+        326,
+        57,
+        564,
+        297
+      ],
+      "size": [
+        238,
+        240
+      ],
+      "opaque_pixels_approx": 33831
+    },
+    {
+      "file": "cutouts/03_chestnut_burr_sticker.png",
+      "source_box": [
+        620,
+        52,
+        797,
+        184
+      ],
+      "trimmed_source_box": [
+        622,
+        54,
+        797,
+        183
+      ],
+      "size": [
+        183,
+        137
+      ],
+      "opaque_pixels_approx": 17117
+    },
+    {
+      "file": "cutouts/04_chestnut_sleepy_sticker.png",
+      "source_box": [
+        792,
+        52,
+        923,
+        184
+      ],
+      "trimmed_source_box": [
+        792,
+        55,
+        923,
+        177
+      ],
+      "size": [
+        139,
+        130
+      ],
+      "opaque_pixels_approx": 10996
+    },
+    {
+      "file": "cutouts/05_chestnut_heart_sticker.png",
+      "source_box": [
+        936,
+        48,
+        1074,
+        184
+      ],
+      "trimmed_source_box": [
+        940,
+        53,
+        1070,
+        178
+      ],
+      "size": [
+        130,
+        125
+      ],
+      "opaque_pixels_approx": 10886
+    },
+    {
+      "file": "cutouts/06_chestnut_leaf_sticker.png",
+      "source_box": [
+        1082,
+        54,
+        1216,
+        188
+      ],
+      "trimmed_source_box": [
+        1084,
+        54,
+        1213,
+        181
+      ],
+      "size": [
+        129,
+        127
+      ],
+      "opaque_pixels_approx": 11330
+    },
+    {
+      "file": "cutouts/07_icon_bottle_circle.png",
+      "source_box": [
+        594,
+        190,
+        718,
+        318
+      ],
+      "trimmed_source_box": [
+        598,
+        191,
+        718,
+        316
+      ],
+      "size": [
+        120,
+        125
+      ],
+      "opaque_pixels_approx": 10552
+    },
+    {
+      "file": "cutouts/08_icon_sleep_moon_circle.png",
+      "source_box": [
+        718,
+        190,
+        840,
+        318
+      ],
+      "trimmed_source_box": [
+        719,
+        192,
+        840,
+        317
+      ],
+      "size": [
+        121,
+        125
+      ],
+      "opaque_pixels_approx": 10658
+    },
+    {
+      "file": "cutouts/09_icon_diaper_circle.png",
+      "source_box": [
+        840,
+        190,
+        962,
+        318
+      ],
+      "trimmed_source_box": [
+        841,
+        191,
+        962,
+        317
+      ],
+      "size": [
+        121,
+        126
+      ],
+      "opaque_pixels_approx": 10761
+    },
+    {
+      "file": "cutouts/10_icon_spoon_circle.png",
+      "source_box": [
+        962,
+        190,
+        1084,
+        318
+      ],
+      "trimmed_source_box": [
+        963,
+        192,
+        1084,
+        317
+      ],
+      "size": [
+        121,
+        125
+      ],
+      "opaque_pixels_approx": 10604
+    },
+    {
+      "file": "cutouts/11_icon_heart_circle.png",
+      "source_box": [
+        1082,
+        190,
+        1206,
+        318
+      ],
+      "trimmed_source_box": [
+        1083,
+        193,
+        1204,
+        318
+      ],
+      "size": [
+        121,
+        125
+      ],
+      "opaque_pixels_approx": 10575
+    },
+    {
+      "file": "cutouts/12_diary_note_card.png",
+      "source_box": [
+        42,
+        306,
+        414,
+        684
+      ],
+      "trimmed_source_box": [
+        42,
+        306,
+        414,
+        684
+      ],
+      "size": [
+        380,
+        386
+      ],
+      "opaque_pixels_approx": 121281
+    },
+    {
+      "file": "cutouts/13_calendar_card.png",
+      "source_box": [
+        440,
+        330,
+        742,
+        662
+      ],
+      "trimmed_source_box": [
+        440,
+        332,
+        742,
+        662
+      ],
+      "size": [
+        302,
+        330
+      ],
+      "opaque_pixels_approx": 91190
+    },
+    {
+      "file": "cutouts/14_button_plus.png",
+      "source_box": [
+        754,
+        342,
+        864,
+        452
+      ],
+      "trimmed_source_box": [
+        756,
+        342,
+        862,
+        450
+      ],
+      "size": [
+        106,
+        108
+      ],
+      "opaque_pixels_approx": 7951
+    },
+    {
+      "file": "cutouts/15_button_pencil.png",
+      "source_box": [
+        864,
+        342,
+        972,
+        452
+      ],
+      "trimmed_source_box": [
+        865,
+        343,
+        971,
+        449
+      ],
+      "size": [
+        106,
+        106
+      ],
+      "opaque_pixels_approx": 7879
+    },
+    {
+      "file": "cutouts/16_button_check.png",
+      "source_box": [
+        976,
+        342,
+        1086,
+        452
+      ],
+      "trimmed_source_box": [
+        976,
+        342,
+        1083,
+        449
+      ],
+      "size": [
+        107,
+        107
+      ],
+      "opaque_pixels_approx": 7948
+    },
+    {
+      "file": "cutouts/17_button_heart.png",
+      "source_box": [
+        1086,
+        342,
+        1198,
+        452
+      ],
+      "trimmed_source_box": [
+        1088,
+        342,
+        1195,
+        449
+      ],
+      "size": [
+        107,
+        107
+      ],
+      "opaque_pixels_approx": 7976
+    },
+    {
+      "file": "cutouts/18_button_arrow_left.png",
+      "source_box": [
+        754,
+        448,
+        864,
+        558
+      ],
+      "trimmed_source_box": [
+        758,
+        448,
+        861,
+        554
+      ],
+      "size": [
+        103,
+        106
+      ],
+      "opaque_pixels_approx": 7643
+    },
+    {
+      "file": "cutouts/19_button_arrow_right.png",
+      "source_box": [
+        864,
+        448,
+        972,
+        558
+      ],
+      "trimmed_source_box": [
+        866,
+        448,
+        970,
+        553
+      ],
+      "size": [
+        104,
+        105
+      ],
+      "opaque_pixels_approx": 7665
+    },
+    {
+      "file": "cutouts/20_button_home.png",
+      "source_box": [
+        976,
+        448,
+        1086,
+        558
+      ],
+      "trimmed_source_box": [
+        977,
+        448,
+        1082,
+        553
+      ],
+      "size": [
+        105,
+        105
+      ],
+      "opaque_pixels_approx": 7659
+    },
+    {
+      "file": "cutouts/21_button_menu.png",
+      "source_box": [
+        1088,
+        448,
+        1198,
+        558
+      ],
+      "trimmed_source_box": [
+        1089,
+        448,
+        1193,
+        554
+      ],
+      "size": [
+        104,
+        106
+      ],
+      "opaque_pixels_approx": 7679
+    },
+    {
+      "file": "cutouts/22_tab_bar.png",
+      "source_box": [
+        744,
+        562,
+        1222,
+        652
+      ],
+      "trimmed_source_box": [
+        745,
+        564,
+        1221,
+        652
+      ],
+      "size": [
+        476,
+        88
+      ],
+      "opaque_pixels_approx": 35070
+    },
+    {
+      "file": "cutouts/23_badge_chestnut.png",
+      "source_box": [
+        42,
+        686,
+        170,
+        844
+      ],
+      "trimmed_source_box": [
+        42,
+        689,
+        170,
+        841
+      ],
+      "size": [
+        128,
+        152
+      ],
+      "opaque_pixels_approx": 13744
+    },
+    {
+      "file": "cutouts/24_badge_sprout.png",
+      "source_box": [
+        166,
+        686,
+        294,
+        846
+      ],
+      "trimmed_source_box": [
+        166,
+        691,
+        294,
+        844
+      ],
+      "size": [
+        128,
+        153
+      ],
+      "opaque_pixels_approx": 13940
+    },
+    {
+      "file": "cutouts/25_badge_flower.png",
+      "source_box": [
+        292,
+        686,
+        424,
+        846
+      ],
+      "trimmed_source_box": [
+        292,
+        691,
+        423,
+        844
+      ],
+      "size": [
+        131,
+        153
+      ],
+      "opaque_pixels_approx": 13993
+    },
+    {
+      "file": "cutouts/26_small_red_dot.png",
+      "source_box": [
+        444,
+        686,
+        514,
+        758
+      ],
+      "trimmed_source_box": [
+        444,
+        686,
+        514,
+        758
+      ],
+      "size": [
+        70,
+        72
+      ],
+      "opaque_pixels_approx": 3538
+    },
+    {
+      "file": "cutouts/27_progress_brown.png",
+      "source_box": [
+        528,
+        694,
+        798,
+        772
+      ],
+      "trimmed_source_box": [
+        533,
+        695,
+        798,
+        772
+      ],
+      "size": [
+        273,
+        85
+      ],
+      "opaque_pixels_approx": 15155
+    },
+    {
+      "file": "cutouts/28_progress_green.png",
+      "source_box": [
+        524,
+        766,
+        800,
+        844
+      ],
+      "trimmed_source_box": [
+        525,
+        766,
+        798,
+        844
+      ],
+      "size": [
+        281,
+        86
+      ],
+      "opaque_pixels_approx": 15942
+    },
+    {
+      "file": "cutouts/29_empty_state_scene.png",
+      "source_box": [
+        828,
+        678,
+        1196,
+        936
+      ],
+      "trimmed_source_box": [
+        828,
+        678,
+        1196,
+        936
+      ],
+      "size": [
+        376,
+        266
+      ],
+      "opaque_pixels_approx": 41326
+    },
+    {
+      "file": "cutouts/30_divider_dashed_icon.png",
+      "source_box": [
+        44,
+        848,
+        802,
+        904
+      ],
+      "trimmed_source_box": [
+        49,
+        848,
+        799,
+        904
+      ],
+      "size": [
+        758,
+        64
+      ],
+      "opaque_pixels_approx": 12630
+    },
+    {
+      "file": "cutouts/31_divider_wavy_flower.png",
+      "source_box": [
+        44,
+        898,
+        808,
+        968
+      ],
+      "trimmed_source_box": [
+        44,
+        898,
+        802,
+        967
+      ],
+      "size": [
+        766,
+        77
+      ],
+      "opaque_pixels_approx": 18542
+    },
+    {
+      "file": "cutouts/32_divider_dotted.png",
+      "source_box": [
+        42,
+        960,
+        540,
+        1026
+      ],
+      "trimmed_source_box": [
+        44,
+        968,
+        540,
+        1026
+      ],
+      "size": [
+        504,
+        66
+      ],
+      "opaque_pixels_approx": 8483
+    },
+    {
+      "file": "cutouts/33_sticker_chestnut.png",
+      "source_box": [
+        36,
+        1018,
+        126,
+        1114
+      ],
+      "trimmed_source_box": [
+        36,
+        1026,
+        126,
+        1114
+      ],
+      "size": [
+        98,
+        96
+      ],
+      "opaque_pixels_approx": 5492
+    },
+    {
+      "file": "cutouts/34_sticker_burr.png",
+      "source_box": [
+        122,
+        1014,
+        220,
+        1118
+      ],
+      "trimmed_source_box": [
+        122,
+        1022,
+        220,
+        1116
+      ],
+      "size": [
+        106,
+        102
+      ],
+      "opaque_pixels_approx": 6479
+    },
+    {
+      "file": "cutouts/35_sticker_leaf_green.png",
+      "source_box": [
+        210,
+        1018,
+        280,
+        1114
+      ],
+      "trimmed_source_box": [
+        210,
+        1038,
+        280,
+        1114
+      ],
+      "size": [
+        78,
+        84
+      ],
+      "opaque_pixels_approx": 3406
+    },
+    {
+      "file": "cutouts/36_sticker_flower.png",
+      "source_box": [
+        278,
+        1018,
+        350,
+        1114
+      ],
+      "trimmed_source_box": [
+        278,
+        1036,
+        350,
+        1110
+      ],
+      "size": [
+        80,
+        82
+      ],
+      "opaque_pixels_approx": 3621
+    },
+    {
+      "file": "cutouts/37_sticker_leaf_yellow.png",
+      "source_box": [
+        348,
+        1018,
+        418,
+        1116
+      ],
+      "trimmed_source_box": [
+        348,
+        1039,
+        418,
+        1115
+      ],
+      "size": [
+        78,
+        84
+      ],
+      "opaque_pixels_approx": 3636
+    },
+    {
+      "file": "cutouts/38_sticker_berries.png",
+      "source_box": [
+        414,
+        1018,
+        486,
+        1116
+      ],
+      "trimmed_source_box": [
+        414,
+        1034,
+        486,
+        1112
+      ],
+      "size": [
+        80,
+        86
+      ],
+      "opaque_pixels_approx": 3556
+    },
+    {
+      "file": "cutouts/39_sticker_stump.png",
+      "source_box": [
+        476,
+        1018,
+        586,
+        1118
+      ],
+      "trimmed_source_box": [
+        476,
+        1038,
+        586,
+        1114
+      ],
+      "size": [
+        110,
+        76
+      ],
+      "opaque_pixels_approx": 5579
+    },
+    {
+      "file": "cutouts/40_sticker_leaf_small.png",
+      "source_box": [
+        582,
+        1018,
+        650,
+        1118
+      ],
+      "trimmed_source_box": [
+        582,
+        1036,
+        648,
+        1116
+      ],
+      "size": [
+        66,
+        80
+      ],
+      "opaque_pixels_approx": 3337
+    },
+    {
+      "file": "cutouts/41_chestnut_label_card.png",
+      "source_box": [
+        642,
+        1000,
+        825,
+        1168
+      ],
+      "trimmed_source_box": [
+        642,
+        1010,
+        824,
+        1168
+      ],
+      "size": [
+        207,
+        190
+      ],
+      "opaque_pixels_approx": 21870,
+      "regenerated": true,
+      "qa_note": "Regenerated as isolated chroma-key asset and converted to transparent PNG."
+    },
+    {
+      "file": "cutouts/42_cloud_label_card.png",
+      "source_box": [
+        828,
+        976,
+        1060,
+        1162
+      ],
+      "trimmed_source_box": [
+        832,
+        996,
+        1055,
+        1157
+      ],
+      "size": [
+        223,
+        161
+      ],
+      "opaque_pixels_approx": 26720
+    },
+    {
+      "file": "cutouts/43_vertical_tag_card.png",
+      "source_box": [
+        1050,
+        970,
+        1224,
+        1228
+      ],
+      "trimmed_source_box": [
+        1051,
+        978,
+        1224,
+        1227
+      ],
+      "size": [
+        173,
+        249
+      ],
+      "opaque_pixels_approx": 36032
+    },
+    {
+      "file": "cutouts/44_pill_blank.png",
+      "source_box": [
+        34,
+        1134,
+        204,
+        1220
+      ],
+      "trimmed_source_box": [
+        34,
+        1134,
+        204,
+        1220
+      ],
+      "size": [
+        178,
+        94
+      ],
+      "opaque_pixels_approx": 12087
+    },
+    {
+      "file": "cutouts/45_pill_check_yellow.png",
+      "source_box": [
+        202,
+        1134,
+        374,
+        1220
+      ],
+      "trimmed_source_box": [
+        202,
+        1134,
+        374,
+        1220
+      ],
+      "size": [
+        172,
+        86
+      ],
+      "opaque_pixels_approx": 11994
+    },
+    {
+      "file": "cutouts/46_pill_dot_green.png",
+      "source_box": [
+        370,
+        1134,
+        544,
+        1222
+      ],
+      "trimmed_source_box": [
+        370,
+        1134,
+        542,
+        1221
+      ],
+      "size": [
+        172,
+        87
+      ],
+      "opaque_pixels_approx": 12003
+    },
+    {
+      "file": "cutouts/47_pill_striped_beige.png",
+      "source_box": [
+        540,
+        1134,
+        804,
+        1222
+      ],
+      "trimmed_source_box": [
+        785,
+        1173,
+        804,
+        1222
+      ],
+      "size": [
+        280,
+        84
+      ],
+      "opaque_pixels_approx": 516,
+      "regenerated": true,
+      "qa_note": "Regenerated as isolated chroma-key asset and converted to transparent PNG."
+    },
+    {
+      "file": "cutouts/48_pill_dot_pink.png",
+      "source_box": [
+        786,
+        1134,
+        1004,
+        1228
+      ],
+      "trimmed_source_box": [
+        786,
+        1134,
+        1004,
+        1228
+      ],
+      "size": [
+        280,
+        79
+      ],
+      "opaque_pixels_approx": 14526,
+      "regenerated": true,
+      "qa_note": "Regenerated as isolated chroma-key asset and converted to transparent PNG."
+    }
+  ]
+}

@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public final class BabyLogService {
     public static final String BACKUP_FORMAT = "babylog.backup";
@@ -45,6 +46,12 @@ public final class BabyLogService {
                 "manual"
         );
         repository.putEvent(event);
+        if ("birth".equals(event.eventType)) {
+            String birthDate = event.occurredAt == null || event.occurredAt.length() < 10
+                    ? BabyLogFormatters.todayDateInput()
+                    : event.occurredAt.substring(0, 10);
+            repository.saveChildProfile(repository.loadChildProfile().withBirthDate(birthDate));
+        }
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
         return event;
     }
@@ -132,16 +139,18 @@ public final class BabyLogService {
         List<String> attachmentIds = new ArrayList<>();
         if (input.photoPath != null && !input.photoPath.isEmpty()) {
             File image = new File(input.photoPath);
-            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
-                    "ultrasound_image",
-                    input.photoName == null || input.photoName.isEmpty() ? image.getName() : input.photoName,
-                    "image/jpeg",
-                    image.exists() ? image.length() : 0,
-                    input.photoPath
-            );
-            repository.putAttachment(attachment);
-            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
-            attachmentIds.add(attachment.id);
+            if (image.exists() && image.length() > 0) {
+                BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
+                        "ultrasound_image",
+                        input.photoName == null || input.photoName.isEmpty() ? image.getName() : input.photoName,
+                        "image/jpeg",
+                        image.length(),
+                        input.photoPath
+                );
+                repository.putAttachment(attachment);
+                repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
+                attachmentIds.add(attachment.id);
+            }
         }
 
         JSONObject payload = new JSONObject();
@@ -212,7 +221,7 @@ public final class BabyLogService {
         String today = BabyLogFormatters.todayDateInput();
         for (BabyLogDomain.BabyLogEvent event : repository.listEvents()) {
             if (event.occurredAt != null && event.occurredAt.startsWith(today)) {
-                counts.put(event.eventType, counts.get(event.eventType) + 1);
+                counts.put(event.eventType, counts.getOrDefault(event.eventType, 0) + 1);
             }
         }
         return counts;
@@ -239,8 +248,9 @@ public final class BabyLogService {
 
     public String createBackupJson() throws JSONException, IOException {
         JSONObject data = new JSONObject();
-        data.put("familyProfiles", new JSONArray());
-        data.put("childProfiles", new JSONArray());
+        data.put("familyProfiles", repository.exportFamilyProfiles());
+        data.put("childProfiles", repository.exportChildProfiles());
+        data.put("familyMembers", repository.exportFamilyMembers());
         data.put("events", repository.exportEvents());
         data.put("attachments", repository.exportAttachments());
         data.put("attachmentBlobs", createAttachmentBlobBackup());
@@ -269,6 +279,9 @@ public final class BabyLogService {
         JSONArray attachments = data.optJSONArray("attachments");
         JSONArray restoredAttachments = restoreAttachmentBlobs(attachments, data.optJSONArray("attachmentBlobs"));
         repository.importData(
+                data.optJSONArray("familyProfiles"),
+                data.optJSONArray("childProfiles"),
+                data.optJSONArray("familyMembers"),
                 data.optJSONArray("events"),
                 restoredAttachments,
                 data.optJSONArray("syncChanges")
@@ -318,7 +331,7 @@ public final class BabyLogService {
             dir.mkdirs();
         }
         String safeName = nameHint == null ? "scan.jpg" : nameHint.replaceAll("[^A-Za-z0-9._-]", "_");
-        return new File(dir, System.currentTimeMillis() + "-" + safeName);
+        return new File(dir, UUID.randomUUID() + "-" + safeName);
     }
 
     public void clearLocalData() {

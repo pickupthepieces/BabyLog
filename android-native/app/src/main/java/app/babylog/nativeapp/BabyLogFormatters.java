@@ -57,7 +57,16 @@ public final class BabyLogFormatters {
         if (value == null) {
             return null;
         }
-        String normalized = value.trim().replace(" ", "");
+        String normalized = value.trim()
+                .replace(" ", "")
+                .replace("＋", "+")
+                .replace("周", "+")
+                .replace("週", "+")
+                .replace("W", "+")
+                .replace("w", "+");
+        if (normalized.endsWith("+")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
         if (!normalized.matches("\\d{1,2}(\\+[0-6])?")) {
             return null;
         }
@@ -76,10 +85,44 @@ public final class BabyLogFormatters {
             return null;
         }
         try {
-            return Double.valueOf(value.trim());
+            Double parsed = Double.valueOf(value.trim());
+            return parsed.isNaN() || parsed.isInfinite() ? null : parsed;
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    public static String resolveCareStage(BabyLogDomain.ChildProfile profile, String todayDate) {
+        if (profile == null || !profile.setupCompleted) {
+            return BabyLogDomain.STAGE_UNKNOWN;
+        }
+        if (BabyLogDomain.STAGE_PREGNANCY.equals(profile.stageOverride)
+                || BabyLogDomain.STAGE_BABY.equals(profile.stageOverride)
+                || BabyLogDomain.STAGE_UNKNOWN.equals(profile.stageOverride)) {
+            return profile.stageOverride;
+        }
+        String today = isValidDateInput(todayDate) ? todayDate : todayDateInput();
+        if (isValidDateInput(profile.birthDate) && today.compareTo(profile.birthDate) >= 0) {
+            return BabyLogDomain.STAGE_BABY;
+        }
+        if (isValidDateInput(profile.expectedDueDate)) {
+            return BabyLogDomain.STAGE_PREGNANCY;
+        }
+        return BabyLogDomain.STAGE_UNKNOWN;
+    }
+
+    public static String recordDay(String iso) {
+        return recordDay(iso, 0);
+    }
+
+    public static String recordDay(String iso, int boundaryHour) {
+        Date date = parseIso(iso);
+        if (date == null) {
+            return "";
+        }
+        int boundedHour = Math.max(0, Math.min(23, boundaryHour));
+        long shiftedMillis = date.getTime() - boundedHour * 3_600_000L;
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date(shiftedMillis));
     }
 
     public static String formatNumber(double value) {
@@ -156,8 +199,13 @@ public final class BabyLogFormatters {
         if ("contraction".equals(eventType)) return "宫缩";
         if ("birth".equals(eventType)) return "出生";
         if ("feed".equals(eventType)) return "喂养";
+        if ("breastfeed".equals(eventType)) return "母乳";
+        if ("bottle".equals(eventType)) return "奶瓶";
         if ("sleep".equals(eventType)) return "睡眠";
+        if ("wake".equals(eventType)) return "起床";
         if ("diaper".equals(eventType)) return "尿布";
+        if ("pee".equals(eventType)) return "尿尿";
+        if ("poop".equals(eventType)) return "便便";
         if ("temperature".equals(eventType)) return "体温";
         if ("medication".equals(eventType)) return "用药";
         if ("illness".equals(eventType)) return "不适";
@@ -176,8 +224,31 @@ public final class BabyLogFormatters {
     }
 
     public static String eventSummary(BabyLogDomain.BabyLogEvent event) {
-        String summary = event.payload.optString("summary", "");
-        return summary.isEmpty() ? "手动记录 · 待补充详情" : summary;
+        JSONObject payload = event.payload;
+        if ("feed".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    localizeFeedType(payload.optString("feedType", "")),
+                    payload.has("amountMl") ? formatNumber(payload.optDouble("amountMl")) + " ml" : ""
+            );
+        }
+        if ("temperature".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    payload.has("temperatureC") ? formatNumber(payload.optDouble("temperatureC")) + " ℃" : "",
+                    localizeMeasureMethod(payload.optString("measureMethod", ""))
+            );
+        }
+        if ("medication".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    payload.optString("medicationName", ""),
+                    payload.optString("dosage", ""),
+                    payload.optString("reason", "")
+            );
+        }
+        String summary = payload.optString("summary", "");
+        return summary.isEmpty() ? "手动记录 · 待补充详情" : localizeStoredSummary(summary);
     }
 
     public static String formatDateTime(String iso) {
@@ -289,13 +360,18 @@ public final class BabyLogFormatters {
             return "checkup";
         }
         if ("fetal_movement".equals(eventType)
-                || "contraction".equals(eventType)
-                || "birth".equals(eventType)) {
+                || "contraction".equals(eventType)) {
             return "pregnancy";
         }
-        if ("feed".equals(eventType)
+        if ("birth".equals(eventType)
+                || "feed".equals(eventType)
+                || "breastfeed".equals(eventType)
+                || "bottle".equals(eventType)
                 || "sleep".equals(eventType)
+                || "wake".equals(eventType)
                 || "diaper".equals(eventType)
+                || "pee".equals(eventType)
+                || "poop".equals(eventType)
                 || "medication".equals(eventType)
                 || "illness".equals(eventType)
                 || "growth".equals(eventType)
@@ -341,6 +417,49 @@ public final class BabyLogFormatters {
         } catch (ParseException ignored) {
             return 0;
         }
+    }
+
+    private static String babyCareSummary(String eventType, String... parts) {
+        StringBuilder summary = new StringBuilder(eventLabel(eventType));
+        for (String part : parts) {
+            if (part != null && !part.trim().isEmpty()) {
+                summary.append(" · ").append(part.trim());
+            }
+        }
+        if (summary.toString().equals(eventLabel(eventType))) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
+    private static String localizeFeedType(String value) {
+        if ("bottle".equalsIgnoreCase(value)) return "奶瓶";
+        if ("breast".equalsIgnoreCase(value)) return "母乳";
+        if ("food".equalsIgnoreCase(value) || "solid".equalsIgnoreCase(value)) return "辅食";
+        return value;
+    }
+
+    private static String localizeMeasureMethod(String value) {
+        if ("axillary".equalsIgnoreCase(value)) return "腋温";
+        if ("oral".equalsIgnoreCase(value)) return "口温";
+        if ("ear".equalsIgnoreCase(value) || "tympanic".equalsIgnoreCase(value)) return "耳温";
+        if ("forehead".equalsIgnoreCase(value)) return "额温";
+        if ("rectal".equalsIgnoreCase(value)) return "肛温";
+        return value;
+    }
+
+    private static String localizeStoredSummary(String summary) {
+        return summary
+                .replace(" · bottle", " · 奶瓶")
+                .replace(" · breast", " · 母乳")
+                .replace(" · food", " · 辅食")
+                .replace(" · solid", " · 辅食")
+                .replace(" · axillary", " · 腋温")
+                .replace(" · oral", " · 口温")
+                .replace(" · ear", " · 耳温")
+                .replace(" · tympanic", " · 耳温")
+                .replace(" · forehead", " · 额温")
+                .replace(" · rectal", " · 肛温");
     }
 
     private static void appendPart(StringBuilder builder, String value) {
