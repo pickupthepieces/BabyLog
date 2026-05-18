@@ -112,17 +112,20 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var ultrasoundOcrRunning by mutableStateOf(false)
     private var ultrasoundOcrCandidate by mutableStateOf<BabyLogSmartInput.UltrasoundOcrCandidate?>(null)
     private var showClearLocalConfirm by mutableStateOf(false)
+    private var showTrashDialog by mutableStateOf(false)
     private var profileDialog by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
     private var syncConfirmUrl by mutableStateOf<String?>(null)
     private var attachmentDialog by mutableStateOf<AttachmentDialogState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
+    private var deleteEventConfirm by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
     private var infoDialog by mutableStateOf<InfoDialogState?>(null)
     private var pendingCameraFile: File? = null
     private var pendingUltrasoundPhotoPath by mutableStateOf<String?>(null)
     private var pendingUltrasoundPhotoName by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
         window.statusBarColor = ChestnutPalette.BgArgb
         window.navigationBarColor = ChestnutPalette.SurfaceArgb
@@ -156,9 +159,11 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenSmartSettings = ::openSmartSettings,
                     smartConfigSummary = smartConfigSummary,
                     onClearLocalData = { showClearLocalConfirm = true },
+                    onOpenTrash = { showTrashDialog = true },
                     onCreatePregnancyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_PREGNANCY) },
                     onCreateBabyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_BABY) },
-                    onEditProfile = { openProfileEditDialog() }
+                    onEditProfile = { openProfileEditDialog() },
+                    onDeleteEvent = { deleteEventConfirm = it }
                 )
 
                 if (showQuickSheet) {
@@ -167,7 +172,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onDismiss = { showQuickSheet = false },
                         onAction = { action ->
                             showQuickSheet = false
-                            handleQuickAction(action)
+                            handleQuickActionAfterQuickSheetDismiss(action)
                         }
                     )
                 }
@@ -317,6 +322,31 @@ public final class ComposeMainActivity : ComponentActivity() {
                     )
                 }
 
+                deleteEventConfirm?.let { event ->
+                    ConfirmDialog(
+                        title = "移入回收站",
+                        message = "这条${BabyLogFormatters.eventLabel(event.eventType)}记录会先放入回收站，7 天内可在“设置 > 回收站”恢复；7 天后会自动永久删除。\n\n${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}\n${BabyLogFormatters.eventSummary(event)}",
+                        confirmText = "放入回收站",
+                        destructive = true,
+                        onDismiss = { deleteEventConfirm = null },
+                        onConfirm = {
+                            val eventId = event.id
+                            deleteEventConfirm = null
+                            deleteEvent(eventId)
+                        }
+                    )
+                }
+
+                if (showTrashDialog) {
+                    TrashDialog(
+                        events = uiState.trashEvents,
+                        onDismiss = { showTrashDialog = false },
+                        onRestore = { event ->
+                            restoreEvent(event.id)
+                        }
+                    )
+                }
+
                 attachmentDialog?.let { dialog ->
                     AttachmentListDialog(
                         title = dialog.title,
@@ -401,9 +431,11 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun reloadData() {
         runInBackground {
+            service.purgeExpiredTrash()
             val nextState = BabyLogUiState(
                 dashboard = service.loadDashboard(),
                 timeline = service.listRecentEvents(100),
+                trashEvents = service.listTrashEvents(),
                 attachments = service.listAttachmentsNewestFirst(),
                 syncConfig = repository.loadSyncSettings(),
                 childProfile = repository.loadChildProfile(),
@@ -486,6 +518,14 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleQuickActionAfterQuickSheetDismiss(action: BabyLogService.QuickAction) {
+        window.decorView.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                handleQuickAction(action)
+            }
+        }, 120L)
+    }
+
     private fun recordBabyCare(input: BabyLogService.BabyCareInput) {
         runInBackground {
             try {
@@ -547,6 +587,30 @@ public final class ComposeMainActivity : ComponentActivity() {
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存 B 超记录")
+            }
+        }
+    }
+
+    private fun deleteEvent(eventId: String) {
+        runInBackground {
+            try {
+                service.deleteEvent(eventId)
+                showToast("已移入回收站，7 天内可恢复")
+                reloadData()
+            } catch (error: Exception) {
+                showInfo("移入回收站失败", error.message ?: "无法处理这条记录")
+            }
+        }
+    }
+
+    private fun restoreEvent(eventId: String) {
+        runInBackground {
+            try {
+                service.restoreEvent(eventId)
+                showToast("已恢复记录")
+                reloadData()
+            } catch (error: Exception) {
+                showInfo("恢复失败", error.message ?: "无法恢复这条记录")
             }
         }
     }
@@ -613,10 +677,25 @@ public final class ComposeMainActivity : ComponentActivity() {
                     showToast("识别完成，请核对候选字段")
                 }
             } catch (error: Exception) {
-                showInfo("识别失败", error.message ?: "模型未返回可用字段")
+                showInfo("识别失败", smartVisionErrorMessage(error))
             } finally {
                 runOnUiThread { ultrasoundOcrRunning = false }
             }
+        }
+    }
+
+    private fun smartVisionErrorMessage(error: Exception): String {
+        val message = error.message?.takeIf { it.isNotBlank() } ?: "模型未返回可用字段"
+        return when {
+            error is java.net.SocketTimeoutException || message.contains("timed out", ignoreCase = true) ->
+                "模型响应超时。可以稍后重试，或换用 qwen3-vl-flash 这类更快的模型。"
+            message.contains(" 401") || message.contains(" 403") || message.contains("unauthorized", ignoreCase = true) ->
+                "模型认证失败。请检查 API Key、Base URL 和模型名称。"
+            message.contains(" 413") || message.contains("too large", ignoreCase = true) ->
+                "图片仍然过大。已在上传前压缩，若服务商仍拒绝，请重新裁剪 B 超单主体后再试。"
+            message.contains("无法解码图片") ->
+                "无法读取这张图片。请重新拍照或从相册选择清晰的 B 超单。"
+            else -> message
         }
     }
 
@@ -859,6 +938,7 @@ public final class ComposeMainActivity : ComponentActivity() {
 private data class BabyLogUiState(
     val dashboard: BabyLogService.DashboardSnapshot? = null,
     val timeline: List<BabyLogDomain.BabyLogEvent> = emptyList(),
+    val trashEvents: List<BabyLogDomain.BabyLogEvent> = emptyList(),
     val attachments: List<BabyLogDomain.AttachmentRecord> = emptyList(),
     val syncConfig: BabyLogDomain.BackendConfig = BabyLogDomain.BackendConfig.disabled(),
     val childProfile: BabyLogDomain.ChildProfile = BabyLogDomain.ChildProfile.empty(),
@@ -922,9 +1002,11 @@ private fun BabyLogApp(
     onOpenSmartSettings: () -> Unit,
     smartConfigSummary: String,
     onClearLocalData: () -> Unit,
+    onOpenTrash: () -> Unit,
     onCreatePregnancyProfile: () -> Unit,
     onCreateBabyProfile: () -> Unit,
-    onEditProfile: () -> Unit
+    onEditProfile: () -> Unit,
+    onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit
 ) {
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
@@ -932,10 +1014,14 @@ private fun BabyLogApp(
             if (state.setupCompleted && quickActions.isNotEmpty()) {
                 FloatingActionButton(
                     onClick = onQuickClick,
-                    backgroundColor = ChestnutPalette.Primary,
-                    contentColor = Color.White
+                    backgroundColor = ChestnutPalette.Surface,
+                    contentColor = ChestnutPalette.Primary
                 ) {
-                    Text("+", fontSize = 30.sp, fontWeight = FontWeight.Medium)
+                    Image(
+                        painter = painterResource(R.drawable.button_plus),
+                        contentDescription = "快捷记录",
+                        modifier = Modifier.size(54.dp)
+                    )
                 }
             }
         },
@@ -1011,7 +1097,7 @@ private fun BabyLogApp(
                             item { EmptyPanel("这一天还没有记录。底部按钮可以快速补一条。") }
                         } else {
                             items(dayEvents, key = { it.id }) { event ->
-                                TimelineRow(event)
+                                TimelineRow(event, onDelete = { onDeleteEvent(event) })
                             }
                         }
                     }
@@ -1033,7 +1119,7 @@ private fun BabyLogApp(
                             item { EmptyPanel("还没有记录，点下方 + 开始。") }
                         } else {
                             items(recent, key = { it.id }) { event ->
-                                TimelineRow(event)
+                                TimelineRow(event, onDelete = { onDeleteEvent(event) })
                             }
                         }
                     }
@@ -1058,7 +1144,7 @@ private fun BabyLogApp(
                         item { EmptyPanel("这个分类暂时没有记录。") }
                     } else {
                         items(events, key = { it.id }) { event ->
-                            TimelineRow(event)
+                            TimelineRow(event, onDelete = { onDeleteEvent(event) })
                         }
                     }
                 }
@@ -1082,6 +1168,7 @@ private fun BabyLogApp(
                             onOpenSmartSettings = onOpenSmartSettings,
                             smartConfigSummary = smartConfigSummary,
                             onClearLocalData = onClearLocalData,
+                            onOpenTrash = onOpenTrash,
                             onEditProfile = onEditProfile
                         )
                     }
@@ -1502,7 +1589,10 @@ private fun TimelineFilters(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun TimelineRow(event: BabyLogDomain.BabyLogEvent) {
+private fun TimelineRow(
+    event: BabyLogDomain.BabyLogEvent,
+    onDelete: (() -> Unit)? = null
+) {
     val tone = eventTone(event.eventType)
     Card(
         shape = RoundedCornerShape(14.dp),
@@ -1537,13 +1627,25 @@ private fun TimelineRow(event: BabyLogDomain.BabyLogEvent) {
                     )
                 }
                 Spacer(Modifier.height(7.dp))
-                Text(
-                    text = BabyLogFormatters.eventSummary(event),
-                    color = ChestnutPalette.Ink,
-                    fontSize = 17.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = BabyLogFormatters.eventSummary(event),
+                        color = ChestnutPalette.Ink,
+                        fontSize = 17.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (onDelete != null) {
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            onClick = onDelete,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("删除", color = ChestnutPalette.Danger, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
                 if (event.attachmentIds.isNotEmpty()) {
                     Spacer(Modifier.height(5.dp))
                     Text("附件 ${event.attachmentIds.size}", color = ChestnutPalette.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -1605,6 +1707,7 @@ private fun SettingsScreen(
     onOpenSmartSettings: () -> Unit,
     smartConfigSummary: String,
     onClearLocalData: () -> Unit,
+    onOpenTrash: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1677,6 +1780,17 @@ private fun SettingsScreen(
         }
         SettingsPanel("本机") {
             ActionRow(
+                title = "回收站",
+                subtitle = if (state.trashEvents.isEmpty()) {
+                    "暂无已删除记录；误删后 7 天内可恢复"
+                } else {
+                    "${state.trashEvents.size} 条记录待清理；7 天内可恢复"
+                },
+                action = "查看",
+                onClick = onOpenTrash
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
                 title = "本机占用",
                 subtitle = "记录和附件 ${BabyLogFormatters.formatByteSize(state.dashboard?.localBytes ?: 0)}",
                 action = "查看",
@@ -1718,18 +1832,19 @@ private fun BabyQuickRail(
         actions.forEach { action ->
             Column(
                 modifier = Modifier
-                    .width(76.dp)
+                    .width(84.dp)
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color(action.toneColor).copy(alpha = 0.16f))
                     .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(18.dp))
                     .clickable { onAction(action) }
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = 11.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
                     painter = painterResource(action.assetResId),
                     contentDescription = action.label,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(38.dp),
+                    contentScale = ContentScale.Fit
                 )
                 Spacer(Modifier.height(5.dp))
                 Text(
@@ -1996,6 +2111,8 @@ private fun UltrasoundDialog(
     var umbilicalSd by rememberSaveable { mutableStateOf("") }
     var umbilicalPi by rememberSaveable { mutableStateOf("") }
     var umbilicalRi by rememberSaveable { mutableStateOf("") }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    var saveError by rememberSaveable { mutableStateOf("") }
 
     val warnings = remember(gestationalAge, bpd, hc, ac, fl, efw) {
         BabyLogFormatters.formatUltrasoundSoftRangeWarnings(
@@ -2007,6 +2124,20 @@ private fun UltrasoundDialog(
             BabyLogFormatters.parseOptionalNumber(efw)
         )
     }
+    val estimatedEfw = remember(bpd, ac, fl, efw) {
+        if (efw.trim().isNotEmpty()) {
+            null
+        } else {
+            val parsedBpd = BabyLogFormatters.parseOptionalNumber(bpd)
+            val parsedAc = BabyLogFormatters.parseOptionalNumber(ac)
+            val parsedFl = BabyLogFormatters.parseOptionalNumber(fl)
+            if (parsedBpd != null && parsedAc != null && parsedFl != null) {
+                BabyLogFetalGrowthReference.estimateEfwHadlock3Gram(parsedBpd, parsedAc, parsedFl)
+            } else {
+                null
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2016,6 +2147,80 @@ private fun UltrasoundDialog(
                 modifier = Modifier.height(460.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("B 超单照片", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                        Text(
+                            "先拍照/选图识别，再应用候选；也可以直接手动填写下方生长指标。",
+                            color = ChestnutPalette.Muted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = onCapturePhoto,
+                            border = BorderStroke(1.dp, ChestnutPalette.Primary)
+                        ) { Text("拍照", color = ChestnutPalette.Primary) }
+                        OutlinedButton(
+                            onClick = onPickPhoto,
+                            border = BorderStroke(1.dp, ChestnutPalette.Primary)
+                        ) { Text("选图", color = ChestnutPalette.Primary) }
+                        Button(
+                            enabled = photoPath != null && !ocrRunning,
+                            onClick = onRecognizePhoto,
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = if (photoPath != null) ChestnutPalette.Primary else ChestnutPalette.Surface2,
+                                disabledBackgroundColor = ChestnutPalette.Surface2
+                            )
+                        ) {
+                            Text(
+                                if (ocrRunning) "识别中..." else if (photoPath == null) "先选图" else "识别",
+                                color = if (photoPath != null && !ocrRunning) Color.White else ChestnutPalette.Text3
+                            )
+                        }
+                    }
+                }
+                if (photoPath != null) {
+                    item {
+                        Text(
+                            "已选择：${photoName ?: File(photoPath).name}",
+                            color = ChestnutPalette.Primary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                if (saveError.isNotBlank()) {
+                    item {
+                        Text(
+                            saveError,
+                            color = Color(0xFF7C4A21),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFFFEBCB))
+                                .padding(12.dp)
+                        )
+                    }
+                }
+                if (ocrCandidate != null) {
+                    item {
+                        UltrasoundOcrCandidatePanel(
+                            candidate = ocrCandidate,
+                            onApply = {
+                                ocrCandidate.examDate.value?.takeIf { BabyLogFormatters.isValidDateInput(it) }?.let { examDate = it }
+                                ocrCandidate.bpdMm.value?.let { bpd = BabyLogFormatters.formatNumber(it) }
+                                ocrCandidate.hcMm.value?.let { hc = BabyLogFormatters.formatNumber(it) }
+                                ocrCandidate.acMm.value?.let { ac = BabyLogFormatters.formatNumber(it) }
+                                ocrCandidate.flMm.value?.let { fl = BabyLogFormatters.formatNumber(it) }
+                                ocrCandidate.efwGram.value?.let { efw = BabyLogFormatters.formatNumber(it) }
+                                onCandidateApplied()
+                            },
+                            onDismiss = onCandidateDismiss
+                        )
+                    }
+                }
                 item { DateInputRow("检查日期", examDate, { examDate = it }, allowClear = false) }
                 item { ChestnutTextField("孕周，例如 28+3", gestationalAge, { gestationalAge = it }, KeyboardType.Text) }
                 item { Text("胎儿生长指标", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
@@ -2032,120 +2237,85 @@ private fun UltrasoundDialog(
                     }
                 }
                 item { UnitInputRow("EFW", efw, { efw = it }, "g") }
-                item { Text("羊水 / 胎盘 / 胎位", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        UnitInputRow("AFI", afi, { afi = it }, "cm", Modifier.weight(1f))
-                        UnitInputRow("最大羊水池", deepestPocket, { deepestPocket = it }, "cm", Modifier.weight(1f))
-                    }
-                }
-                item {
-                    ChoiceChipRow(
-                        label = "胎盘位置",
-                        selected = placentaLocation,
-                        options = listOf(
-                            "前壁" to "前壁",
-                            "后壁" to "后壁",
-                            "侧壁" to "侧壁",
-                            "低置" to "低置",
-                            "前置" to "前置",
-                            "其他" to "其他"
-                        ),
-                        onSelect = { placentaLocation = it }
-                    )
-                }
-                item {
-                    ChoiceChipRow(
-                        label = "胎盘成熟度",
-                        selected = placentaGrade,
-                        options = listOf(
-                            "0级" to "0 级",
-                            "I级" to "I 级",
-                            "II级" to "II 级",
-                            "III级" to "III 级",
-                            "未写" to "未写"
-                        ),
-                        onSelect = { placentaGrade = it }
-                    )
-                }
-                item {
-                    ChoiceChipRow(
-                        label = "胎位",
-                        selected = fetalPresentation,
-                        options = listOf(
-                            "头位" to "头位",
-                            "臀位" to "臀位",
-                            "横位" to "横位",
-                            "不详" to "不详"
-                        ),
-                        onSelect = { fetalPresentation = it }
-                    )
-                }
-                item { Text("脐动脉血流", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        UnitInputRow("S/D", umbilicalSd, { umbilicalSd = it }, "", Modifier.weight(1f))
-                        UnitInputRow("PI", umbilicalPi, { umbilicalPi = it }, "", Modifier.weight(1f))
-                    }
-                }
-                item { UnitInputRow("RI", umbilicalRi, { umbilicalRi = it }, "") }
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(
-                            onClick = onCapturePhoto,
-                            border = BorderStroke(1.dp, ChestnutPalette.Primary)
-                        ) { Text("拍照", color = ChestnutPalette.Primary) }
-                        OutlinedButton(
-                            onClick = onPickPhoto,
-                            border = BorderStroke(1.dp, ChestnutPalette.Primary)
-                        ) { Text("选图", color = ChestnutPalette.Primary) }
-                        OutlinedButton(
-                            enabled = photoPath != null && !ocrRunning,
-                            onClick = onRecognizePhoto,
-                            border = BorderStroke(1.dp, if (photoPath != null) ChestnutPalette.Primary else ChestnutPalette.Border)
-                        ) {
-                            Text(
-                                if (ocrRunning) "识别中..." else if (photoPath == null) "先选图" else "识别字段",
-                                color = if (photoPath != null && !ocrRunning) ChestnutPalette.Primary else ChestnutPalette.Text3
-                            )
-                        }
-                    }
-                }
-                if (photoPath != null) {
+                if (estimatedEfw != null) {
                     item {
                         Text(
-                            "已选择：${photoName ?: File(photoPath).name}",
-                            color = ChestnutPalette.Primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            "EFW 留空保存时，会按 Hadlock 3 估算为 ${BabyLogFormatters.formatNumber(estimatedEfw)} g。",
+                            color = ChestnutPalette.Muted,
+                            fontSize = 12.sp
                         )
                     }
                 }
-                if (ocrCandidate != null) {
-                    item {
-                        UltrasoundOcrCandidatePanel(
-                            candidate = ocrCandidate,
-                            onApply = {
-                                ocrCandidate.examDate.value?.takeIf { BabyLogFormatters.isValidDateInput(it) }?.let { examDate = it }
-                                ocrCandidate.gestationalAge.value?.let { gestationalAge = it }
-                                ocrCandidate.bpdMm.value?.let { bpd = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.hcMm.value?.let { hc = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.acMm.value?.let { ac = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.flMm.value?.let { fl = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.efwGram.value?.let { efw = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.afiCm.value?.let { afi = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.deepestPocketCm.value?.let { deepestPocket = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.placentaLocation.value?.let { placentaLocation = it }
-                                ocrCandidate.placentaGrade.value?.let { placentaGrade = it }
-                                ocrCandidate.fetalPresentation.value?.let { fetalPresentation = it }
-                                ocrCandidate.umbilicalSd.value?.let { umbilicalSd = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.umbilicalPi.value?.let { umbilicalPi = BabyLogFormatters.formatNumber(it) }
-                                ocrCandidate.umbilicalRi.value?.let { umbilicalRi = BabyLogFormatters.formatNumber(it) }
-                                onCandidateApplied()
-                            },
-                            onDismiss = onCandidateDismiss
+                item {
+                    OutlinedButton(
+                        onClick = { showAdvanced = !showAdvanced },
+                        border = BorderStroke(1.dp, ChestnutPalette.Border),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (showAdvanced) "收起羊水 / 胎盘 / 脐血流" else "填写更多医学信息（可选）",
+                            color = ChestnutPalette.Muted
                         )
                     }
+                }
+                if (showAdvanced) {
+                    item { Text("羊水 / 胎盘 / 胎位", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UnitInputRow("AFI", afi, { afi = it }, "cm", Modifier.weight(1f))
+                            UnitInputRow("最大羊水池", deepestPocket, { deepestPocket = it }, "cm", Modifier.weight(1f))
+                        }
+                    }
+                    item {
+                        ChoiceChipRow(
+                            label = "胎盘位置",
+                            selected = placentaLocation,
+                            options = listOf(
+                                "前壁" to "前壁",
+                                "后壁" to "后壁",
+                                "侧壁" to "侧壁",
+                                "低置" to "低置",
+                                "前置" to "前置",
+                                "其他" to "其他"
+                            ),
+                            onSelect = { placentaLocation = it }
+                        )
+                    }
+                    item {
+                        ChoiceChipRow(
+                            label = "胎盘成熟度",
+                            selected = placentaGrade,
+                            options = listOf(
+                                "0级" to "0 级",
+                                "I级" to "I 级",
+                                "II级" to "II 级",
+                                "III级" to "III 级",
+                                "未写" to "未写"
+                            ),
+                            onSelect = { placentaGrade = it }
+                        )
+                    }
+                    item {
+                        ChoiceChipRow(
+                            label = "胎位",
+                            selected = fetalPresentation,
+                            options = listOf(
+                                "头位" to "头位",
+                                "臀位" to "臀位",
+                                "横位" to "横位",
+                                "不详" to "不详"
+                            ),
+                            onSelect = { fetalPresentation = it }
+                        )
+                    }
+                    item { Text("脐动脉血流", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UnitInputRow("S/D", umbilicalSd, { umbilicalSd = it }, "", Modifier.weight(1f))
+                            UnitInputRow("PI", umbilicalPi, { umbilicalPi = it }, "", Modifier.weight(1f))
+                        }
+                    }
+                    item { UnitInputRow("RI", umbilicalRi, { umbilicalRi = it }, "") }
                 }
                 if (warnings.isNotBlank()) {
                     item {
@@ -2164,31 +2334,35 @@ private fun UltrasoundDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(
-                        BabyLogService.UltrasoundInput(
-                            examDate,
-                            gestationalAge,
-                            bpd,
-                            hc,
-                            ac,
-                            fl,
-                            efw,
-                            afi,
-                            deepestPocket,
-                            placentaLocation,
-                            placentaGrade,
-                            fetalPresentation,
-                            umbilicalSd,
-                            umbilicalPi,
-                            umbilicalRi,
-                            photoPath,
-                            photoName
-                        )
+                    val input = BabyLogService.UltrasoundInput(
+                        examDate,
+                        gestationalAge,
+                        bpd,
+                        hc,
+                        ac,
+                        fl,
+                        efw,
+                        afi,
+                        deepestPocket,
+                        placentaLocation,
+                        placentaGrade,
+                        fetalPresentation,
+                        umbilicalSd,
+                        umbilicalPi,
+                        umbilicalRi,
+                        photoPath,
+                        photoName
                     )
+                    if (!BabyLogService.hasUltrasoundMinimumContent(input)) {
+                        saveError = "请先选择 B 超单图片，或填写 BPD/HC/AC/FL/EFW 任一生长指标。"
+                        return@Button
+                    }
+                    saveError = ""
+                    onSave(input)
                 },
                 colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
             ) {
-                Text("保存", color = Color.White)
+                Text("保存生长指标", color = Color.White)
             }
         },
         dismissButton = {
@@ -2212,7 +2386,12 @@ private fun UltrasoundOcrCandidatePanel(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("识别候选", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+        Text("识别候选（生长指标）", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+        Text(
+            "仅自动应用检查日期、BPD、HC、AC、FL、明确 EFW；孕周不由模型识别或推断，请按报告手动填写。",
+            color = ChestnutPalette.Muted,
+            fontSize = 12.sp
+        )
         val rows = ultrasoundCandidateRows(candidate)
         if (rows.isEmpty()) {
             Text("模型没有返回可用字段，请手动录入。", color = ChestnutPalette.Muted, fontSize = 13.sp)
@@ -2229,9 +2408,19 @@ private fun UltrasoundOcrCandidatePanel(
         }
         if (candidate.warnings.isNotEmpty()) {
             Text(
-                candidate.warnings.joinToString("；"),
+                "需核对：" + candidate.warnings.joinToString("；"),
                 color = Color(0xFF7C4A21),
                 fontSize = 12.sp
+            )
+        }
+        if (!candidate.rawText.isNullOrBlank()) {
+            Text("识别原文片段", color = ChestnutPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(
+                candidate.rawText.take(220),
+                color = ChestnutPalette.Muted,
+                fontSize = 12.sp,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2392,8 +2581,35 @@ private fun SmartModelSettingsDialog(
                     }
                 }
                 item {
+                    Text("服务商预设", color = ChestnutPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        smartModelPresets().forEach { preset ->
+                            OutlinedButton(
+                                onClick = {
+                                    enabled = true
+                                    baseUrl = preset.baseUrl
+                                    model = preset.model
+                                },
+                                border = BorderStroke(1.dp, ChestnutPalette.Border)
+                            ) {
+                                Text(preset.label, color = ChestnutPalette.Ink, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    Text(
+                        "预设只填 Base URL 和模型名，API Key 仍需你手动填写。",
+                        color = ChestnutPalette.Muted,
+                        fontSize = 12.sp
+                    )
+                }
+                item {
                     ChestnutTextField(
-                        label = "Base URL，例如 https://api.openai.com",
+                        label = "Base URL",
                         value = baseUrl,
                         onValueChange = { baseUrl = it },
                         keyboardType = KeyboardType.Uri
@@ -2401,7 +2617,7 @@ private fun SmartModelSettingsDialog(
                 }
                 item {
                     ChestnutTextField(
-                        label = "模型，例如 gpt-4o-mini",
+                        label = "模型",
                         value = model,
                         onValueChange = { model = it },
                         keyboardType = KeyboardType.Text
@@ -2450,6 +2666,30 @@ private fun SmartModelSettingsDialog(
         backgroundColor = ChestnutPalette.Bg
     )
 }
+
+private data class SmartModelPreset(
+    val label: String,
+    val baseUrl: String,
+    val model: String
+)
+
+private fun smartModelPresets() = listOf(
+    SmartModelPreset(
+        "Qwen Plus",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "qwen3-vl-plus"
+    ),
+    SmartModelPreset(
+        "Qwen Flash",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "qwen3-vl-flash"
+    ),
+    SmartModelPreset(
+        "OpenAI",
+        "https://api.openai.com/v1",
+        "gpt-4o-mini"
+    )
+)
 
 @Composable
 private fun ConfirmDialog(
@@ -2566,6 +2806,116 @@ private fun AttachmentPreviewDialog(
         },
         backgroundColor = ChestnutPalette.Bg
     )
+}
+
+@Composable
+private fun TrashDialog(
+    events: List<BabyLogDomain.BabyLogEvent>,
+    onDismiss: () -> Unit,
+    onRestore: (BabyLogDomain.BabyLogEvent) -> Unit
+) {
+    val nowIso = remember(events) { BabyLogFormatters.nowIso() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("回收站", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "已删除记录会保留 7 天。恢复后会重新出现在首页、时间线和资料库；超过 7 天会自动永久清理。",
+                    color = Color(0xFF7C4A21),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFEBCB))
+                        .padding(12.dp)
+                )
+                if (events.isEmpty()) {
+                    EmptyPanel("回收站是空的。误删的记录会先放在这里，7 天内都能恢复。")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.height(390.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(events, key = { it.id }) { event ->
+                            TrashRow(
+                                event = event,
+                                nowIso = nowIso,
+                                onRestore = { onRestore(event) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭", color = ChestnutPalette.Primary) }
+        },
+        backgroundColor = ChestnutPalette.Bg
+    )
+}
+
+@Composable
+private fun TrashRow(
+    event: BabyLogDomain.BabyLogEvent,
+    nowIso: String,
+    onRestore: () -> Unit
+) {
+    val remainingDays = BabyLogService.trashRemainingDays(event.deletedAt, nowIso)
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = ChestnutPalette.Surface,
+        border = BorderStroke(1.dp, ChestnutPalette.Border),
+        elevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${BabyLogFormatters.eventLabel(event.eventType)} · ${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}",
+                        color = ChestnutPalette.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        BabyLogFormatters.eventSummary(event),
+                        color = ChestnutPalette.Ink,
+                        fontSize = 16.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (remainingDays <= 0) "即将清理" else "剩 $remainingDays 天",
+                    color = if (remainingDays <= 1) ChestnutPalette.Danger else ChestnutPalette.Accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (remainingDays <= 1) Color(0xFFFFE4DF) else ChestnutPalette.AccentSoft)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "删除于 ${BabyLogFormatters.formatDateTime(event.deletedAt)}",
+                    color = ChestnutPalette.Text3,
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = onRestore,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text("恢复", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -2800,20 +3150,11 @@ private fun currentGestationalAgeInput(profile: BabyLogDomain.ChildProfile): Str
 private fun ultrasoundCandidateRows(candidate: BabyLogSmartInput.UltrasoundOcrCandidate): List<Pair<String, String>> {
     val rows = mutableListOf<Pair<String, String>>()
     addCandidateRow(rows, "检查日期", candidate.examDate.value)
-    addCandidateRow(rows, "孕周", candidate.gestationalAge.value)
     addCandidateRow(rows, "BPD", formatCandidateNumber(candidate.bpdMm.value, "mm"))
     addCandidateRow(rows, "HC", formatCandidateNumber(candidate.hcMm.value, "mm"))
     addCandidateRow(rows, "AC", formatCandidateNumber(candidate.acMm.value, "mm"))
     addCandidateRow(rows, "FL", formatCandidateNumber(candidate.flMm.value, "mm"))
     addCandidateRow(rows, "EFW", formatCandidateNumber(candidate.efwGram.value, "g"))
-    addCandidateRow(rows, "AFI", formatCandidateNumber(candidate.afiCm.value, "cm"))
-    addCandidateRow(rows, "最大羊水池", formatCandidateNumber(candidate.deepestPocketCm.value, "cm"))
-    addCandidateRow(rows, "胎盘", candidate.placentaLocation.value)
-    addCandidateRow(rows, "成熟度", candidate.placentaGrade.value)
-    addCandidateRow(rows, "胎位", candidate.fetalPresentation.value)
-    addCandidateRow(rows, "S/D", formatCandidateNumber(candidate.umbilicalSd.value, ""))
-    addCandidateRow(rows, "PI", formatCandidateNumber(candidate.umbilicalPi.value, ""))
-    addCandidateRow(rows, "RI", formatCandidateNumber(candidate.umbilicalRi.value, ""))
     return rows
 }
 

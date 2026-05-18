@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,10 +53,10 @@ import java.util.TimeZone
 @Composable
 fun Panel(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         backgroundColor = ChestnutPalette.Surface,
         border = BorderStroke(1.dp, ChestnutPalette.Border),
-        elevation = 3.dp
+        elevation = 5.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -72,7 +76,7 @@ fun MetricCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(ChestnutPalette.Bg.copy(alpha = 0.74f))
+            .background(ChestnutPalette.Surface2.copy(alpha = 0.72f))
             .padding(11.dp)
             .height(76.dp)
     ) {
@@ -103,7 +107,7 @@ fun TrendCard(
         shape = RoundedCornerShape(14.dp),
         backgroundColor = ChestnutPalette.Surface,
         border = BorderStroke(1.dp, ChestnutPalette.Border),
-        elevation = 2.dp
+        elevation = 4.dp
     ) {
         Column(Modifier.padding(14.dp)) {
             Box(
@@ -126,10 +130,18 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(18.dp)
+                .clip(CircleShape)
+                .background(ChestnutPalette.Primary)
+        )
+        Spacer(Modifier.width(8.dp))
         Text(
             title,
             color = ChestnutPalette.Ink,
-            fontSize = 20.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
@@ -160,17 +172,28 @@ fun Chip(text: String, bg: Color, fg: Color) {
 
 @Composable
 fun EmptyPanel(text: String) {
-    Text(
-        text = text,
-        color = ChestnutPalette.Muted,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(ChestnutPalette.Surface)
             .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(14.dp))
             .padding(18.dp),
-        textAlign = TextAlign.Center
-    )
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Image(
+            painter = painterResource(R.drawable.empty_state_scene),
+            contentDescription = null,
+            modifier = Modifier.size(width = 136.dp, height = 88.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            text = text,
+            color = ChestnutPalette.Muted,
+            textAlign = TextAlign.Center
+        )
+    }
 }
 
 @Composable
