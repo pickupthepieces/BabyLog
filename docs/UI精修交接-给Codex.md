@@ -79,6 +79,39 @@ G 可并入 F 的同一 commit（都属去冗余）。
 
 H1–H4 可与 F/G 并入同一"去冗余"commit。
 
+### I. 视觉风格统一与素材策略（下一轮，权威）
+
+**背景**：对照真 Piyo 实图（`diagnostics/app-compare/`）结论——我们的扁平/干净/线性图标方向没错（Piyo 自己就有「简单」图标主题），缺的不是颜色（Piyo 主题色可选，珊瑚=我们默认即可），**缺的是 Piyo 的视觉辨识结构**。本轮统一到「日系卡哇伊扁平 / Piyo 简单主题」,吉祥物用**栗子**。
+
+**风格定义**：日系卡哇伊扁平（Kawaii flat illustration）—— 圆润造型、点状眼+腮红、无/细描边、柔和卡通阴影、pastel 主题色、圆角 pill、大留白。
+
+**I1. 图标系统**（对齐 Piyo「简单」主题）
+- 全 App 功能图标（底栏 4 tab + 快捷记录 + section/操作图标）统一为 **Material Symbols Rounded、filled**,单色染 `ChestnutPalette.Primary`（未选中 `Muted`）,放柔和圆角 tile（圆角 ≥14dp,底 `tone.copy(alpha≈0.16)` 或 `Surface2`）
+- 一套统一描边/字重/圆角端点,禁止混风格、禁止 PNG 贴纸切图
+- **禁止 imagegen 生成图标**（栅格不一致、不可动态 tint、小尺寸糊,会重蹈 PNG 贴纸坑）
+
+**I2. 主题色顶栏 band**（补 Piyo 辨识度,关键）
+- 顶部 app bar 区 + 底部导航区用 `ChestnutPalette.Primary` 实色 band;内容区维持现扁平奶白干净,**别动内容卡**
+- 主题色统一走 `ChestnutPalette.Primary` 单 token,便于将来主题色可选
+
+**I3. 吉祥物 = 栗子**
+- **用 imagegen 生成**,风格=日系卡哇伊扁平;**透明背景 PNG、≥512px、生 3 版供挑**
+- 全 App **只 1 处**:splash 或空态二选一（splash 现有 `chestnut_mascot` 可重绘替换）,其余不出现
+- confetti:**Compose 直接绘制几何色块,不生成**,克制,仅空态/里程碑
+
+**I4. 约束（硬性）**
+- 不动 Claude 已定结构与逻辑:`WeekCard / Panel / TrendCard / EmptyPanel / SectionHeader / PregnancySummaryPanel`（仅允许图标/顶栏 band 的视觉替换）
+- 不动 IA / 导航 / 阶段投影 / 业务逻辑 / OCR / FGR;不引外部字体
+- 一个独立 UI-only commit,message「视觉精简:统一卡哇伊扁平图标+主题色顶栏+栗子吉祥物」,不与后端混提交
+- 本地 assembleDebug + lintDebug + smoke 全过
+- 装机出 before/after:**空态首页 + 有数据首页 + 快捷弹窗 + 底栏**,交 Claude 对 Piyo 比对
+
+#### 给 Codex 的话（直接照做）
+
+> 读 `docs/UI精修交接-给Codex.md` 的 **I 节**,本轮做 I1–I3,合一个 UI-only commit。
+> 重点:① 图标全换 Material Symbols Rounded filled、染 `Primary`、统一圆角 tile,**别用 imagegen 生图标**;② 顶栏+底栏加 `Primary` 主题色 band,内容区不动;③ 栗子吉祥物用 imagegen 生 3 版(日系卡哇伊扁平、透明底、≥512px)挑一版,只放 splash 或空态 1 处;confetti 用 Compose 画。
+> 硬约束见 I4:别动 WeekCard/Panel/TrendCard/EmptyPanel/SectionHeader/PregnancySummaryPanel 的结构与逻辑,别动 IA/OCR/FGR,本地三件套(assembleDebug/lintDebug/smoke)全过,装机出 before/after 四图交 Claude 比对。
+
 ## 验收（Claude review）
 
 | ID | 标准 |
