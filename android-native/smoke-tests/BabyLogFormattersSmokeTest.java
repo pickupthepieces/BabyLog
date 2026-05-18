@@ -42,17 +42,33 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals(1, BabyLogFormatters.backupAgeLevel(now - 7L * 86_400_000L, now));
         assertEquals(2, BabyLogFormatters.backupAgeLevel(now - 30L * 86_400_000L, now));
         assertEquals("baby", BabyLogFormatters.timelineFilterGroup("feed"));
-        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("birth"));
-        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("breastfeed"));
-        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("bottle"));
-        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("wake"));
-        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("pee"));
-        assertEquals("baby", BabyLogFormatters.timelineFilterGroup("poop"));
-        assertEquals("pregnancy", BabyLogFormatters.timelineFilterGroup("fetal_movement"));
-        assertEquals("pregnancy", BabyLogFormatters.timelineFilterGroup("maternal_metric"));
-        assertEquals("ultrasound", BabyLogFormatters.timelineFilterGroup("ultrasound"));
-        assertEquals("temperature", BabyLogFormatters.timelineFilterGroup("temperature"));
-        assertEquals("checkup", BabyLogFormatters.timelineFilterGroup("pregnancy_checkup"));
+        String[][] eventGroups = {
+                {"pregnancy_checkup", "checkup"},
+                {"ultrasound", "ultrasound"},
+                {"fetal_movement", "pregnancy"},
+                {"contraction", "pregnancy"},
+                {"maternal_metric", "pregnancy"},
+                {"birth", "baby"},
+                {"feed", "baby"},
+                {"breastfeed", "baby"},
+                {"bottle", "baby"},
+                {"sleep", "baby"},
+                {"wake", "baby"},
+                {"diaper", "baby"},
+                {"pee", "baby"},
+                {"poop", "baby"},
+                {"temperature", "temperature"},
+                {"medication", "baby"},
+                {"illness", "baby"},
+                {"growth", "baby"},
+                {"vaccine", "baby"},
+                {"milestone", "baby"},
+                {"note", "all"}
+        };
+        assertEquals(BabyLogDomain.EVENT_TYPES.length, eventGroups.length);
+        for (String[] eventGroup : eventGroups) {
+            assertEventGroup(eventGroup[0], eventGroup[1]);
+        }
         assertEquals("孕妈指标", BabyLogFormatters.eventLabel("maternal_metric"));
         assertEquals(
                 "空腹血糖高于 5.1 mmol/L；非诊断，仅提示，请遵医嘱",
@@ -91,9 +107,19 @@ public final class BabyLogFormattersSmokeTest {
         if (!BabyLogFormatters.matchesTimelineFilter("feed", "baby")) {
             throw new AssertionError("feed should match baby filter");
         }
+        if (!BabyLogFormatters.matchesTimelineFilter("ultrasound", "pregnancy")) {
+            throw new AssertionError("ultrasound should match pregnancy filter");
+        }
+        if (!BabyLogFormatters.matchesTimelineFilter("pregnancy_checkup", "pregnancy")) {
+            throw new AssertionError("pregnancy_checkup should match pregnancy filter");
+        }
+        if (!BabyLogFormatters.matchesTimelineFilter("temperature", "baby")) {
+            throw new AssertionError("temperature should match baby filter");
+        }
         if (BabyLogFormatters.matchesTimelineFilter("feed", "pregnancy")) {
             throw new AssertionError("feed should not match pregnancy filter");
         }
+        assertEquals("2026-05-18T12:00:00.000+0800", BabyLogFormatters.createOccurredAtFromDate("2026-05-18"));
         if (!BabyLogFormatters.isValidDateInput("2026-05-15")) {
             throw new AssertionError("valid date rejected");
         }
@@ -106,5 +132,9 @@ public final class BabyLogFormattersSmokeTest {
         if (expected == null ? actual != null : !expected.equals(actual)) {
             throw new AssertionError("expected " + expected + " but got " + actual);
         }
+    }
+
+    private static void assertEventGroup(String eventType, String expectedGroup) {
+        assertEquals(expectedGroup, BabyLogFormatters.timelineFilterGroup(eventType));
     }
 }

@@ -55,8 +55,7 @@ public final class BabyLogFormatters {
         if (!isValidDateInput(date)) {
             return nowIso();
         }
-        String time = cnFormat("HH:mm:ss.SSSZ", Locale.US).format(new Date());
-        return date + "T" + time;
+        return date + "T12:00:00.000+0800";
     }
 
     public static String normalizeBackendBaseUrl(String value) {
@@ -452,7 +451,14 @@ public final class BabyLogFormatters {
         if (filter == null || filter.isEmpty() || "all".equals(filter)) {
             return true;
         }
-        return filter.equals(timelineFilterGroup(eventType));
+        String group = timelineFilterGroup(eventType);
+        if ("pregnancy".equals(filter)) {
+            return "pregnancy".equals(group) || "ultrasound".equals(group) || "checkup".equals(group);
+        }
+        if ("baby".equals(filter)) {
+            return "baby".equals(group) || "temperature".equals(group);
+        }
+        return filter.equals(group);
     }
 
     private static Date parseIso(String iso) {

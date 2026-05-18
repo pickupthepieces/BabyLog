@@ -47,13 +47,20 @@ public final class BabyLogService {
         );
         repository.putEvent(event);
         if ("birth".equals(event.eventType)) {
-            String birthDate = event.occurredAt == null || event.occurredAt.length() < 10
-                    ? BabyLogFormatters.todayDateInput()
-                    : event.occurredAt.substring(0, 10);
-            repository.saveChildProfile(repository.loadChildProfile().withBirthDate(birthDate));
+            repository.saveChildProfile(withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt));
         }
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
         return event;
+    }
+
+    public static BabyLogDomain.ChildProfile withBirthDateFromBirthEvent(
+            BabyLogDomain.ChildProfile profile,
+            String occurredAt
+    ) {
+        String birthDate = occurredAt == null || occurredAt.length() < 10
+                ? BabyLogFormatters.todayDateInput()
+                : occurredAt.substring(0, 10);
+        return (profile == null ? BabyLogDomain.ChildProfile.empty() : profile).withBirthDate(birthDate);
     }
 
     public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input) throws JSONException {
@@ -78,6 +85,20 @@ public final class BabyLogService {
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 input.eventType,
                 occurredAt,
+                payload,
+                Collections.emptyList(),
+                "manual"
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
+    public BabyLogDomain.BabyLogEvent recordFetalMovementSession(FetalMovementSessionInput input) throws JSONException {
+        JSONObject payload = buildFetalMovementSessionPayload(input);
+        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                "fetal_movement",
+                isBlank(input.endedAtIso) ? BabyLogFormatters.nowIso() : input.endedAtIso,
                 payload,
                 Collections.emptyList(),
                 "manual"
@@ -153,6 +174,19 @@ public final class BabyLogService {
         }
 
         payload.put("summary", formatPregnancySummary(input));
+        return payload;
+    }
+
+    public static JSONObject buildFetalMovementSessionPayload(FetalMovementSessionInput input) throws JSONException {
+        JSONObject payload = new JSONObject();
+        payload.put("entryMode", "session");
+        putStringIfNotBlank(payload, "startedAt", input.startedAtIso);
+        putStringIfNotBlank(payload, "endedAt", input.endedAtIso);
+        payload.put("movementCount", input.count);
+        payload.put("durationMinutes", input.durationMinutes);
+        payload.put("targetCount", input.targetCount);
+        putStringIfNotBlank(payload, "note", input.note);
+        payload.put("summary", formatFetalMovementSessionSummary(input));
         return payload;
     }
 
@@ -235,6 +269,50 @@ public final class BabyLogService {
         return summary.toString();
     }
 
+    public static String formatFetalMovementSessionSummary(FetalMovementSessionInput input) {
+        StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel("fetal_movement"));
+        String window = formatSessionWindow(input.startedAtIso, input.endedAtIso);
+        appendSummary(summary, window);
+        if (input.count > 0) {
+            appendSummary(summary, input.count + " 次");
+        }
+        if (input.durationMinutes > 0) {
+            appendSummary(summary, input.durationMinutes + " 分钟");
+        }
+        if (summary.toString().equals(BabyLogFormatters.eventLabel("fetal_movement"))) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
+    public static String formatUltrasoundClinicalDetails(UltrasoundInput input) {
+        StringBuilder summary = new StringBuilder();
+        Double afi = BabyLogFormatters.parseOptionalNumber(input.afiCm);
+        if (afi != null) {
+            appendSummary(summary, "羊水 AFI " + BabyLogFormatters.formatNumber(afi) + " cm");
+        }
+        Double deepestPocket = BabyLogFormatters.parseOptionalNumber(input.deepestPocketCm);
+        if (deepestPocket != null) {
+            appendSummary(summary, "最大羊水池 " + BabyLogFormatters.formatNumber(deepestPocket) + " cm");
+        }
+        appendSummary(summary, withLabel("胎盘", input.placentaLocation));
+        appendSummary(summary, withLabel("成熟度", input.placentaGrade));
+        appendSummary(summary, withLabel("胎位", input.fetalPresentation));
+        Double sd = BabyLogFormatters.parseOptionalNumber(input.umbilicalSd);
+        if (sd != null) {
+            appendSummary(summary, "脐动脉 S/D " + BabyLogFormatters.formatNumber(sd));
+        }
+        Double pi = BabyLogFormatters.parseOptionalNumber(input.umbilicalPi);
+        if (pi != null) {
+            appendSummary(summary, "PI " + BabyLogFormatters.formatNumber(pi));
+        }
+        Double ri = BabyLogFormatters.parseOptionalNumber(input.umbilicalRi);
+        if (ri != null) {
+            appendSummary(summary, "RI " + BabyLogFormatters.formatNumber(ri));
+        }
+        return summary.toString();
+    }
+
     public static String formatMaternalMetricSummary(MaternalMetricInput input) {
         StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel("maternal_metric"));
         Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
@@ -284,8 +362,17 @@ public final class BabyLogService {
         putIfNotNull(payload, "acMm", BabyLogFormatters.parseOptionalNumber(input.acMm));
         putIfNotNull(payload, "flMm", BabyLogFormatters.parseOptionalNumber(input.flMm));
         putIfNotNull(payload, "efwGram", BabyLogFormatters.parseOptionalNumber(input.efwGram));
+        putIfNotNull(payload, "afiCm", BabyLogFormatters.parseOptionalNumber(input.afiCm));
+        putIfNotNull(payload, "deepestPocketCm", BabyLogFormatters.parseOptionalNumber(input.deepestPocketCm));
+        putStringIfNotBlank(payload, "placentaLocation", input.placentaLocation);
+        putStringIfNotBlank(payload, "placentaGrade", input.placentaGrade);
+        putStringIfNotBlank(payload, "fetalPresentation", input.fetalPresentation);
+        putIfNotNull(payload, "umbilicalSd", BabyLogFormatters.parseOptionalNumber(input.umbilicalSd));
+        putIfNotNull(payload, "umbilicalPi", BabyLogFormatters.parseOptionalNumber(input.umbilicalPi));
+        putIfNotNull(payload, "umbilicalRi", BabyLogFormatters.parseOptionalNumber(input.umbilicalRi));
         String summary = BabyLogFormatters.formatUltrasoundSummary(payload);
         payload.put("summary", summary);
+        putStringIfNotBlank(payload, "clinicalDetails", formatUltrasoundClinicalDetails(input));
 
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 "ultrasound",
@@ -326,13 +413,13 @@ public final class BabyLogService {
 
     public List<BabyLogDomain.BabyLogEvent> listRecentEvents(int limit) {
         List<BabyLogDomain.BabyLogEvent> events = repository.listEvents();
-        events.sort((left, right) -> Long.compare(parseTime(right.occurredAt), parseTime(left.occurredAt)));
+        Collections.sort(events, (left, right) -> Long.compare(parseTime(right.occurredAt), parseTime(left.occurredAt)));
         return events.size() <= limit ? events : new ArrayList<>(events.subList(0, limit));
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachmentsNewestFirst() {
         List<BabyLogDomain.AttachmentRecord> attachments = repository.listAttachments();
-        attachments.sort((left, right) -> Long.compare(parseTime(right.createdAt), parseTime(left.createdAt)));
+        Collections.sort(attachments, (left, right) -> Long.compare(parseTime(right.createdAt), parseTime(left.createdAt)));
         return attachments;
     }
 
@@ -344,7 +431,8 @@ public final class BabyLogService {
         String today = BabyLogFormatters.todayDateInput();
         for (BabyLogDomain.BabyLogEvent event : repository.listEvents()) {
             if (event.occurredAt != null && event.occurredAt.startsWith(today)) {
-                counts.put(event.eventType, counts.getOrDefault(event.eventType, 0) + 1);
+                Integer current = counts.get(event.eventType);
+                counts.put(event.eventType, (current == null ? 0 : current) + 1);
             }
         }
         return counts;
@@ -590,7 +678,32 @@ public final class BabyLogService {
         if (isBlank(value)) {
             return;
         }
-        summary.append(" · ").append(value.trim());
+        if (summary.length() > 0) {
+            summary.append(" · ");
+        }
+        summary.append(value.trim());
+    }
+
+    private static String withLabel(String label, String value) {
+        return isBlank(value) ? "" : label + " " + value.trim();
+    }
+
+    private static String formatSessionWindow(String startedAtIso, String endedAtIso) {
+        if (isBlank(startedAtIso) && isBlank(endedAtIso)) {
+            return "";
+        }
+        String start = BabyLogFormatters.formatEventTime(startedAtIso);
+        String end = BabyLogFormatters.formatEventTime(endedAtIso);
+        if ("--:--".equals(start) && "--:--".equals(end)) {
+            return "";
+        }
+        if ("--:--".equals(start)) {
+            return end;
+        }
+        if ("--:--".equals(end)) {
+            return start;
+        }
+        return start + "-" + end;
     }
 
     private static boolean isBlank(String value) {
@@ -609,6 +722,14 @@ public final class BabyLogService {
         public final String acMm;
         public final String flMm;
         public final String efwGram;
+        public final String afiCm;
+        public final String deepestPocketCm;
+        public final String placentaLocation;
+        public final String placentaGrade;
+        public final String fetalPresentation;
+        public final String umbilicalSd;
+        public final String umbilicalPi;
+        public final String umbilicalRi;
         public final String photoPath;
         public final String photoName;
 
@@ -620,6 +741,14 @@ public final class BabyLogService {
                 String acMm,
                 String flMm,
                 String efwGram,
+                String afiCm,
+                String deepestPocketCm,
+                String placentaLocation,
+                String placentaGrade,
+                String fetalPresentation,
+                String umbilicalSd,
+                String umbilicalPi,
+                String umbilicalRi,
                 String photoPath,
                 String photoName
         ) {
@@ -630,6 +759,14 @@ public final class BabyLogService {
             this.acMm = acMm;
             this.flMm = flMm;
             this.efwGram = efwGram;
+            this.afiCm = afiCm;
+            this.deepestPocketCm = deepestPocketCm;
+            this.placentaLocation = placentaLocation;
+            this.placentaGrade = placentaGrade;
+            this.fetalPresentation = fetalPresentation;
+            this.umbilicalSd = umbilicalSd;
+            this.umbilicalPi = umbilicalPi;
+            this.umbilicalRi = umbilicalRi;
             this.photoPath = photoPath;
             this.photoName = photoName;
         }
@@ -696,6 +833,42 @@ public final class BabyLogService {
 
         public static PregnancyInput contraction(String startTime, String intervalMinutes, String durationSeconds, String note) {
             return new PregnancyInput("contraction", startTime, intervalMinutes, durationSeconds, note);
+        }
+    }
+
+    public static final class FetalMovementSessionInput {
+        public final String startedAtIso;
+        public final String endedAtIso;
+        public final int count;
+        public final int durationMinutes;
+        public final int targetCount;
+        public final String note;
+
+        private FetalMovementSessionInput(
+                String startedAtIso,
+                String endedAtIso,
+                int count,
+                int durationMinutes,
+                int targetCount,
+                String note
+        ) {
+            this.startedAtIso = startedAtIso == null ? "" : startedAtIso.trim();
+            this.endedAtIso = endedAtIso == null ? "" : endedAtIso.trim();
+            this.count = Math.max(0, count);
+            this.durationMinutes = Math.max(0, durationMinutes);
+            this.targetCount = Math.max(1, targetCount);
+            this.note = note == null ? "" : note.trim();
+        }
+
+        public static FetalMovementSessionInput create(
+                String startedAtIso,
+                String endedAtIso,
+                int count,
+                int durationMinutes,
+                int targetCount,
+                String note
+        ) {
+            return new FetalMovementSessionInput(startedAtIso, endedAtIso, count, durationMinutes, targetCount, note);
         }
     }
 

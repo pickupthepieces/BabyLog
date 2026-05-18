@@ -1,7 +1,8 @@
+import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogService;
 
 public final class BabyLogServiceSmokeTest {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         assertEquals(
                 "喂养 · 奶瓶 · 120 ml",
                 BabyLogService.formatBabyCareSummary(
@@ -54,6 +55,19 @@ public final class BabyLogServiceSmokeTest {
                 )
         );
         assertEquals(
+                "胎动 · 20:04-20:17 · 10 次 · 13 分钟",
+                BabyLogService.formatFetalMovementSessionSummary(
+                        BabyLogService.FetalMovementSessionInput.create(
+                                "2026-05-18T20:04:00.000+0800",
+                                "2026-05-18T20:17:00.000+0800",
+                                10,
+                                13,
+                                10,
+                                "饭后"
+                        )
+                )
+        );
+        assertEquals(
                 "宫缩 · 22:10 · 间隔 5 分钟 · 持续 40 秒",
                 BabyLogService.formatPregnancySummary(
                         BabyLogService.PregnancyInput.contraction("22:10", "5", "40", "")
@@ -62,9 +76,39 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(
                 "孕妈指标 · 体重 60.4 kg · 血压 118/76 mmHg · 血糖 空腹 5.2 mmol/L",
                 BabyLogService.formatMaternalMetricSummary(
-                        BabyLogService.MaternalMetricInput.create("60.4", "118", "76", "5.2", "fasting", "")
+                BabyLogService.MaternalMetricInput.create("60.4", "118", "76", "5.2", "fasting", "")
                 )
         );
+        assertEquals(
+                "羊水 AFI 12.3 cm · 最大羊水池 5.1 cm · 胎盘 前壁 · 成熟度 I 级 · 胎位 头位 · 脐动脉 S/D 2.5 · PI 0.9 · RI 0.6",
+                BabyLogService.formatUltrasoundClinicalDetails(
+                        new BabyLogService.UltrasoundInput(
+                                "2026-05-18",
+                                "22+5",
+                                "55",
+                                "205",
+                                "180",
+                                "38",
+                                "520",
+                                "12.3",
+                                "5.1",
+                                "前壁",
+                                "I 级",
+                                "头位",
+                                "2.5",
+                                "0.9",
+                                "0.6",
+                                "",
+                                ""
+                        )
+                )
+        );
+
+        BabyLogDomain.ChildProfile birthProfile = BabyLogService.withBirthDateFromBirthEvent(
+                BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-09-16", "", "auto", true),
+                "2026-09-17T08:30:00.000+0800"
+        );
+        assertEquals("2026-09-17", birthProfile.birthDate);
     }
 
     private static void assertEquals(Object expected, Object actual) {
@@ -72,5 +116,4 @@ public final class BabyLogServiceSmokeTest {
             throw new AssertionError("expected " + expected + " but got " + actual);
         }
     }
-
 }
