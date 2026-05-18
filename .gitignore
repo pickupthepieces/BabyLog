@@ -13,6 +13,8 @@ app/vite.config.d.ts
 app/screenshots/
 app/.claude/
 docs/superpowers/
+diagnostics/
+android-ui-*.png
 coverage/
 playwright-report/
 test-results/
@@ -61,3 +63,5 @@ UI评审-Claude.md
 UI实现说明-Codex.md
 Android补充清单-Claude.md
 Android-UI评审-Claude.md
+重构前逻辑核查-Claude.md
+共享模型简化-Claude.md
