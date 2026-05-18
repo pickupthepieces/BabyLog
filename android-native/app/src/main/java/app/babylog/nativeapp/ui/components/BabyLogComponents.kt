@@ -145,12 +145,12 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
-        if (action != null) {
+        if (action != null && onAction != null) {
             Text(
                 action,
-                color = if (onAction == null) ChestnutPalette.Text3 else ChestnutPalette.Primary,
+                color = ChestnutPalette.Primary,
                 fontWeight = FontWeight.Bold,
-                modifier = if (onAction == null) Modifier else Modifier.clickable { onAction() }
+                modifier = Modifier.clickable { onAction() }
             )
         }
     }

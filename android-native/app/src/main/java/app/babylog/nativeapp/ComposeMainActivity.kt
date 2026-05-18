@@ -869,12 +869,12 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
         if (stage == BabyLogDomain.STAGE_BABY) {
             return listOf(
-                BabyLogService.QuickAction("母乳", "一键记录", R.drawable.family_heart, ChestnutPalette.PeachArgb, "breastfeed", "母乳快捷记录"),
-                BabyLogService.QuickAction("奶瓶", "一键记录", R.drawable.feeding_bottle, ChestnutPalette.BlueArgb, "bottle", "奶瓶快捷记录"),
-                BabyLogService.QuickAction("睡眠", "开始睡", R.drawable.sleep_moon, ChestnutPalette.VioletArgb, "sleep", "睡眠快捷记录"),
-                BabyLogService.QuickAction("起床", "醒来", R.drawable.star_mascot, ChestnutPalette.GreenArgb, "wake", "起床快捷记录"),
-                BabyLogService.QuickAction("尿尿", "一键记录", R.drawable.diaper, ChestnutPalette.YellowArgb, "pee", "尿尿快捷记录"),
-                BabyLogService.QuickAction("便便", "一键记录", R.drawable.diaper, ChestnutPalette.PeachArgb, "poop", "便便快捷记录")
+                BabyLogService.QuickAction("母乳", "", R.drawable.family_heart, ChestnutPalette.PeachArgb, "breastfeed", "母乳快捷记录"),
+                BabyLogService.QuickAction("奶瓶", "", R.drawable.feeding_bottle, ChestnutPalette.BlueArgb, "bottle", "奶瓶快捷记录"),
+                BabyLogService.QuickAction("睡眠", "", R.drawable.sleep_moon, ChestnutPalette.VioletArgb, "sleep", "睡眠快捷记录"),
+                BabyLogService.QuickAction("起床", "", R.drawable.star_mascot, ChestnutPalette.GreenArgb, "wake", "起床快捷记录"),
+                BabyLogService.QuickAction("尿尿", "", R.drawable.diaper, ChestnutPalette.YellowArgb, "pee", "尿尿快捷记录"),
+                BabyLogService.QuickAction("便便", "", R.drawable.diaper, ChestnutPalette.PeachArgb, "poop", "便便快捷记录")
             )
         }
         return emptyList()
@@ -1089,12 +1089,11 @@ private fun BabyLogApp(
                         item { BabyDaySummary(dayEvents, selectedBabyDay) }
                         item {
                             SectionHeader(
-                                title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录",
-                                action = "按时间倒序"
+                                title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录"
                             )
                         }
                         if (dayEvents.isEmpty()) {
-                            item { EmptyPanel("这一天还没有记录。底部按钮可以快速补一条。") }
+                            item { EmptyPanel("这一天还没有记录") }
                         } else {
                             items(dayEvents, key = { it.id }) { event ->
                                 TimelineRow(event, onDelete = { onDeleteEvent(event) })
@@ -1116,7 +1115,7 @@ private fun BabyLogApp(
                             .filter { isEventVisibleInHome(it, stage) }
                             .take(4)
                         if (recent.isEmpty()) {
-                            item { EmptyPanel("还没有记录，点下方 + 开始。") }
+                            item { EmptyPanel("还没有记录") }
                         } else {
                             items(recent, key = { it.id }) { event ->
                                 TimelineRow(event, onDelete = { onDeleteEvent(event) })
@@ -1126,7 +1125,7 @@ private fun BabyLogApp(
                     if (stage == BabyLogDomain.STAGE_PREGNANCY) {
                         item { FetalGrowthPanel(state.timeline) }
                     } else {
-                        item { SectionHeader(title = "趋势", action = "点击查看曲线") }
+                        item { SectionHeader(title = "趋势") }
                         item { TrendPanel(state.timeline, stage) }
                     }
                 }
@@ -1187,7 +1186,7 @@ private fun Header(activeTab: String, state: BabyLogUiState) {
         "先建档，再进入家庭记录"
     } else {
         val nickname = state.childProfile.nickname.ifBlank { "宝宝" }
-        "$nickname · ${stageLabel(stage)} · 本机模式"
+        "$nickname · ${stageLabel(stage)}"
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1210,17 +1209,6 @@ private fun Header(activeTab: String, state: BabyLogUiState) {
                 )
             }
         }
-        if (state.setupCompleted && activeTab == "home") {
-            Text(
-                text = "离线可用",
-                color = ChestnutPalette.Primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(ChestnutPalette.PrimarySoft)
-                    .padding(horizontal = 15.dp, vertical = 8.dp)
-            )
-        }
     }
 }
 
@@ -1232,7 +1220,7 @@ private fun FirstRunScreen(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
-            text = "BabyLog 仅做家庭记录和复诊沟通辅助；数据默认保存在本机。后续接服务器也只做家庭成员身份校验和同步授权，不接第三方账户。",
+            text = "BabyLog 仅做家庭记录和复诊沟通辅助；数据默认保存在本机。",
             color = Color(0xFF7C4A21),
             modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
@@ -1241,7 +1229,7 @@ private fun FirstRunScreen(
         )
         Panel {
             Text("开始使用", color = ChestnutPalette.Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("先选择当前家庭状态，BabyLog 会按孕期或出生后显示不同首页。", color = ChestnutPalette.Muted)
+            Text("选择当前家庭状态", color = ChestnutPalette.Muted)
             ActionRow(
                 title = "新建孕期家庭",
                 subtitle = "录入乳名、性别和预产期；日期可后补",
@@ -1263,11 +1251,6 @@ private fun FirstRunScreen(
                 onClick = onImportBackup
             )
         }
-        Text(
-            text = "连接已有家庭后续在设置页填写服务器地址和家庭密钥；首登只保留新建与导入，避免重复建档。",
-            color = ChestnutPalette.Text3,
-            fontSize = 13.sp
-        )
     }
 }
 
@@ -1379,8 +1362,6 @@ private fun BabyDayCard(
                     Text("后一天", color = ChestnutPalette.Primary)
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("第一轮按选中日期倒序展示记录；24 小时刻度时间轴放到下一阶段。", color = ChestnutPalette.Text3, fontSize = 12.sp)
         }
     }
 }
@@ -1391,7 +1372,7 @@ private fun BabyDaySummary(events: List<BabyLogDomain.BabyLogEvent>, selectedDay
     val sleepCount = events.count { it.eventType == "sleep" || it.eventType == "wake" }
     val diaperCount = events.count { it.eventType == "diaper" || it.eventType == "pee" || it.eventType == "poop" }
     Panel {
-        SectionHeader(title = if (selectedDay == BabyLogFormatters.todayDateInput()) "今日摘要" else "当日摘要", action = selectedDay)
+        SectionHeader(title = if (selectedDay == BabyLogFormatters.todayDateInput()) "今日摘要" else "当日摘要")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricCard(
                 title = "喂养",
@@ -1429,7 +1410,7 @@ private fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
     val nextVisitDays = nextVisitDate?.let { daysBetween(BabyLogFormatters.todayDateInput(), it) }
     val hasAnyData = latestUltrasound != null || latestCheckup != null || latestMaternalMetric != null
     Panel {
-        SectionHeader(title = "孕期摘要", action = "只看孕期")
+        SectionHeader(title = "孕期摘要")
         if (!hasAnyData) {
             EmptyPanel("记录第一次产检或 B 超，这里会显示摘要和待复核提醒")
             return@Panel
@@ -1498,7 +1479,7 @@ private fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
 @Composable
 private fun TodayPanel(dashboard: BabyLogService.DashboardSnapshot?) {
     Panel {
-        SectionHeader(title = "今日", action = "00:00 起算")
+        SectionHeader(title = "今日")
         val total = dashboard?.todayCounts?.values?.sum() ?: 0
         val latest = dashboard?.recentEvents?.firstOrNull()
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1881,7 +1862,9 @@ private fun QuickActionDialog(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(action.label, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                            Text(action.hint, color = ChestnutPalette.Muted, fontSize = 13.sp)
+                            if (action.hint.isNotBlank()) {
+                                Text(action.hint, color = ChestnutPalette.Muted, fontSize = 13.sp)
+                            }
                         }
                         Text("记录", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
                     }
@@ -1977,11 +1960,6 @@ private fun PregnancyEventDialog(
                 if (labels.note != null) {
                     ChestnutLongTextField(labels.note, note, { note = it })
                 }
-                Text(
-                    text = "保存后只进入孕期首页和历史时间线，不会出现在出生后日视图。",
-                    color = ChestnutPalette.Text3,
-                    fontSize = 12.sp
-                )
             }
         },
         confirmButton = {
@@ -2039,7 +2017,7 @@ private fun MaternalMetricDialog(
                 }
                 ChestnutLongTextField("备注，可空", note, { note = it })
                 Text(
-                    text = "血糖提示只用于提醒复核，不构成诊断；保存后进入孕期首页和历史时间线。",
+                    text = "血糖提示仅用于提醒复核，不构成诊断",
                     color = ChestnutPalette.Text3,
                     fontSize = 12.sp
                 )
@@ -2150,7 +2128,7 @@ private fun UltrasoundDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("B 超单照片", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
                         Text(
-                            "先拍照/选图识别，再应用候选；也可以直接手动填写下方生长指标。",
+                            "可拍照/选图识别，或手动填写下方指标",
                             color = ChestnutPalette.Muted,
                             fontSize = 12.sp
                         )
@@ -2449,7 +2427,7 @@ private fun UltrasoundOcrCandidatePanel(
     ) {
         Text("识别候选（生长指标 + 公共信息）", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
         Text(
-            "可应用报告明确写出的生长指标、胎心、羊水、胎盘、胎位等字段；孕周不由模型识别或推断，请按报告手动填写。",
+            "孕周不由模型识别，请按报告手动填写",
             color = ChestnutPalette.Muted,
             fontSize = 12.sp
         )
@@ -2550,7 +2528,7 @@ private fun ProfileDialog(
                 }
                 item {
                     Text(
-                        "日期可以后补；缺失时只显示补全入口和空态，不使用假孕周、假日龄或假成长曲线。",
+                        "日期可后补",
                         color = Color(0xFF7C4A21),
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
@@ -2882,7 +2860,7 @@ private fun TrashDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "已删除记录会保留 7 天。恢复后会重新出现在首页、时间线和资料库；超过 7 天会自动永久清理。",
+                    "删除记录保留 7 天，超期自动永久清理",
                     color = Color(0xFF7C4A21),
                     fontSize = 13.sp,
                     modifier = Modifier
@@ -2891,7 +2869,7 @@ private fun TrashDialog(
                         .padding(12.dp)
                 )
                 if (events.isEmpty()) {
-                    EmptyPanel("回收站是空的。误删的记录会先放在这里，7 天内都能恢复。")
+                    EmptyPanel("回收站是空的")
                 } else {
                     LazyColumn(
                         modifier = Modifier.height(390.dp),

@@ -69,7 +69,7 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
     }
 
     Panel {
-        SectionHeader(title = "胎儿成长曲线", action = "近似参考")
+        SectionHeader(title = "胎儿成长曲线")
         Spacer(Modifier.height(10.dp))
         Text(
             text = BabyLogFetalGrowthReference.approximationNotice(),
