@@ -1278,64 +1278,51 @@ private fun WeekCard(profile: BabyLogDomain.ChildProfile) {
     val daysToDue = if (validDueDate) daysBetween(BabyLogFormatters.todayDateInput(), dueDate) else 0
     val gestationalDays = if (validDueDate) (280 - daysToDue).coerceIn(0, 280) else -1
     Card(
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         backgroundColor = ChestnutPalette.Surface,
-        border = BorderStroke(1.dp, ChestnutPalette.Border),
-        elevation = 4.dp
+        border = null,
+        elevation = 0.dp
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .background(
-                    Brush.linearGradient(
-                        listOf(ChestnutPalette.Surface, ChestnutPalette.AccentSoft)
-                    )
-                )
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .padding(20.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("孕期", ChestnutPalette.AccentSoft, Color(0xFF7C4A21))
-                    Chip(if (validDueDate) "距预产期 $daysToDue 天" else "预产期待补", Color.White.copy(alpha = 0.45f), ChestnutPalette.Muted)
-                }
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    if (gestationalDays >= 0) BabyLogFormatters.formatGestationalAge(gestationalDays) else "孕期档案待补全",
-                    color = ChestnutPalette.Ink,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("孕期", ChestnutPalette.PrimarySoft, ChestnutPalette.Primary)
+                Chip(
+                    if (validDueDate) "距预产期 $daysToDue 天" else "预产期待补",
+                    ChestnutPalette.Surface2,
+                    ChestnutPalette.Muted
                 )
-                Text(if (validDueDate) "预产期 $dueDate" else "设置页可补录预产期", color = ChestnutPalette.Muted, fontSize = 15.sp)
-                Spacer(Modifier.height(14.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                if (gestationalDays >= 0) BabyLogFormatters.formatGestationalAge(gestationalDays) else "孕期档案待补全",
+                color = ChestnutPalette.Ink,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (validDueDate) "预产期 $dueDate" else "设置页可补录预产期",
+                color = ChestnutPalette.Muted,
+                fontSize = 15.sp
+            )
+            Spacer(Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape)
+                    .background(ChestnutPalette.Surface2)
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(9.dp)
+                        .fillMaxWidth(if (gestationalDays >= 0) (gestationalDays / 280f).coerceIn(0.03f, 1f) else 0.03f)
+                        .height(8.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.48f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(if (gestationalDays >= 0) (gestationalDays / 280f).coerceIn(0.03f, 1f) else 0.03f)
-                            .height(9.dp)
-                            .clip(CircleShape)
-                            .background(ChestnutPalette.Primary)
-                    )
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                backgroundColor = Color(0xFFFFF3DB),
-                elevation = 3.dp
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.chestnut_mascot),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(116.dp)
-                        .padding(3.dp),
-                    contentScale = ContentScale.Crop
+                        .background(ChestnutPalette.Primary)
                 )
             }
         }
@@ -1440,8 +1427,13 @@ private fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
     val pendingReview = events.firstOrNull { it.eventType == "ultrasound" && ultrasoundWarningText(it).isNotBlank() }
     val nextVisitDate = latestCheckup?.payload?.optString("nextVisitNote", "")?.let(::extractDateInput)
     val nextVisitDays = nextVisitDate?.let { daysBetween(BabyLogFormatters.todayDateInput(), it) }
+    val hasAnyData = latestUltrasound != null || latestCheckup != null || latestMaternalMetric != null
     Panel {
         SectionHeader(title = "孕期摘要", action = "只看孕期")
+        if (!hasAnyData) {
+            EmptyPanel("记录第一次产检或 B 超，这里会显示摘要和待复核提醒")
+            return@Panel
+        }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricCard(

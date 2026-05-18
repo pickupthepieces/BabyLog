@@ -55,8 +55,8 @@ fun Panel(content: @Composable ColumnScope.() -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         backgroundColor = ChestnutPalette.Surface,
-        border = BorderStroke(1.dp, ChestnutPalette.Border),
-        elevation = 5.dp
+        border = null,
+        elevation = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -106,8 +106,8 @@ fun TrendCard(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
         backgroundColor = ChestnutPalette.Surface,
-        border = BorderStroke(1.dp, ChestnutPalette.Border),
-        elevation = 4.dp
+        border = null,
+        elevation = 0.dp
     ) {
         Column(Modifier.padding(14.dp)) {
             Box(
@@ -175,22 +175,13 @@ fun EmptyPanel(text: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(ChestnutPalette.Surface)
-            .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(14.dp))
-            .padding(18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+            .padding(vertical = 20.dp, horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            painter = painterResource(R.drawable.empty_state_scene),
-            contentDescription = null,
-            modifier = Modifier.size(width = 136.dp, height = 88.dp),
-            contentScale = ContentScale.Fit
-        )
         Text(
             text = text,
-            color = ChestnutPalette.Muted,
+            color = ChestnutPalette.Text3,
+            fontSize = 13.sp,
             textAlign = TextAlign.Center
         )
     }
