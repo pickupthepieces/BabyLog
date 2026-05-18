@@ -4,6 +4,7 @@ import org.json.JSONObject;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -18,6 +19,26 @@ public final class BabyLogFormatters {
 
     public static String todayDateInput() {
         return new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(new Date());
+    }
+
+    public static String offsetDateInput(String date, int dayDelta) {
+        if (!isValidDateInput(date)) {
+            return date == null ? "" : date;
+        }
+        try {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            format.setLenient(false);
+            Date parsed = format.parse(date);
+            if (parsed == null) {
+                return date;
+            }
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(parsed);
+            calendar.add(Calendar.DATE, dayDelta);
+            return format.format(calendar.getTime());
+        } catch (ParseException ignored) {
+            return date;
+        }
     }
 
     public static String createOccurredAtFromDate(String date) {

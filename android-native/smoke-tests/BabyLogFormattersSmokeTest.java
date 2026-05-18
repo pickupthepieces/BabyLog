@@ -54,6 +54,9 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals("checkup", BabyLogFormatters.timelineFilterGroup("pregnancy_checkup"));
         assertEquals("2026-05-17", BabyLogFormatters.recordDay("2026-05-18T02:30:00.000+0800", 4));
         assertEquals("2026-05-18", BabyLogFormatters.recordDay("2026-05-18T04:00:00.000+0800", 4));
+        assertEquals("2026-05-17", BabyLogFormatters.offsetDateInput("2026-05-18", -1));
+        assertEquals("2026-05-19", BabyLogFormatters.offsetDateInput("2026-05-18", 1));
+        assertEquals("bad-date", BabyLogFormatters.offsetDateInput("bad-date", 1));
         assertEquals("pregnancy", BabyLogFormatters.resolveCareStage(
                 BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "", "auto", true),
                 "2026-05-18"

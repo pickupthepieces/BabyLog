@@ -95,6 +95,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var uiState by mutableStateOf(BabyLogUiState())
     private var activeTab by mutableStateOf("home")
     private var timelineFilter by mutableStateOf("all")
+    private var selectedBabyDay by mutableStateOf(BabyLogFormatters.todayDateInput())
     private var showQuickSheet by mutableStateOf(false)
     private var babyCareAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var showUltrasoundForm by mutableStateOf(false)
@@ -125,9 +126,13 @@ public final class ComposeMainActivity : ComponentActivity() {
                     state = uiState,
                     activeTab = activeTab,
                     timelineFilter = timelineFilter,
+                    selectedBabyDay = selectedBabyDay,
                     onTabSelected = { activeTab = it },
                     onTimelineFilterSelected = { timelineFilter = it },
+                    onBabyDaySelected = { selectedBabyDay = it },
                     onQuickClick = { showQuickSheet = true },
+                    quickActions = quickActions(),
+                    onQuickAction = ::handleQuickAction,
                     onShowAttachments = { title, attachments ->
                         attachmentDialog = AttachmentDialogState(title, attachments)
                     },
@@ -147,13 +152,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onDismiss = { showQuickSheet = false },
                         onAction = { action ->
                             showQuickSheet = false
-                            if (isBabyCareAction(action.eventType)) {
-                                babyCareAction = action
-                            } else if (action.eventType == "ultrasound") {
-                                openUltrasoundForm()
-                            } else {
-                                recordQuickAction(action)
-                            }
+                            handleQuickAction(action)
                         }
                     )
                 }
@@ -362,6 +361,16 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleQuickAction(action: BabyLogService.QuickAction) {
+        if (isBabyCareAction(action.eventType)) {
+            babyCareAction = action
+        } else if (action.eventType == "ultrasound") {
+            openUltrasoundForm()
+        } else {
+            recordQuickAction(action)
+        }
+    }
+
     private fun recordBabyCare(input: BabyLogService.BabyCareInput) {
         runInBackground {
             try {
@@ -378,8 +387,10 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 service.recordUltrasound(input)
-                pendingUltrasoundPhotoPath = null
-                pendingUltrasoundPhotoName = null
+                runOnUiThread {
+                    pendingUltrasoundPhotoPath = null
+                    pendingUltrasoundPhotoName = null
+                }
                 showToast("已保存 B 超记录")
                 reloadData()
             } catch (error: JSONException) {
@@ -471,7 +482,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 val count = service.importBackupJson(raw)
-                activeTab = "home"
+                runOnUiThread { activeTab = "home" }
                 showToast("导入完成：$count 条记录")
                 reloadData()
             } catch (error: Exception) {
@@ -516,7 +527,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun clearLocalData() {
         runInBackground {
             service.clearLocalData()
-            activeTab = "home"
+            runOnUiThread { activeTab = "home" }
             showToast("本机数据已清空")
             reloadData()
         }
@@ -574,7 +585,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 } else {
                     repository.saveChildProfile(child)
                 }
-                activeTab = "home"
+                runOnUiThread { activeTab = "home" }
                 showToast("档案已保存")
                 reloadData()
             } catch (error: JSONException) {
@@ -594,11 +605,12 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
         if (stage == BabyLogDomain.STAGE_BABY) {
             return listOf(
-                BabyLogService.QuickAction("喂养", "母乳 / 奶瓶 / 辅食", R.drawable.feeding_bottle, ChestnutPalette.PeachArgb, "feed", "快捷记录 · 待补充奶量/方式"),
-                BabyLogService.QuickAction("睡眠", "开始 / 结束 / 地点", R.drawable.sleep_moon, ChestnutPalette.BlueArgb, "sleep", "快捷记录 · 待补充睡眠时长"),
-                BabyLogService.QuickAction("尿布", "尿 / 便 / 性状", R.drawable.diaper, ChestnutPalette.YellowArgb, "diaper", "快捷记录 · 待补充尿/便细节"),
-                BabyLogService.QuickAction("体温", "温度 / 测量方式", R.drawable.thermometer, ChestnutPalette.GreenArgb, "temperature", "快捷记录 · 待补充温度数值"),
-                BabyLogService.QuickAction("用药", "药名 / 剂量 / 时间", R.drawable.icon_pill, ChestnutPalette.VioletArgb, "medication", "快捷记录 · 待补充药名/剂量")
+                BabyLogService.QuickAction("母乳", "一键记录", R.drawable.family_heart, ChestnutPalette.PeachArgb, "breastfeed", "母乳快捷记录"),
+                BabyLogService.QuickAction("奶瓶", "一键记录", R.drawable.feeding_bottle, ChestnutPalette.BlueArgb, "bottle", "奶瓶快捷记录"),
+                BabyLogService.QuickAction("睡眠", "开始睡", R.drawable.sleep_moon, ChestnutPalette.VioletArgb, "sleep", "睡眠快捷记录"),
+                BabyLogService.QuickAction("起床", "醒来", R.drawable.star_mascot, ChestnutPalette.GreenArgb, "wake", "起床快捷记录"),
+                BabyLogService.QuickAction("尿尿", "一键记录", R.drawable.diaper, ChestnutPalette.YellowArgb, "pee", "尿尿快捷记录"),
+                BabyLogService.QuickAction("便便", "一键记录", R.drawable.diaper, ChestnutPalette.PeachArgb, "poop", "便便快捷记录")
             )
         }
         return emptyList()
@@ -755,9 +767,13 @@ private fun BabyLogApp(
     state: BabyLogUiState,
     activeTab: String,
     timelineFilter: String,
+    selectedBabyDay: String,
     onTabSelected: (String) -> Unit,
     onTimelineFilterSelected: (String) -> Unit,
+    onBabyDaySelected: (String) -> Unit,
     onQuickClick: () -> Unit,
+    quickActions: List<BabyLogService.QuickAction>,
+    onQuickAction: (BabyLogService.QuickAction) -> Unit,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
     onSyncNow: () -> Unit,
     onExportBackup: () -> Unit,
@@ -771,7 +787,7 @@ private fun BabyLogApp(
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
         floatingActionButton = {
-            if (state.setupCompleted) {
+            if (state.setupCompleted && quickActions.isNotEmpty()) {
                 FloatingActionButton(
                     onClick = onQuickClick,
                     backgroundColor = ChestnutPalette.Primary,
@@ -783,7 +799,12 @@ private fun BabyLogApp(
         },
         bottomBar = {
             if (state.setupCompleted) {
-                BottomNav(activeTab = activeTab, onTabSelected = onTabSelected)
+                Column {
+                    if (activeTab == "home" && currentCareStage(state.childProfile) == BabyLogDomain.STAGE_BABY) {
+                        BabyQuickRail(actions = quickActions, onAction = onQuickAction)
+                    }
+                    BottomNav(activeTab = activeTab, onTabSelected = onTabSelected)
+                }
             }
         }
     ) { inner ->
@@ -818,29 +839,57 @@ private fun BabyLogApp(
                 "home" -> {
                     item {
                         if (stage == BabyLogDomain.STAGE_BABY) {
-                            BabyDayCard(state.childProfile)
+                            BabyDayCard(
+                                profile = state.childProfile,
+                                selectedDay = selectedBabyDay,
+                                onPreviousDay = {
+                                    onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, -1))
+                                },
+                                onToday = { onBabyDaySelected(BabyLogFormatters.todayDateInput()) },
+                                onNextDay = {
+                                    onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, 1))
+                                }
+                            )
                         } else {
                             WeekCard(state.childProfile)
                         }
                     }
                     if (stage == BabyLogDomain.STAGE_BABY) {
-                        item { TodayPanel(state.dashboard) }
+                        val dayEvents = state.timeline.filter {
+                            BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
+                        }
+                        item { BabyDaySummary(dayEvents, selectedBabyDay) }
+                        item {
+                            SectionHeader(
+                                title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录",
+                                action = "按时间倒序"
+                            )
+                        }
+                        if (dayEvents.isEmpty()) {
+                            item { EmptyPanel("这一天还没有记录。底部按钮可以快速补一条。") }
+                        } else {
+                            items(dayEvents, key = { it.id }) { event ->
+                                TimelineRow(event)
+                            }
+                        }
                     }
-                    item {
-                        SectionHeader(
-                            title = "最近记录",
-                            action = "全部记录",
-                            onAction = { onTabSelected("timeline") }
-                        )
-                    }
-                    val recent = state.dashboard?.recentEvents.orEmpty()
-                        .filter { isEventVisibleInHome(it, stage) }
-                        .take(4)
-                    if (recent.isEmpty()) {
-                        item { EmptyPanel("还没有记录，点下方 + 开始。") }
-                    } else {
-                        items(recent, key = { it.id }) { event ->
-                            TimelineRow(event)
+                    if (stage != BabyLogDomain.STAGE_BABY) {
+                        item {
+                            SectionHeader(
+                                title = "最近记录",
+                                action = "全部记录",
+                                onAction = { onTabSelected("timeline") }
+                            )
+                        }
+                        val recent = state.dashboard?.recentEvents.orEmpty()
+                            .filter { isEventVisibleInHome(it, stage) }
+                            .take(4)
+                        if (recent.isEmpty()) {
+                            item { EmptyPanel("还没有记录，点下方 + 开始。") }
+                        } else {
+                            items(recent, key = { it.id }) { event ->
+                                TimelineRow(event)
+                            }
                         }
                     }
                     item { SectionHeader(title = "趋势", action = "点击查看曲线") }
@@ -1055,13 +1104,20 @@ private fun WeekCard(profile: BabyLogDomain.ChildProfile) {
 }
 
 @Composable
-private fun BabyDayCard(profile: BabyLogDomain.ChildProfile) {
+private fun BabyDayCard(
+    profile: BabyLogDomain.ChildProfile,
+    selectedDay: String,
+    onPreviousDay: () -> Unit,
+    onToday: () -> Unit,
+    onNextDay: () -> Unit
+) {
     val nickname = profile.nickname.ifBlank { "宝宝" }
     val age = if (BabyLogFormatters.isValidDateInput(profile.birthDate)) {
         "出生日期 ${profile.birthDate} · 第 ${kotlin.math.max(1, daysBetween(profile.birthDate, BabyLogFormatters.todayDateInput()) + 1)} 天"
     } else {
         "出生日期待补；设置页可补录"
     }
+    val dayLabel = if (selectedDay == BabyLogFormatters.todayDateInput()) "今天" else selectedDay
     Card(
         shape = RoundedCornerShape(22.dp),
         backgroundColor = ChestnutPalette.Surface,
@@ -1078,7 +1134,60 @@ private fun BabyDayCard(profile: BabyLogDomain.ChildProfile) {
             Text("${nickname}的日视图", color = ChestnutPalette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Text(age, color = ChestnutPalette.Muted, fontSize = 14.sp)
             Spacer(Modifier.height(12.dp))
-            Text("第一轮先按今天倒序展示记录；24 小时刻度时间轴放到下一阶段。", color = ChestnutPalette.Text3, fontSize = 12.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = onPreviousDay, border = BorderStroke(1.dp, ChestnutPalette.Primary)) {
+                    Text("前一天", color = ChestnutPalette.Primary)
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = onToday,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
+                ) {
+                    Text(dayLabel, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(onClick = onNextDay, border = BorderStroke(1.dp, ChestnutPalette.Primary)) {
+                    Text("后一天", color = ChestnutPalette.Primary)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("第一轮按选中日期倒序展示记录；24 小时刻度时间轴放到下一阶段。", color = ChestnutPalette.Text3, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun BabyDaySummary(events: List<BabyLogDomain.BabyLogEvent>, selectedDay: String) {
+    val feedCount = events.count { it.eventType == "feed" || it.eventType == "breastfeed" || it.eventType == "bottle" }
+    val sleepCount = events.count { it.eventType == "sleep" || it.eventType == "wake" }
+    val diaperCount = events.count { it.eventType == "diaper" || it.eventType == "pee" || it.eventType == "poop" }
+    Panel {
+        SectionHeader(title = if (selectedDay == BabyLogFormatters.todayDateInput()) "今日摘要" else "当日摘要", action = selectedDay)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard(
+                title = "喂养",
+                value = "$feedCount 次",
+                subtitle = "母乳 / 奶瓶",
+                tone = ChestnutPalette.Peach,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "睡眠",
+                value = "$sleepCount 条",
+                subtitle = "睡眠 / 起床",
+                tone = ChestnutPalette.Violet,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "尿布",
+                value = "$diaperCount 次",
+                subtitle = "尿尿 / 便便",
+                tone = ChestnutPalette.Yellow,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -1351,6 +1460,48 @@ private fun SettingsScreen(
                 .background(Color(0xFFFFEBCB))
                 .padding(14.dp)
         )
+    }
+}
+
+@Composable
+private fun BabyQuickRail(
+    actions: List<BabyLogService.QuickAction>,
+    onAction: (BabyLogService.QuickAction) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ChestnutPalette.Surface)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        actions.forEach { action ->
+            Column(
+                modifier = Modifier
+                    .width(76.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(action.toneColor).copy(alpha = 0.16f))
+                    .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(18.dp))
+                    .clickable { onAction(action) }
+                    .padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Image(
+                    painter = painterResource(action.assetResId),
+                    contentDescription = action.label,
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    action.label,
+                    color = ChestnutPalette.Ink,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
