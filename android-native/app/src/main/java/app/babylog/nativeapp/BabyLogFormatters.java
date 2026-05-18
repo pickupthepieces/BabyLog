@@ -10,15 +10,25 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public final class BabyLogFormatters {
+    // 这个 App 固定中国一家人使用：所有日期/时间换算钉死在 Asia/Shanghai，
+    // 不跟随设备或 CI runner 的默认时区，避免归错天 / 跨午夜边界算错（L-9）。
+    private static final TimeZone CN_ZONE = TimeZone.getTimeZone("Asia/Shanghai");
+
     private BabyLogFormatters() {
     }
 
+    private static SimpleDateFormat cnFormat(String pattern, Locale locale) {
+        SimpleDateFormat format = new SimpleDateFormat(pattern, locale);
+        format.setTimeZone(CN_ZONE);
+        return format;
+    }
+
     public static String nowIso() {
-        return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US).format(new Date());
+        return cnFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US).format(new Date());
     }
 
     public static String todayDateInput() {
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(new Date());
+        return cnFormat("yyyy-MM-dd", Locale.CHINA).format(new Date());
     }
 
     public static String offsetDateInput(String date, int dayDelta) {
@@ -26,13 +36,13 @@ public final class BabyLogFormatters {
             return date == null ? "" : date;
         }
         try {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            SimpleDateFormat format = cnFormat("yyyy-MM-dd", Locale.US);
             format.setLenient(false);
             Date parsed = format.parse(date);
             if (parsed == null) {
                 return date;
             }
-            Calendar calendar = Calendar.getInstance();
+            Calendar calendar = Calendar.getInstance(CN_ZONE);
             calendar.setTime(parsed);
             calendar.add(Calendar.DATE, dayDelta);
             return format.format(calendar.getTime());
@@ -45,7 +55,7 @@ public final class BabyLogFormatters {
         if (!isValidDateInput(date)) {
             return nowIso();
         }
-        String time = new SimpleDateFormat("HH:mm:ss.SSSZ", Locale.US).format(new Date());
+        String time = cnFormat("HH:mm:ss.SSSZ", Locale.US).format(new Date());
         return date + "T" + time;
     }
 
@@ -64,7 +74,7 @@ public final class BabyLogFormatters {
         if (value == null || !value.matches("\\d{4}-\\d{2}-\\d{2}")) {
             return false;
         }
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+        SimpleDateFormat format = cnFormat("yyyy-MM-dd", Locale.US);
         format.setLenient(false);
         try {
             format.parse(value);
@@ -143,7 +153,7 @@ public final class BabyLogFormatters {
         }
         int boundedHour = Math.max(0, Math.min(23, boundaryHour));
         long shiftedMillis = date.getTime() - boundedHour * 3_600_000L;
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date(shiftedMillis));
+        return cnFormat("yyyy-MM-dd", Locale.US).format(new Date(shiftedMillis));
     }
 
     public static String formatNumber(double value) {
@@ -277,7 +287,7 @@ public final class BabyLogFormatters {
         if (date == null) {
             return iso == null ? "" : iso;
         }
-        return new SimpleDateFormat("M月d日 HH:mm", Locale.CHINA).format(date);
+        return cnFormat("M月d日 HH:mm", Locale.CHINA).format(date);
     }
 
     public static long parseIsoMillis(String iso) {
@@ -290,7 +300,7 @@ public final class BabyLogFormatters {
         if (date == null) {
             return "--:--";
         }
-        return new SimpleDateFormat("HH:mm", Locale.CHINA).format(date);
+        return cnFormat("HH:mm", Locale.CHINA).format(date);
     }
 
     public static String formatEventDay(String iso) {
@@ -298,7 +308,7 @@ public final class BabyLogFormatters {
         if (event == null) {
             return "";
         }
-        SimpleDateFormat dayFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+        SimpleDateFormat dayFormat = cnFormat("yyyy-MM-dd", Locale.US);
         String eventDay = dayFormat.format(event);
         String today = dayFormat.format(new Date());
         long diff = (dateOnlyMillis(today) - dateOnlyMillis(eventDay)) / 86_400_000L;
@@ -308,7 +318,7 @@ public final class BabyLogFormatters {
         if (diff == 1) {
             return "昨天";
         }
-        return new SimpleDateFormat("M月d日", Locale.CHINA).format(event);
+        return cnFormat("M月d日", Locale.CHINA).format(event);
     }
 
     public static String formatRelativeTime(String iso) {
@@ -421,10 +431,7 @@ public final class BabyLogFormatters {
         };
         for (String pattern : patterns) {
             try {
-                SimpleDateFormat format = new SimpleDateFormat(pattern, Locale.US);
-                if ("yyyy-MM-dd".equals(pattern)) {
-                    format.setTimeZone(TimeZone.getDefault());
-                }
+                SimpleDateFormat format = cnFormat(pattern, Locale.US);
                 return format.parse(iso);
             } catch (ParseException ignored) {
             }
@@ -434,7 +441,7 @@ public final class BabyLogFormatters {
 
     private static long dateOnlyMillis(String value) {
         try {
-            return new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value).getTime();
+            return cnFormat("yyyy-MM-dd", Locale.US).parse(value).getTime();
         } catch (ParseException ignored) {
             return 0;
         }

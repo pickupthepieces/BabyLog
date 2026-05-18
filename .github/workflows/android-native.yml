@@ -14,6 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      TZ: Asia/Shanghai
       BABYLOG_RELEASE_KEYSTORE_BASE64: ${{ secrets.BABYLOG_RELEASE_KEYSTORE_BASE64 }}
       BABYLOG_RELEASE_STORE_PASSWORD: ${{ secrets.BABYLOG_RELEASE_STORE_PASSWORD }}
       BABYLOG_RELEASE_KEY_ALIAS: ${{ secrets.BABYLOG_RELEASE_KEY_ALIAS }}
