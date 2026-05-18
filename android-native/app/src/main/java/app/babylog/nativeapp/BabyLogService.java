@@ -391,6 +391,25 @@ public final class BabyLogService {
         appendSummary(summary, withLabel("胎盘", input.placentaLocation));
         appendSummary(summary, withLabel("成熟度", input.placentaGrade));
         appendSummary(summary, withLabel("胎位", input.fetalPresentation));
+        appendSummary(summary, withLabel("胎儿个数", input.fetalCount));
+        appendSummary(summary, withLabel("胎动", input.fetalMovement));
+        Double fetalHeartRate = BabyLogFormatters.parseOptionalNumber(input.fetalHeartRateBpm);
+        if (fetalHeartRate != null) {
+            appendSummary(summary, "胎心率 " + BabyLogFormatters.formatNumber(fetalHeartRate) + " bpm");
+        }
+        Double crl = BabyLogFormatters.parseOptionalNumber(input.crlMm);
+        if (crl != null) {
+            appendSummary(summary, "CRL " + BabyLogFormatters.formatNumber(crl) + " mm");
+        }
+        Double nt = BabyLogFormatters.parseOptionalNumber(input.ntMm);
+        if (nt != null) {
+            appendSummary(summary, "NT " + BabyLogFormatters.formatNumber(nt) + " mm");
+        }
+        Double cervicalLength = BabyLogFormatters.parseOptionalNumber(input.cervicalLengthMm);
+        if (cervicalLength != null) {
+            appendSummary(summary, "宫颈管长度 " + BabyLogFormatters.formatNumber(cervicalLength) + " mm");
+        }
+        appendSummary(summary, withLabel("脐带插入处", input.umbilicalInsertion));
         Double sd = BabyLogFormatters.parseOptionalNumber(input.umbilicalSd);
         if (sd != null) {
             appendSummary(summary, "脐动脉 S/D " + BabyLogFormatters.formatNumber(sd));
@@ -494,6 +513,13 @@ public final class BabyLogService {
         putStringIfNotBlank(payload, "placentaLocation", input.placentaLocation);
         putStringIfNotBlank(payload, "placentaGrade", input.placentaGrade);
         putStringIfNotBlank(payload, "fetalPresentation", input.fetalPresentation);
+        putIfNotNull(payload, "fetalHeartRateBpm", BabyLogFormatters.parseOptionalNumber(input.fetalHeartRateBpm));
+        putStringIfNotBlank(payload, "fetalCount", input.fetalCount);
+        putStringIfNotBlank(payload, "fetalMovement", input.fetalMovement);
+        putStringIfNotBlank(payload, "umbilicalInsertion", input.umbilicalInsertion);
+        putIfNotNull(payload, "cervicalLengthMm", BabyLogFormatters.parseOptionalNumber(input.cervicalLengthMm));
+        putIfNotNull(payload, "crlMm", BabyLogFormatters.parseOptionalNumber(input.crlMm));
+        putIfNotNull(payload, "ntMm", BabyLogFormatters.parseOptionalNumber(input.ntMm));
         putIfNotNull(payload, "umbilicalSd", BabyLogFormatters.parseOptionalNumber(input.umbilicalSd));
         putIfNotNull(payload, "umbilicalPi", BabyLogFormatters.parseOptionalNumber(input.umbilicalPi));
         putIfNotNull(payload, "umbilicalRi", BabyLogFormatters.parseOptionalNumber(input.umbilicalRi));
@@ -864,6 +890,13 @@ public final class BabyLogService {
         public final String placentaLocation;
         public final String placentaGrade;
         public final String fetalPresentation;
+        public final String fetalHeartRateBpm;
+        public final String fetalCount;
+        public final String fetalMovement;
+        public final String umbilicalInsertion;
+        public final String cervicalLengthMm;
+        public final String crlMm;
+        public final String ntMm;
         public final String umbilicalSd;
         public final String umbilicalPi;
         public final String umbilicalRi;
@@ -883,6 +916,13 @@ public final class BabyLogService {
                 String placentaLocation,
                 String placentaGrade,
                 String fetalPresentation,
+                String fetalHeartRateBpm,
+                String fetalCount,
+                String fetalMovement,
+                String umbilicalInsertion,
+                String cervicalLengthMm,
+                String crlMm,
+                String ntMm,
                 String umbilicalSd,
                 String umbilicalPi,
                 String umbilicalRi,
@@ -901,6 +941,13 @@ public final class BabyLogService {
             this.placentaLocation = placentaLocation;
             this.placentaGrade = placentaGrade;
             this.fetalPresentation = fetalPresentation;
+            this.fetalHeartRateBpm = fetalHeartRateBpm;
+            this.fetalCount = fetalCount;
+            this.fetalMovement = fetalMovement;
+            this.umbilicalInsertion = umbilicalInsertion;
+            this.cervicalLengthMm = cervicalLengthMm;
+            this.crlMm = crlMm;
+            this.ntMm = ntMm;
             this.umbilicalSd = umbilicalSd;
             this.umbilicalPi = umbilicalPi;
             this.umbilicalRi = umbilicalRi;

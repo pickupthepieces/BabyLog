@@ -114,14 +114,21 @@ public final class BabyLogSmartInput {
                 metricNumberField(object, "acMm", UnitKind.MM),
                 metricNumberField(object, "flMm", UnitKind.MM),
                 efwField(object, rawText),
-                emptyNumberField(),
-                emptyNumberField(),
-                emptyStringField(),
-                emptyStringField(),
-                emptyStringField(),
-                emptyNumberField(),
-                emptyNumberField(),
-                emptyNumberField(),
+                metricNumberField(object, "afiCm", UnitKind.CM),
+                metricNumberField(object, "deepestPocketCm", UnitKind.CM),
+                stringField(object, "placentaLocation"),
+                placentaGradeField(object),
+                stringField(object, "fetalPresentation"),
+                metricNumberField(object, "fetalHeartRateBpm", UnitKind.RAW),
+                stringField(object, "fetalCount"),
+                stringField(object, "fetalMovement"),
+                stringField(object, "umbilicalInsertion"),
+                metricNumberField(object, "cervicalLengthMm", UnitKind.MM),
+                metricNumberField(object, "crlMm", UnitKind.MM),
+                metricNumberField(object, "ntMm", UnitKind.MM),
+                metricNumberField(object, "umbilicalSd", UnitKind.RAW),
+                metricNumberField(object, "umbilicalPi", UnitKind.RAW),
+                metricNumberField(object, "umbilicalRi", UnitKind.RAW),
                 warnings(object),
                 rawText
         );
@@ -148,6 +155,21 @@ public final class BabyLogSmartInput {
                 || object.containsKey("acMm")
                 || object.containsKey("flMm")
                 || object.containsKey("efwGram")
+                || object.containsKey("afiCm")
+                || object.containsKey("deepestPocketCm")
+                || object.containsKey("placentaLocation")
+                || object.containsKey("placentaGrade")
+                || object.containsKey("fetalPresentation")
+                || object.containsKey("fetalHeartRateBpm")
+                || object.containsKey("fetalCount")
+                || object.containsKey("fetalMovement")
+                || object.containsKey("umbilicalInsertion")
+                || object.containsKey("cervicalLengthMm")
+                || object.containsKey("crlMm")
+                || object.containsKey("ntMm")
+                || object.containsKey("umbilicalSd")
+                || object.containsKey("umbilicalPi")
+                || object.containsKey("umbilicalRi")
                 || object.containsKey("rawText")
                 || object.containsKey("warnings");
     }
@@ -155,6 +177,34 @@ public final class BabyLogSmartInput {
     private static FieldCandidate<String> stringField(Map<String, Object> object, String name) {
         String value = optionalString(object, name);
         return new FieldCandidate<>(value, value);
+    }
+
+    private static FieldCandidate<String> placentaGradeField(Map<String, Object> object) {
+        String value = optionalString(object, "placentaGrade");
+        return new FieldCandidate<>(normalizePlacentaGrade(value), value);
+    }
+
+    private static String normalizePlacentaGrade(String value) {
+        if (value == null) {
+            return null;
+        }
+        String compact = value.replace(" ", "")
+                .replace("　", "")
+                .replace("级", "")
+                .trim();
+        if ("0".equals(compact)) {
+            return "0级";
+        }
+        if ("III".equalsIgnoreCase(compact) || "Ⅲ".equals(compact)) {
+            return "III 级";
+        }
+        if ("II".equalsIgnoreCase(compact) || "Ⅱ".equals(compact)) {
+            return "II 级";
+        }
+        if ("I".equalsIgnoreCase(compact) || "Ⅰ".equals(compact)) {
+            return "I 级";
+        }
+        return value;
     }
 
     private static FieldCandidate<Double> metricNumberField(Map<String, Object> object, String name, UnitKind unitKind) {
@@ -187,8 +237,16 @@ public final class BabyLogSmartInput {
         String normalized = rawValue.toLowerCase();
         if (unitKind == UnitKind.MM && normalized.contains("cm") && !normalized.contains("mm")) {
             parsed *= 10.0;
+        } else if (unitKind == UnitKind.CM && normalized.contains("mm")) {
+            parsed /= 10.0;
         } else if (unitKind == UnitKind.GRAM && normalized.contains("kg")) {
             parsed *= 1000.0;
+        }
+        if (unitKind == UnitKind.CM
+                && !normalized.contains("cm")
+                && !normalized.contains("mm")
+                && parsed > 30.0) {
+            return null;
         }
         return parsed.isNaN() || parsed.isInfinite() ? null : parsed;
     }
@@ -221,7 +279,10 @@ public final class BabyLogSmartInput {
             return null;
         }
         String text = String.valueOf(value).trim();
-        return text.isEmpty() ? null : text;
+        if (text.isEmpty() || "/".equals(text) || "-".equals(text) || "—".equals(text)) {
+            return null;
+        }
+        return text;
     }
 
     private static List<String> warnings(Map<String, Object> object) {
@@ -295,7 +356,9 @@ public final class BabyLogSmartInput {
     }
 
     private enum UnitKind {
+        RAW,
         MM,
+        CM,
         GRAM
     }
 
@@ -312,6 +375,13 @@ public final class BabyLogSmartInput {
         public final FieldCandidate<String> placentaLocation;
         public final FieldCandidate<String> placentaGrade;
         public final FieldCandidate<String> fetalPresentation;
+        public final FieldCandidate<Double> fetalHeartRateBpm;
+        public final FieldCandidate<String> fetalCount;
+        public final FieldCandidate<String> fetalMovement;
+        public final FieldCandidate<String> umbilicalInsertion;
+        public final FieldCandidate<Double> cervicalLengthMm;
+        public final FieldCandidate<Double> crlMm;
+        public final FieldCandidate<Double> ntMm;
         public final FieldCandidate<Double> umbilicalSd;
         public final FieldCandidate<Double> umbilicalPi;
         public final FieldCandidate<Double> umbilicalRi;
@@ -331,6 +401,13 @@ public final class BabyLogSmartInput {
                 FieldCandidate<String> placentaLocation,
                 FieldCandidate<String> placentaGrade,
                 FieldCandidate<String> fetalPresentation,
+                FieldCandidate<Double> fetalHeartRateBpm,
+                FieldCandidate<String> fetalCount,
+                FieldCandidate<String> fetalMovement,
+                FieldCandidate<String> umbilicalInsertion,
+                FieldCandidate<Double> cervicalLengthMm,
+                FieldCandidate<Double> crlMm,
+                FieldCandidate<Double> ntMm,
                 FieldCandidate<Double> umbilicalSd,
                 FieldCandidate<Double> umbilicalPi,
                 FieldCandidate<Double> umbilicalRi,
@@ -349,6 +426,13 @@ public final class BabyLogSmartInput {
             this.placentaLocation = placentaLocation;
             this.placentaGrade = placentaGrade;
             this.fetalPresentation = fetalPresentation;
+            this.fetalHeartRateBpm = fetalHeartRateBpm;
+            this.fetalCount = fetalCount;
+            this.fetalMovement = fetalMovement;
+            this.umbilicalInsertion = umbilicalInsertion;
+            this.cervicalLengthMm = cervicalLengthMm;
+            this.crlMm = crlMm;
+            this.ntMm = ntMm;
             this.umbilicalSd = umbilicalSd;
             this.umbilicalPi = umbilicalPi;
             this.umbilicalRi = umbilicalRi;

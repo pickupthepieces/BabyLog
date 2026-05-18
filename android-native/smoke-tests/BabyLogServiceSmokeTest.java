@@ -86,6 +86,14 @@ public final class BabyLogServiceSmokeTest {
                 "羊水 AFI 12.3 cm · 最大羊水池 5.1 cm · 胎盘 前壁 · 成熟度 I 级 · 胎位 头位 · 脐动脉 S/D 2.5 · PI 0.9 · RI 0.6",
                 BabyLogService.formatUltrasoundClinicalDetails(ultrasound("2026-05-18", "22+5", "55", "205", "180", "38", "520", "12.3", "5.1", "前壁", "I 级", "头位", "2.5", "0.9", "0.6", "", ""))
         );
+        assertEquals(
+                "最大羊水池 3.8 cm · 胎盘 前壁 · 胎儿个数 单胎 · 胎动 可见 · 胎心率 156 bpm · CRL 68 mm · NT 1.6 mm · 宫颈管长度 35 mm · 脐带插入处 居中",
+                BabyLogService.formatUltrasoundClinicalDetails(new BabyLogService.UltrasoundInput(
+                        "2026-03-14", "", "", "", "", "", "", "", "3.8",
+                        "前壁", "", "", "156", "单胎", "可见", "居中",
+                        "35", "68", "1.6", "", "", "", "", ""
+                ))
+        );
         assertFalse(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "")));
         assertFalse(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "22+5", "", "", "", "", "", "12.3", "", "前壁", "", "", "", "", "", "", "")));
         assertTrue(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "22+5", "45", "", "", "", "", "", "", "", "", "", "", "", "", "", "")));
@@ -151,6 +159,13 @@ public final class BabyLogServiceSmokeTest {
                 placentaLocation,
                 placentaGrade,
                 fetalPresentation,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
                 umbilicalSd,
                 umbilicalPi,
                 umbilicalRi,

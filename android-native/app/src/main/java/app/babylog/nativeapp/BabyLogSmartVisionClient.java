@@ -92,12 +92,13 @@ public final class BabyLogSmartVisionClient {
     }
 
     public static String ultrasoundRecognitionPrompt() {
-        return "请识别这张 B 超单，只提取胎儿生长指标并返回 JSON object。字段固定为：examDate, bpdMm, hcMm, acMm, flMm, efwGram, warnings, rawText。"
-                + "只在报告文字明确出现时填写字段：BPD/双顶径、HC/头围、AC/腹围、FL/股骨长、EFW/估重/胎儿体重。"
+        return "请识别这张 B 超单，只提取胎儿生长指标和报告公共信息，并返回 JSON object。"
+                + "字段固定为：examDate, bpdMm, hcMm, acMm, flMm, efwGram, afiCm, deepestPocketCm, placentaLocation, placentaGrade, fetalPresentation, fetalHeartRateBpm, fetalCount, fetalMovement, umbilicalInsertion, cervicalLengthMm, crlMm, ntMm, umbilicalSd, umbilicalPi, umbilicalRi, warnings, rawText。"
+                + "只在报告文字明确出现时填写字段：BPD/双顶径、HC/头围、AC/腹围、FL/股骨长、EFW/估重/胎儿体重、AFI、羊水最大深度/最大平段/最大羊水池、胎盘位置/分级、胎位、胎心率、胎儿个数、胎动、脐带插入处、宫颈管长度、CRL/顶臀径、NT、脐动脉 S/D/PI/RI。"
                 + "不要识别、返回或推断孕周；孕周由用户根据报告手动填写或由预产期计算。"
                 + "efwGram 只在明确出现 EFW、估重、胎儿体重或胎重时填写；不要把胎心率 143bpm 当 EFW。"
-                + "不要填写 AFI、羊水最大深度、胎心率、胎盘、胎位、宫颈管长度、侧脑室宽度、脐血流等非生长指标；可放入 warnings 或 rawText 供人工核对。"
-                + "数值字段只填数字，单位按字段要求换算为 mm 或 g；不确定就省略或放入 warnings。";
+                + "不要把侧脑室、后角宽、脑室宽、鼻骨、四腔心、肢体可及等结构筛查文字误填为羊水、NT 或生长指标；这类内容只放 rawText 或 warnings。"
+                + "数值字段只填数字，单位按字段要求换算：BPD/HC/AC/FL/CRL/NT/宫颈管长度为 mm，EFW 为 g，AFI/羊水最大深度为 cm，胎心率为 bpm；不确定就省略或放入 warnings。";
     }
 
     public static String resolveChatCompletionsUrl(String baseUrl) {

@@ -12,6 +12,10 @@ public final class BabyLogSmartVisionClientSmokeTest {
                 BabyLogSmartVisionClient.resolveChatCompletionsUrl("https://api.example.com/custom/chat/completions"));
         String prompt = BabyLogSmartVisionClient.ultrasoundRecognitionPrompt();
         assertTrue(prompt.contains("bpdMm"));
+        assertTrue(prompt.contains("fetalHeartRateBpm"));
+        assertTrue(prompt.contains("deepestPocketCm"));
+        assertTrue(prompt.contains("crlMm"));
+        assertTrue(prompt.contains("ntMm"));
         assertFalse(prompt.contains("gestationalAge"));
 
         RecordingPreparer preparer = new RecordingPreparer();

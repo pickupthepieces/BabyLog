@@ -33,14 +33,14 @@ public final class BabyLogSmartInputSmokeTest {
         assertEquals(null, candidate.acMm.value);
         assertEquals(55.0, candidate.flMm.value);
         assertEquals(1420.0, candidate.efwGram.value);
-        assertEquals(null, candidate.afiCm.value);
-        assertEquals(null, candidate.deepestPocketCm.value);
-        assertEquals(null, candidate.placentaLocation.value);
-        assertEquals(null, candidate.placentaGrade.value);
-        assertEquals(null, candidate.fetalPresentation.value);
-        assertEquals(null, candidate.umbilicalSd.value);
-        assertEquals(null, candidate.umbilicalPi.value);
-        assertEquals(null, candidate.umbilicalRi.value);
+        assertEquals(12.3, candidate.afiCm.value);
+        assertEquals(5.1, candidate.deepestPocketCm.value);
+        assertEquals("前壁", candidate.placentaLocation.value);
+        assertEquals("I 级", candidate.placentaGrade.value);
+        assertEquals("头位", candidate.fetalPresentation.value);
+        assertEquals(2.5, candidate.umbilicalSd.value);
+        assertEquals(0.9, candidate.umbilicalPi.value);
+        assertEquals(0.6, candidate.umbilicalRi.value);
         assertEquals("数值仅供人工确认", candidate.warnings.get(0));
         assertEquals("BPD 71mm HC 260.5mm EFW 1420g", candidate.rawText);
 
@@ -66,7 +66,15 @@ public final class BabyLogSmartInputSmokeTest {
                         + "\"efwGram\":\"1435\","
                         + "\"afiCm\":\"52\","
                         + "\"deepestPocketCm\":\"7.1\","
+                        + "\"deepestPocketCm\":\"52mm\","
                         + "\"placentaLocation\":\"前壁\","
+                        + "\"placentaGrade\":\"0级\","
+                        + "\"fetalPresentation\":\"臀位\","
+                        + "\"fetalHeartRateBpm\":\"143bpm\","
+                        + "\"fetalCount\":\"单胎\","
+                        + "\"fetalMovement\":\"有\","
+                        + "\"umbilicalInsertion\":\"居中\","
+                        + "\"cervicalLengthMm\":\"36mm\","
                         + "\"rawText\":\"胎心率143bpm；羊水最大平段52mm；宫颈管长度36mm；侧脑室后角宽约7.1mm\""
                         + "}");
         assertEquals("2026-05-02", mixed.examDate.value);
@@ -77,8 +85,37 @@ public final class BabyLogSmartInputSmokeTest {
         assertEquals(31.0, mixed.flMm.value);
         assertEquals(null, mixed.efwGram.value);
         assertEquals(null, mixed.afiCm.value);
-        assertEquals(null, mixed.deepestPocketCm.value);
-        assertEquals(null, mixed.placentaLocation.value);
+        assertEquals(5.2, mixed.deepestPocketCm.value);
+        assertEquals("前壁", mixed.placentaLocation.value);
+        assertEquals("0级", mixed.placentaGrade.value);
+        assertEquals("臀位", mixed.fetalPresentation.value);
+        assertEquals(143.0, mixed.fetalHeartRateBpm.value);
+        assertEquals("单胎", mixed.fetalCount.value);
+        assertEquals("有", mixed.fetalMovement.value);
+        assertEquals("居中", mixed.umbilicalInsertion.value);
+        assertEquals(36.0, mixed.cervicalLengthMm.value);
+
+        BabyLogSmartInput.UltrasoundOcrCandidate early =
+                BabyLogSmartInput.fromMessageContent("{"
+                        + "\"examDate\":\"2026-03-14\","
+                        + "\"gestationalAge\":\"13+3\","
+                        + "\"bpdMm\":\"22\","
+                        + "\"hcMm\":\"83\","
+                        + "\"acMm\":\"63\","
+                        + "\"flMm\":\"10\","
+                        + "\"crlMm\":\"68\","
+                        + "\"ntMm\":\"1.6\","
+                        + "\"fetalHeartRateBpm\":\"156\","
+                        + "\"deepestPocketCm\":\"38mm\","
+                        + "\"placentaLocation\":\"前壁\","
+                        + "\"umbilicalInsertion\":\"居中\","
+                        + "\"rawText\":\"超声孕龄13+3周；NT 1.6；顶臀径CRL 68；胎心率156；羊水最大平段38\""
+                        + "}");
+        assertEquals(null, early.gestationalAge.value);
+        assertEquals(68.0, early.crlMm.value);
+        assertEquals(1.6, early.ntMm.value);
+        assertEquals(156.0, early.fetalHeartRateBpm.value);
+        assertEquals(3.8, early.deepestPocketCm.value);
 
         BabyLogSmartInput.UltrasoundOcrCandidate unitText =
                 BabyLogSmartInput.fromMessageContent("{\"result\":{"

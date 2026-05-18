@@ -2108,6 +2108,13 @@ private fun UltrasoundDialog(
     var placentaLocation by rememberSaveable { mutableStateOf("") }
     var placentaGrade by rememberSaveable { mutableStateOf("") }
     var fetalPresentation by rememberSaveable { mutableStateOf("") }
+    var fetalHeartRate by rememberSaveable { mutableStateOf("") }
+    var fetalCount by rememberSaveable { mutableStateOf("") }
+    var fetalMovement by rememberSaveable { mutableStateOf("") }
+    var umbilicalInsertion by rememberSaveable { mutableStateOf("") }
+    var cervicalLength by rememberSaveable { mutableStateOf("") }
+    var crl by rememberSaveable { mutableStateOf("") }
+    var nt by rememberSaveable { mutableStateOf("") }
     var umbilicalSd by rememberSaveable { mutableStateOf("") }
     var umbilicalPi by rememberSaveable { mutableStateOf("") }
     var umbilicalRi by rememberSaveable { mutableStateOf("") }
@@ -2215,6 +2222,21 @@ private fun UltrasoundDialog(
                                 ocrCandidate.acMm.value?.let { ac = BabyLogFormatters.formatNumber(it) }
                                 ocrCandidate.flMm.value?.let { fl = BabyLogFormatters.formatNumber(it) }
                                 ocrCandidate.efwGram.value?.let { efw = BabyLogFormatters.formatNumber(it) }
+                                ocrCandidate.afiCm.value?.let { afi = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.deepestPocketCm.value?.let { deepestPocket = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.placentaLocation.value?.let { placentaLocation = it; showAdvanced = true }
+                                ocrCandidate.placentaGrade.value?.let { placentaGrade = it; showAdvanced = true }
+                                ocrCandidate.fetalPresentation.value?.let { fetalPresentation = it; showAdvanced = true }
+                                ocrCandidate.fetalHeartRateBpm.value?.let { fetalHeartRate = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.fetalCount.value?.let { fetalCount = it; showAdvanced = true }
+                                ocrCandidate.fetalMovement.value?.let { fetalMovement = it; showAdvanced = true }
+                                ocrCandidate.umbilicalInsertion.value?.let { umbilicalInsertion = it; showAdvanced = true }
+                                ocrCandidate.cervicalLengthMm.value?.let { cervicalLength = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.crlMm.value?.let { crl = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.ntMm.value?.let { nt = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.umbilicalSd.value?.let { umbilicalSd = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.umbilicalPi.value?.let { umbilicalPi = BabyLogFormatters.formatNumber(it); showAdvanced = true }
+                                ocrCandidate.umbilicalRi.value?.let { umbilicalRi = BabyLogFormatters.formatNumber(it); showAdvanced = true }
                                 onCandidateApplied()
                             },
                             onDismiss = onCandidateDismiss
@@ -2259,6 +2281,46 @@ private fun UltrasoundDialog(
                     }
                 }
                 if (showAdvanced) {
+                    item { Text("公共信息", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UnitInputRow("胎心率", fetalHeartRate, { fetalHeartRate = it }, "bpm", Modifier.weight(1f))
+                            UnitInputRow("CRL", crl, { crl = it }, "mm", Modifier.weight(1f))
+                        }
+                    }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UnitInputRow("NT", nt, { nt = it }, "mm", Modifier.weight(1f))
+                            UnitInputRow("宫颈管", cervicalLength, { cervicalLength = it }, "mm", Modifier.weight(1f))
+                        }
+                    }
+                    item {
+                        ChoiceChipRow(
+                            label = "胎儿个数",
+                            selected = fetalCount,
+                            options = listOf(
+                                "单胎" to "单胎",
+                                "双胎" to "双胎",
+                                "多胎" to "多胎",
+                                "未写" to "未写"
+                            ),
+                            onSelect = { fetalCount = it }
+                        )
+                    }
+                    item {
+                        ChoiceChipRow(
+                            label = "胎动",
+                            selected = fetalMovement,
+                            options = listOf(
+                                "有" to "有",
+                                "可见" to "可见",
+                                "无" to "无",
+                                "未写" to "未写"
+                            ),
+                            onSelect = { fetalMovement = it }
+                        )
+                    }
+                    item { ChestnutTextField("脐带插入处", umbilicalInsertion, { umbilicalInsertion = it }, KeyboardType.Text) }
                     item { Text("羊水 / 胎盘 / 胎位", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2287,9 +2349,9 @@ private fun UltrasoundDialog(
                             selected = placentaGrade,
                             options = listOf(
                                 "0级" to "0 级",
-                                "I级" to "I 级",
-                                "II级" to "II 级",
-                                "III级" to "III 级",
+                                "I 级" to "I 级",
+                                "II 级" to "II 级",
+                                "III 级" to "III 级",
                                 "未写" to "未写"
                             ),
                             onSelect = { placentaGrade = it }
@@ -2347,6 +2409,13 @@ private fun UltrasoundDialog(
                         placentaLocation,
                         placentaGrade,
                         fetalPresentation,
+                        fetalHeartRate,
+                        fetalCount,
+                        fetalMovement,
+                        umbilicalInsertion,
+                        cervicalLength,
+                        crl,
+                        nt,
                         umbilicalSd,
                         umbilicalPi,
                         umbilicalRi,
@@ -2386,9 +2455,9 @@ private fun UltrasoundOcrCandidatePanel(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("识别候选（生长指标）", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+        Text("识别候选（生长指标 + 公共信息）", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
         Text(
-            "仅自动应用检查日期、BPD、HC、AC、FL、明确 EFW；孕周不由模型识别或推断，请按报告手动填写。",
+            "可应用报告明确写出的生长指标、胎心、羊水、胎盘、胎位等字段；孕周不由模型识别或推断，请按报告手动填写。",
             color = ChestnutPalette.Muted,
             fontSize = 12.sp
         )
@@ -2396,14 +2465,14 @@ private fun UltrasoundOcrCandidatePanel(
         if (rows.isEmpty()) {
             Text("模型没有返回可用字段，请手动录入。", color = ChestnutPalette.Muted, fontSize = 13.sp)
         } else {
-            rows.take(10).forEach { row ->
+            rows.take(14).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(row.first, color = ChestnutPalette.Muted, fontSize = 12.sp, modifier = Modifier.width(78.dp))
+                    Text(row.first, color = ChestnutPalette.Muted, fontSize = 12.sp, modifier = Modifier.width(90.dp))
                     Text(row.second, color = ChestnutPalette.Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            if (rows.size > 10) {
-                Text("另有 ${rows.size - 10} 项候选，应用后进入表单核对。", color = ChestnutPalette.Muted, fontSize = 12.sp)
+            if (rows.size > 14) {
+                Text("另有 ${rows.size - 14} 项候选，应用后进入表单核对。", color = ChestnutPalette.Muted, fontSize = 12.sp)
             }
         }
         if (candidate.warnings.isNotEmpty()) {
@@ -3155,6 +3224,21 @@ private fun ultrasoundCandidateRows(candidate: BabyLogSmartInput.UltrasoundOcrCa
     addCandidateRow(rows, "AC", formatCandidateNumber(candidate.acMm.value, "mm"))
     addCandidateRow(rows, "FL", formatCandidateNumber(candidate.flMm.value, "mm"))
     addCandidateRow(rows, "EFW", formatCandidateNumber(candidate.efwGram.value, "g"))
+    addCandidateRow(rows, "AFI", formatCandidateNumber(candidate.afiCm.value, "cm"))
+    addCandidateRow(rows, "最大羊水池", formatCandidateNumber(candidate.deepestPocketCm.value, "cm"))
+    addCandidateRow(rows, "胎盘", candidate.placentaLocation.value)
+    addCandidateRow(rows, "成熟度", candidate.placentaGrade.value)
+    addCandidateRow(rows, "胎位", candidate.fetalPresentation.value)
+    addCandidateRow(rows, "胎心率", formatCandidateNumber(candidate.fetalHeartRateBpm.value, "bpm"))
+    addCandidateRow(rows, "胎儿个数", candidate.fetalCount.value)
+    addCandidateRow(rows, "胎动", candidate.fetalMovement.value)
+    addCandidateRow(rows, "脐带插入处", candidate.umbilicalInsertion.value)
+    addCandidateRow(rows, "宫颈管", formatCandidateNumber(candidate.cervicalLengthMm.value, "mm"))
+    addCandidateRow(rows, "CRL", formatCandidateNumber(candidate.crlMm.value, "mm"))
+    addCandidateRow(rows, "NT", formatCandidateNumber(candidate.ntMm.value, "mm"))
+    addCandidateRow(rows, "S/D", formatCandidateNumber(candidate.umbilicalSd.value, ""))
+    addCandidateRow(rows, "PI", formatCandidateNumber(candidate.umbilicalPi.value, ""))
+    addCandidateRow(rows, "RI", formatCandidateNumber(candidate.umbilicalRi.value, ""))
     return rows
 }
 
