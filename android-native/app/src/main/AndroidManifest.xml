@@ -20,6 +20,7 @@
         <activity
             android:name=".ComposeMainActivity"
             android:theme="@style/AppTheme.Launch"
+            android:screenOrientation="portrait"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

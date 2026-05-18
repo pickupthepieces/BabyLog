@@ -560,6 +560,7 @@ Phase 2-5 的阶段投影 UI MUST 在 `ComposeMainActivity.kt` 实现。`MainAct
 | 不在同一 commit 做大规模 UI polish | 先修产品主线，再做视觉精修 |
 | 不做营销式 4 页 onboarding | 首登只做新建家庭、导入备份和必要医疗/隐私确认 |
 | 不做多家庭运营 | 第一轮只支持一个家庭、一个宝宝；多宝宝、多家庭后置 |
+| 不适配横屏 | Android App 当前阶段锁定竖屏，横屏布局后置且不阻塞孕期主线 |
 | 不回退已完成功能地基 | FileProvider、状态保存、软范围、unitInput、DayNight token 不属于可回退 polish |
 
 ## Risk Controls
