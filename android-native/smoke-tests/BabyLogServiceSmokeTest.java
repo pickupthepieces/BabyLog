@@ -40,6 +40,25 @@ public final class BabyLogServiceSmokeTest {
                 "喂养 · 待补充详情",
                 BabyLogService.formatBabyCareSummary(BabyLogService.BabyCareInput.feed("", "", ""))
         );
+
+        assertEquals(
+                "产检 · 市妇幼产科 · 一切正常",
+                BabyLogService.formatPregnancySummary(
+                        BabyLogService.PregnancyInput.checkup("2026-05-18", "市妇幼产科", "一切正常", "下次 2026-06-16")
+                )
+        );
+        assertEquals(
+                "胎动 · 20:00-21:00 · 10 次",
+                BabyLogService.formatPregnancySummary(
+                        BabyLogService.PregnancyInput.fetalMovement("20:00-21:00", "10", "饭后")
+                )
+        );
+        assertEquals(
+                "宫缩 · 22:10 · 间隔 5 分钟 · 持续 40 秒",
+                BabyLogService.formatPregnancySummary(
+                        BabyLogService.PregnancyInput.contraction("22:10", "5", "40", "")
+                )
+        );
     }
 
     private static void assertEquals(Object expected, Object actual) {

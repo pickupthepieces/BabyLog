@@ -98,6 +98,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var selectedBabyDay by mutableStateOf(BabyLogFormatters.todayDateInput())
     private var showQuickSheet by mutableStateOf(false)
     private var babyCareAction by mutableStateOf<BabyLogService.QuickAction?>(null)
+    private var pregnancyAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var showUltrasoundForm by mutableStateOf(false)
     private var showSyncSettings by mutableStateOf(false)
     private var showClearLocalConfirm by mutableStateOf(false)
@@ -164,6 +165,17 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onSave = { input ->
                             babyCareAction = null
                             recordBabyCare(input)
+                        }
+                    )
+                }
+
+                pregnancyAction?.let { action ->
+                    PregnancyEventDialog(
+                        action = action,
+                        onDismiss = { pregnancyAction = null },
+                        onSave = { input ->
+                            pregnancyAction = null
+                            recordPregnancy(input)
                         }
                     )
                 }
@@ -364,6 +376,8 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun handleQuickAction(action: BabyLogService.QuickAction) {
         if (isBabyCareAction(action.eventType)) {
             babyCareAction = action
+        } else if (isPregnancyFormAction(action.eventType)) {
+            pregnancyAction = action
         } else if (action.eventType == "ultrasound") {
             openUltrasoundForm()
         } else {
@@ -375,6 +389,18 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 service.recordBabyCareEvent(input)
+                showToast("已保存记录")
+                reloadData()
+            } catch (error: JSONException) {
+                showInfo("保存失败", error.message ?: "无法保存记录")
+            }
+        }
+    }
+
+    private fun recordPregnancy(input: BabyLogService.PregnancyInput) {
+        runInBackground {
+            try {
+                service.recordPregnancyEvent(input)
                 showToast("已保存记录")
                 reloadData()
             } catch (error: JSONException) {
@@ -598,9 +624,9 @@ public final class ComposeMainActivity : ComponentActivity() {
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             return listOf(
                 BabyLogService.QuickAction("B超", "指标 / 照片 / OCR占位", R.drawable.ultrasound_sheet, ChestnutPalette.RoseArgb, "ultrasound", "B 超快捷记录 · 待补指标/照片"),
-                BabyLogService.QuickAction("产检", "检查 / 医嘱 / 备注", R.drawable.baby_diary_notebook, ChestnutPalette.VioletArgb, "pregnancy_checkup", "产检快捷记录 · 待补充详情"),
-                BabyLogService.QuickAction("胎动", "次数 / 时段 / 备注", R.drawable.family_heart, ChestnutPalette.GreenArgb, "fetal_movement", "胎动快捷记录 · 待补充详情"),
-                BabyLogService.QuickAction("宫缩", "间隔 / 持续 / 备注", R.drawable.icon_chart, ChestnutPalette.PeachArgb, "contraction", "宫缩快捷记录 · 待补充详情")
+                BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", R.drawable.baby_diary_notebook, ChestnutPalette.VioletArgb, "pregnancy_checkup", "产检快捷记录"),
+                BabyLogService.QuickAction("胎动", "时段 / 次数 / 备注", R.drawable.family_heart, ChestnutPalette.GreenArgb, "fetal_movement", "胎动快捷记录"),
+                BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", R.drawable.icon_chart, ChestnutPalette.PeachArgb, "contraction", "宫缩快捷记录")
             )
         }
         if (stage == BabyLogDomain.STAGE_BABY) {
@@ -622,6 +648,12 @@ public final class ComposeMainActivity : ComponentActivity() {
             || eventType == "diaper"
             || eventType == "temperature"
             || eventType == "medication"
+    }
+
+    private fun isPregnancyFormAction(eventType: String): Boolean {
+        return eventType == "pregnancy_checkup"
+            || eventType == "fetal_movement"
+            || eventType == "contraction"
     }
 
     private fun runInBackground(block: () -> Unit) {
@@ -873,6 +905,9 @@ private fun BabyLogApp(
                             }
                         }
                     }
+                    if (stage == BabyLogDomain.STAGE_PREGNANCY) {
+                        item { PregnancySummaryPanel(state.timeline) }
+                    }
                     if (stage != BabyLogDomain.STAGE_BABY) {
                         item {
                             SectionHeader(
@@ -893,7 +928,7 @@ private fun BabyLogApp(
                         }
                     }
                     item { SectionHeader(title = "趋势", action = "点击查看曲线") }
-                    item { TrendPanel(state.dashboard, stage) }
+                    item { TrendPanel(state.timeline, stage) }
                 }
                 "timeline" -> {
                     item {
@@ -1193,6 +1228,48 @@ private fun BabyDaySummary(events: List<BabyLogDomain.BabyLogEvent>, selectedDay
 }
 
 @Composable
+private fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
+    val latestUltrasound = events.firstOrNull { it.eventType == "ultrasound" }
+    val latestCheckup = events.firstOrNull { it.eventType == "pregnancy_checkup" }
+    val reviewCount = events.count { it.eventType == "ultrasound" && ultrasoundWarningText(it).isNotBlank() }
+    Panel {
+        SectionHeader(title = "孕期摘要", action = "只看孕期")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard(
+                title = "最近 B 超",
+                value = latestUltrasound?.let { BabyLogFormatters.formatEventDay(it.occurredAt) } ?: "暂无",
+                subtitle = latestUltrasound?.let { BabyLogFormatters.eventSummary(it) } ?: "保存 B 超后显示",
+                tone = ChestnutPalette.Rose,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "最近产检",
+                value = latestCheckup?.let { BabyLogFormatters.formatEventDay(it.occurredAt) } ?: "暂无",
+                subtitle = latestCheckup?.let { BabyLogFormatters.eventSummary(it) } ?: "记录产检结论",
+                tone = ChestnutPalette.Violet,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "待复核",
+                value = if (reviewCount == 0) "0 项" else "$reviewCount 项",
+                subtitle = if (latestUltrasound == null) "录入 B 超后检查" else if (reviewCount == 0) "B 超范围正常" else "请人工确认 B 超",
+                tone = if (reviewCount == 0) ChestnutPalette.Green else ChestnutPalette.Danger,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (reviewCount > 0) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "有 B 超指标超出常用软范围，请以医生意见为准；这里仅提醒复核录入值。",
+                color = ChestnutPalette.Danger,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
 private fun TodayPanel(dashboard: BabyLogService.DashboardSnapshot?) {
     Panel {
         SectionHeader(title = "今日", action = "00:00 起算")
@@ -1225,19 +1302,19 @@ private fun TodayPanel(dashboard: BabyLogService.DashboardSnapshot?) {
 }
 
 @Composable
-private fun TrendPanel(dashboard: BabyLogService.DashboardSnapshot?, stage: String) {
+private fun TrendPanel(events: List<BabyLogDomain.BabyLogEvent>, stage: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         TrendCard(
             title = if (stage == BabyLogDomain.STAGE_BABY) "宝宝体重" else "胎儿 EFW",
-            value = if (stage == BabyLogDomain.STAGE_BABY) "暂无数据" else latestEfwValue(dashboard),
-            subtitle = if (stage == BabyLogDomain.STAGE_BABY) "录入成长后显示" else latestEfwCaption(dashboard),
+            value = if (stage == BabyLogDomain.STAGE_BABY) "暂无数据" else latestEfwValue(events),
+            subtitle = if (stage == BabyLogDomain.STAGE_BABY) "录入成长后显示" else latestUltrasoundCaption(events),
             tone = ChestnutPalette.Rose,
             modifier = Modifier.weight(1f)
         )
         TrendCard(
-            title = if (stage == BabyLogDomain.STAGE_BABY) "身长 / 头围" else "孕妈体重",
-            value = "暂无数据",
-            subtitle = if (stage == BabyLogDomain.STAGE_BABY) "录入儿保后显示" else "录入后显示",
+            title = if (stage == BabyLogDomain.STAGE_BABY) "身长 / 头围" else "BPD / FL",
+            value = if (stage == BabyLogDomain.STAGE_BABY) "暂无数据" else latestBpdFlValue(events),
+            subtitle = if (stage == BabyLogDomain.STAGE_BABY) "录入儿保后显示" else latestUltrasoundCaption(events),
             tone = ChestnutPalette.Green,
             modifier = Modifier.weight(1f)
         )
@@ -1581,6 +1658,55 @@ private fun BabyCareDialog(
             Button(
                 onClick = {
                     onSave(buildBabyCareInput(action.eventType, primary, secondary, tertiary, note))
+                },
+                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
+            ) {
+                Text("保存", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
+        },
+        backgroundColor = ChestnutPalette.Bg
+    )
+}
+
+@Composable
+private fun PregnancyEventDialog(
+    action: BabyLogService.QuickAction,
+    onDismiss: () -> Unit,
+    onSave: (BabyLogService.PregnancyInput) -> Unit
+) {
+    var primary by rememberSaveable(action.eventType) { mutableStateOf(defaultPregnancyPrimary(action.eventType)) }
+    var secondary by rememberSaveable(action.eventType) { mutableStateOf("") }
+    var tertiary by rememberSaveable(action.eventType) { mutableStateOf("") }
+    var note by rememberSaveable(action.eventType) { mutableStateOf("") }
+    val labels = pregnancyLabels(action.eventType)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(action.label, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChestnutTextField(labels.primary, primary, { primary = it }, labels.primaryKeyboard)
+                ChestnutTextField(labels.secondary, secondary, { secondary = it }, labels.secondaryKeyboard)
+                if (labels.tertiary != null) {
+                    ChestnutTextField(labels.tertiary, tertiary, { tertiary = it }, labels.tertiaryKeyboard)
+                }
+                if (labels.note != null) {
+                    ChestnutTextField(labels.note, note, { note = it }, KeyboardType.Text)
+                }
+                Text(
+                    text = "保存后只进入孕期首页和历史时间线，不会出现在出生后日视图。",
+                    color = ChestnutPalette.Text3,
+                    fontSize = 12.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(buildPregnancyInput(action.eventType, primary, secondary, tertiary, note))
                 },
                 colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
             ) {
@@ -2198,6 +2324,16 @@ private data class BabyCareLabels(
     val secondaryKeyboard: KeyboardType = KeyboardType.Text
 )
 
+private data class PregnancyLabels(
+    val primary: String,
+    val secondary: String,
+    val tertiary: String?,
+    val note: String?,
+    val primaryKeyboard: KeyboardType = KeyboardType.Text,
+    val secondaryKeyboard: KeyboardType = KeyboardType.Text,
+    val tertiaryKeyboard: KeyboardType = KeyboardType.Text
+)
+
 private fun babyCareLabels(eventType: String): BabyCareLabels {
     return when (eventType) {
         "feed" -> BabyCareLabels("方式，例如 母乳 / 奶瓶 / 辅食", "奶量 ml，例如 120", null, "备注", KeyboardType.Text, KeyboardType.Decimal)
@@ -2207,6 +2343,39 @@ private fun babyCareLabels(eventType: String): BabyCareLabels {
         "medication" -> BabyCareLabels("药名", "剂量，例如 2 ml", "原因", null)
         else -> BabyCareLabels("详情", "备注", null, null)
     }
+}
+
+private fun pregnancyLabels(eventType: String): PregnancyLabels {
+    return when (eventType) {
+        "pregnancy_checkup" -> PregnancyLabels(
+            "检查日期 yyyy-MM-dd",
+            "医院 / 医生，例如 市妇幼产科",
+            "结论 / 医嘱",
+            "下次产检或备注"
+        )
+        "fetal_movement" -> PregnancyLabels(
+            "时段，例如 20:00-21:00",
+            "次数，例如 10",
+            null,
+            "备注",
+            KeyboardType.Text,
+            KeyboardType.Decimal
+        )
+        "contraction" -> PregnancyLabels(
+            "开始时间，例如 22:10",
+            "间隔分钟，例如 5",
+            "持续秒，例如 40",
+            "备注",
+            KeyboardType.Text,
+            KeyboardType.Decimal,
+            KeyboardType.Decimal
+        )
+        else -> PregnancyLabels("详情", "备注", null, null)
+    }
+}
+
+private fun defaultPregnancyPrimary(eventType: String): String {
+    return if (eventType == "pregnancy_checkup") BabyLogFormatters.todayDateInput() else ""
 }
 
 private fun buildBabyCareInput(
@@ -2223,6 +2392,21 @@ private fun buildBabyCareInput(
         "temperature" -> BabyLogService.BabyCareInput.temperature(primary, secondary, note)
         "medication" -> BabyLogService.BabyCareInput.medication(primary, secondary, tertiary)
         else -> BabyLogService.BabyCareInput.feed(primary, secondary, note)
+    }
+}
+
+private fun buildPregnancyInput(
+    eventType: String,
+    primary: String,
+    secondary: String,
+    tertiary: String,
+    note: String
+): BabyLogService.PregnancyInput {
+    return when (eventType) {
+        "pregnancy_checkup" -> BabyLogService.PregnancyInput.checkup(primary, secondary, tertiary, note)
+        "fetal_movement" -> BabyLogService.PregnancyInput.fetalMovement(primary, secondary, note)
+        "contraction" -> BabyLogService.PregnancyInput.contraction(primary, secondary, tertiary, note)
+        else -> BabyLogService.PregnancyInput.fetalMovement(primary, secondary, note)
     }
 }
 
@@ -2304,15 +2488,42 @@ private fun attachmentCount(attachments: List<BabyLogDomain.AttachmentRecord>): 
     return if (attachments.isEmpty()) "0 张" else "${attachments.size} 张"
 }
 
-private fun latestEfwValue(dashboard: BabyLogService.DashboardSnapshot?): String {
-    val event = dashboard?.recentEvents?.firstOrNull { it.eventType == "ultrasound" } ?: return "暂无"
-    val efw = BabyLogFormatters.parseOptionalNumber(event.payload.optString("efwGram", ""))
+private fun latestEfwValue(events: List<BabyLogDomain.BabyLogEvent>): String {
+    val event = events.firstOrNull { it.eventType == "ultrasound" } ?: return "暂无"
+    val efw = payloadNumber(event.payload, "efwGram")
     return if (efw == null) "待补" else "${BabyLogFormatters.formatNumber(efw)} g"
 }
 
-private fun latestEfwCaption(dashboard: BabyLogService.DashboardSnapshot?): String {
-    val event = dashboard?.recentEvents?.firstOrNull { it.eventType == "ultrasound" } ?: return "保存 B 超后显示"
+private fun latestBpdFlValue(events: List<BabyLogDomain.BabyLogEvent>): String {
+    val event = events.firstOrNull { it.eventType == "ultrasound" } ?: return "暂无"
+    val bpd = payloadNumber(event.payload, "bpdMm")
+    val fl = payloadNumber(event.payload, "flMm")
+    if (bpd == null && fl == null) {
+        return "待补"
+    }
+    val bpdText = bpd?.let { "BPD ${BabyLogFormatters.formatNumber(it)}" }
+    val flText = fl?.let { "FL ${BabyLogFormatters.formatNumber(it)}" }
+    return listOfNotNull(bpdText, flText).joinToString(" / ")
+}
+
+private fun latestUltrasoundCaption(events: List<BabyLogDomain.BabyLogEvent>): String {
+    val event = events.firstOrNull { it.eventType == "ultrasound" } ?: return "保存 B 超后显示"
     return BabyLogFormatters.formatEventDay(event.occurredAt)
+}
+
+private fun ultrasoundWarningText(event: BabyLogDomain.BabyLogEvent): String {
+    return BabyLogFormatters.formatUltrasoundSoftRangeWarnings(
+        if (event.payload.has("gestationalAgeDays")) event.payload.optInt("gestationalAgeDays") else null,
+        payloadNumber(event.payload, "bpdMm"),
+        payloadNumber(event.payload, "hcMm"),
+        payloadNumber(event.payload, "acMm"),
+        payloadNumber(event.payload, "flMm"),
+        payloadNumber(event.payload, "efwGram")
+    )
+}
+
+private fun payloadNumber(payload: JSONObject, key: String): Double? {
+    return if (payload.has(key)) BabyLogFormatters.parseOptionalNumber(payload.optString(key, "")) else null
 }
 
 private fun tabTitle(activeTab: String): String {

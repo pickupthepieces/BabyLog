@@ -70,6 +70,23 @@ public final class BabyLogService {
         return event;
     }
 
+    public BabyLogDomain.BabyLogEvent recordPregnancyEvent(PregnancyInput input) throws JSONException {
+        JSONObject payload = buildPregnancyPayload(input);
+        String occurredAt = "pregnancy_checkup".equals(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
+                ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
+                : BabyLogFormatters.nowIso();
+        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                input.eventType,
+                occurredAt,
+                payload,
+                Collections.emptyList(),
+                "manual"
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
     public static JSONObject buildBabyCarePayload(BabyCareInput input) throws JSONException {
         JSONObject payload = new JSONObject();
 
@@ -102,6 +119,29 @@ public final class BabyLogService {
         return payload;
     }
 
+    public static JSONObject buildPregnancyPayload(PregnancyInput input) throws JSONException {
+        JSONObject payload = new JSONObject();
+
+        if ("pregnancy_checkup".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "checkupDate", input.primary);
+            putStringIfNotBlank(payload, "provider", input.secondary);
+            putStringIfNotBlank(payload, "finding", input.tertiary);
+            putStringIfNotBlank(payload, "nextVisitNote", input.note);
+        } else if ("fetal_movement".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "movementWindow", input.primary);
+            putNumberIfNotNull(payload, "movementCount", BabyLogFormatters.parseOptionalNumber(input.secondary));
+            putStringIfNotBlank(payload, "note", input.note);
+        } else if ("contraction".equals(input.eventType)) {
+            putStringIfNotBlank(payload, "contractionStart", input.primary);
+            putNumberIfNotNull(payload, "intervalMinutes", BabyLogFormatters.parseOptionalNumber(input.secondary));
+            putNumberIfNotNull(payload, "durationSeconds", BabyLogFormatters.parseOptionalNumber(input.tertiary));
+            putStringIfNotBlank(payload, "note", input.note);
+        }
+
+        payload.put("summary", formatPregnancySummary(input));
+        return payload;
+    }
+
     public static String formatBabyCareSummary(BabyCareInput input) {
         StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel(input.eventType));
         if ("feed".equals(input.eventType)) {
@@ -128,6 +168,34 @@ public final class BabyLogService {
             appendSummary(summary, input.primary);
             appendSummary(summary, input.secondary);
             appendSummary(summary, input.tertiary);
+        }
+        if (summary.toString().equals(BabyLogFormatters.eventLabel(input.eventType))) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
+    public static String formatPregnancySummary(PregnancyInput input) {
+        StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel(input.eventType));
+        if ("pregnancy_checkup".equals(input.eventType)) {
+            appendSummary(summary, input.secondary);
+            appendSummary(summary, input.tertiary);
+        } else if ("fetal_movement".equals(input.eventType)) {
+            appendSummary(summary, input.primary);
+            Double count = BabyLogFormatters.parseOptionalNumber(input.secondary);
+            if (count != null) {
+                appendSummary(summary, BabyLogFormatters.formatNumber(count) + " 次");
+            }
+        } else if ("contraction".equals(input.eventType)) {
+            appendSummary(summary, input.primary);
+            Double interval = BabyLogFormatters.parseOptionalNumber(input.secondary);
+            if (interval != null) {
+                appendSummary(summary, "间隔 " + BabyLogFormatters.formatNumber(interval) + " 分钟");
+            }
+            Double duration = BabyLogFormatters.parseOptionalNumber(input.tertiary);
+            if (duration != null) {
+                appendSummary(summary, "持续 " + BabyLogFormatters.formatNumber(duration) + " 秒");
+            }
         }
         if (summary.toString().equals(BabyLogFormatters.eventLabel(input.eventType))) {
             summary.append(" · 待补充详情");
@@ -545,6 +613,34 @@ public final class BabyLogService {
 
         public static BabyCareInput medication(String medicationName, String dosage, String reason) {
             return new BabyCareInput("medication", medicationName, dosage, reason, "");
+        }
+    }
+
+    public static final class PregnancyInput {
+        public final String eventType;
+        public final String primary;
+        public final String secondary;
+        public final String tertiary;
+        public final String note;
+
+        private PregnancyInput(String eventType, String primary, String secondary, String tertiary, String note) {
+            this.eventType = eventType;
+            this.primary = primary;
+            this.secondary = secondary;
+            this.tertiary = tertiary;
+            this.note = note;
+        }
+
+        public static PregnancyInput checkup(String checkupDate, String provider, String finding, String nextVisitNote) {
+            return new PregnancyInput("pregnancy_checkup", checkupDate, provider, finding, nextVisitNote);
+        }
+
+        public static PregnancyInput fetalMovement(String movementWindow, String movementCount, String note) {
+            return new PregnancyInput("fetal_movement", movementWindow, movementCount, "", note);
+        }
+
+        public static PregnancyInput contraction(String startTime, String intervalMinutes, String durationSeconds, String note) {
+            return new PregnancyInput("contraction", startTime, intervalMinutes, durationSeconds, note);
         }
     }
 
