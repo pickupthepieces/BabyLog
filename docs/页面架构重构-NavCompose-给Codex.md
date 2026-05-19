@@ -351,3 +351,9 @@ Codex 反馈定位不到/加 key 未解。Claude 二次核查确诊：
 3. **报告照片=全保真兜底**：照片附件始终保留，即便用户不逐项转录，原始报告也在。
 4. **编辑态**：既有记录含高级数据→进入编辑自动展开，不静默隐藏。
 **验收追加**：用一张含高级指标（AFI/胎盘/脐血流等）的 B 超单走 OCR，确认高级字段被识别、自动展开、可确认入库；既有含高级数据记录编辑时高级区自动展开且值不丢。
+
+#### perf-D 终局 / B超照片优先重构 — 通过（commit `b931e50`）
+
+**结论**：通过。perf-D 与 B超重构闭环。
+
+**核实（git+grep+Codex gfxinfo，未重跑真机）**：单文件 `UltrasoundFormScreen.kt`、单 `refactor:`、树干净；数据模型/Service/FGR/OCR-client 未动。gfxinfo(144Hz)：Slow UI thread 188→30、Janky 48.6%→11.7%、GPU 2-4ms——非懒 Column 根因解决（回 LazyColumn + 默认字段精简）。数据完整性：OCR 候选映射全字段且识别到高级值 `showAdvanced=true` 自动展开；`fromValues/toInput` round-trip、编辑自动展开高级；字段/模型零改——符合数据完整性硬保证。90th 23ms 残留少量重帧（OCR应用/展开时），可接受非阻塞。
