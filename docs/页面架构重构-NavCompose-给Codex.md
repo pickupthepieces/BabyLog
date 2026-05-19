@@ -325,3 +325,20 @@ Codex 反馈定位不到/加 key 未解。Claude 二次核查确诊：
 3. **验收按原生刷新率衡量**（不再固定 16ms）：测试机 144Hz 下，编辑 B 超页打字+滚动 **Janky% 显著下降**、`Number Slow UI thread` 大降；百分位对 144Hz 预算（~6.9ms）尽量靠拢，**至少不再是 48% jank/90th 27ms 量级**；若 Material TextField 在 144Hz 仍超预算，记录数据、评估是否需更轻输入控件（不在本笔强求，先 LazyColumn 复测）。
 
 **约束**：独立 `perf:`；字段集/校验/人工确认链/Q2 编辑/数据不变；assemble+lint+smoke 绿。Claude 复测真机 gfxinfo（按 144Hz 解读：看 Janky% 与 Slow UI thread 降幅，不用 16ms 这把尺）。
+
+#### perf-D 终局：B 超录入「照片/OCR 优先 + 极少核心字段」重构（用户拍板，取代单纯 perf-D 实验）
+
+调研结论：28 字段是临床 EMR 形态，与"家庭自用、非医疗器械"定位错位；消费级孕期 App 普遍是"拍报告 + 少量核心指标 + 医生结论"，不让孕妇手敲 28 个数。**此重构同时根解 UX + 性能(可见输入骤减→LazyColumn measure 轻→144Hz 不卡) + 定位一致**。一笔独立提交（`refactor:` 或 `feat:`，非纯 perf；不混 Q2b/screening_*、不并 main）。
+
+**做法**：
+1. **主路径=拍 B 超单**：照片/OCR 入口前置、显著（复用现有 OCR：拍/选图→候选→人工确认）；手敲为 fallback。
+2. **默认只露核心 ≈8 项**：检查日期、孕周、BPD、HC、AC、FL、EFW、医生结论/提示（FGR/曲线所需 + 家庭真正关心）。
+3. **其余全部默认折叠进「更多医学指标 ▾」**：AFI/最大羊水池/胎盘位置·分级/胎位/脐血流 S·D·PI·RI/宫颈管/CRL/NT/胎心率/胎数/胎动/脐带插入处/报告时间/医院·机构/超声诊断长文本 —— 字段都保留可填可存，仅默认不可见。
+4. **容器用懒 `RecordFormScaffold`(LazyColumn)**（保留 perf-D 的容器修复 + Codex 已做的 state holder/方法引用/derivedStateOf 子 composable，复用别推翻）。
+5. **编辑态(Q2)**：若既有记录已填了高级字段，进入编辑须**自动展开**高级区，不得静默隐藏已有数据。
+
+**取代关系**：本节取代"单纯把 Ultrasound 改回 LazyColumn 就收工"的 perf-D 做法——容器仍要懒，但**根解是默认字段精简**；做完本重构 perf-D 即闭。
+
+**MUST 不变**：所有字段仍存在/可填/可存、FGR/Hadlock 接线、人工确认保存、Q2 编辑、Q2b 产检独立、OCR 候选流、校验、数据/事件模型不变。仅表单信息架构与默认可见性 + 照片/OCR 前置。
+
+**验收**：默认表单 ≈8 核心输入 + 照片/OCR 显著；高级区默认折叠、编辑有数据时自动展开；字段/校验/确认链/数据零改；容器 LazyColumn；真机 144Hz gfxinfo：Janky% 低、`Slow UI thread` 大降（性能随之解决）；assemble+lint+smoke 绿；装机走查（拍图+OCR 新建、手填核心、展开高级、编辑含高级数据的旧记录）。Claude 复测真机 gfxinfo（144Hz 解读）。同型 MaternalMetric/PregnancyEvent 若同样重可后续同法，本轮聚焦 B 超。
