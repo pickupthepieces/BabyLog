@@ -176,3 +176,11 @@
 - 语音入口实为**三重**：① `VoiceEntryRail`「按住说话」带 ② 同带「文字录入」按钮 ③ **`BottomNav` 中央一个 FAB 式凸起大麦克风圆钮**。三者紧邻堆叠。
 - 明确：第 3 步"BottomNav 去语音入口" = **移除该中央大麦克风 FAB / 中央动作槽位，底栏回归标准等分 4 tab，无凸起中央位**。合并后语音仅剩 quick rail 内麦克风磁贴一处。
 - 收敛后自检：底部 chrome 占屏显著下降、孕期摘要不再被截断、quick rail 5 项可达、语音仅 1 处入口。
+
+#### 附带修正：MetricCard 文字底部被裁（Claude 代码定位，可并入同轮 ui: 提交）
+
+**问题**：用户报"首页很多文字下部被遮挡"。代码定位 = `ui/components/BabyLogComponents.kt` 的 `MetricCard`：`.padding(11.dp).height(76.dp)` 固定高 + `.clip(...)`，可用内容高仅 54dp，而 色条3 + Spacer7 + title(11sp) + value(20sp) + subtitle(10sp) ≈ 64dp+，超出被裁；系统字号 >100% 时更严重。孕期摘要/今日摘要全是 `MetricCard`，故"很多文字"。`TrendCard`（无固定高）不受影响，反证此点。
+
+**修法**：`MetricCard` 的 `.height(76.dp)` → `.heightIn(min = 76.dp)`（内容/字号变大时自适应增高、不裁；行内各格 weight 仍对齐到最高）。不动配色/结构/`subtitle` 的 ellipsis。小改低风险。
+
+**约束/验收**：仅此一处高度约束改动；首页摘要文字（尤其 subtitle）不再被裁、大字号下也不裁；行内宫格高度对齐一致；assembleDebug+lint+smoke 绿；可并入"底部收敛"同一笔 `ui:` 提交（同属首页视觉修正）或紧随其后单提交，二者择一勿混入功能轮。
