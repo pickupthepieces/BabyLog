@@ -15,7 +15,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -92,6 +95,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -101,7 +105,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
@@ -184,6 +191,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onBabyDaySelected = { selectedBabyDay = it },
                     onQuickClick = { showQuickSheet = true },
                     onSmartEntryClick = { showSmartEntryDialog = true },
+                    onSmartVoiceHoldStart = ::startNavVoiceRecording,
+                    onSmartVoiceHoldEnd = ::finishNavVoiceRecording,
                     quickActions = quickActions(),
                     onQuickAction = ::handleQuickAction,
                     onShowAttachments = { title, attachments ->
@@ -236,6 +245,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onVoiceStop = ::finishSmartVoiceRecording,
                         onSubmit = ::requestSmartEntry
                     )
+                }
+
+                if (smartVoiceState.isRecording && !showSmartEntryDialog) {
+                    VoiceRecordingPopup()
                 }
 
                 babyCareAction?.let { action ->
@@ -843,6 +856,18 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun startNavVoiceRecording() {
+        startSmartVoiceRecording()
+        if (!smartVoiceState.isRecording) {
+            showSmartEntryDialog = true
+        }
+    }
+
+    private fun finishNavVoiceRecording() {
+        showSmartEntryDialog = true
+        finishSmartVoiceRecording()
+    }
+
     private fun finishSmartVoiceRecording() {
         val recorder = voiceRecorder ?: return
         voiceRecorder = null
@@ -1336,6 +1361,8 @@ private fun BabyLogApp(
     onBabyDaySelected: (String) -> Unit,
     onQuickClick: () -> Unit,
     onSmartEntryClick: () -> Unit,
+    onSmartVoiceHoldStart: () -> Unit,
+    onSmartVoiceHoldEnd: () -> Unit,
     quickActions: List<BabyLogService.QuickAction>,
     onQuickAction: (BabyLogService.QuickAction) -> Unit,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
@@ -1378,7 +1405,13 @@ private fun BabyLogApp(
                     if (activeTab == "home" && currentCareStage(state.childProfile) == BabyLogDomain.STAGE_BABY) {
                         BabyQuickRail(actions = quickActions, onAction = onQuickAction)
                     }
-                    BottomNav(activeTab = activeTab, onTabSelected = onTabSelected, onSmartEntryClick = onSmartEntryClick)
+                    BottomNav(
+                        activeTab = activeTab,
+                        onTabSelected = onTabSelected,
+                        onSmartEntryClick = onSmartEntryClick,
+                        onSmartVoiceHoldStart = onSmartVoiceHoldStart,
+                        onSmartVoiceHoldEnd = onSmartVoiceHoldEnd
+                    )
                 }
             }
         }
@@ -2326,6 +2359,40 @@ private fun SmartEntryDialog(
         },
         backgroundColor = ChestnutPalette.Bg
     )
+}
+
+@Composable
+private fun VoiceRecordingPopup() {
+    Popup(
+        alignment = Alignment.Center,
+        properties = PopupProperties(focusable = false)
+    ) {
+        Surface(
+            color = ChestnutPalette.Surface,
+            shape = RoundedCornerShape(24.dp),
+            elevation = 12.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .border(1.dp, ChestnutPalette.Primary.copy(alpha = 0.28f), RoundedCornerShape(24.dp))
+                    .padding(horizontal = 22.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                BabyLogIconTile(
+                    icon = LineIcon.Voice,
+                    tint = ChestnutPalette.Primary,
+                    tileColor = ChestnutPalette.Primary.copy(alpha = 0.14f),
+                    modifier = Modifier.size(48.dp),
+                    iconSize = 28.dp
+                )
+                Column {
+                    Text("正在录音", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("松开后转成文字", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -3666,8 +3733,11 @@ private fun quickActionIcon(eventType: String): LineIcon {
 private fun BottomNav(
     activeTab: String,
     onTabSelected: (String) -> Unit,
-    onSmartEntryClick: () -> Unit
+    onSmartEntryClick: () -> Unit,
+    onSmartVoiceHoldStart: () -> Unit,
+    onSmartVoiceHoldEnd: () -> Unit
 ) {
+    val viewConfiguration = LocalViewConfiguration.current
     val items = listOf(
         NavItem("home", "首页", LineIcon.Home),
         NavItem("timeline", "时间线", LineIcon.Timeline),
@@ -3690,11 +3760,19 @@ private fun BottomNav(
             BottomNavigationItem(
                 selected = selected,
                 onClick = {
-                    if (item.isAction) {
-                        onSmartEntryClick()
-                    } else {
+                    if (!item.isAction) {
                         onTabSelected(item.key)
                     }
+                },
+                modifier = if (item.isAction) {
+                    Modifier.voiceNavGesture(
+                        longPressMillis = viewConfiguration.longPressTimeoutMillis,
+                        onClick = onSmartEntryClick,
+                        onHoldStart = onSmartVoiceHoldStart,
+                        onHoldEnd = onSmartVoiceHoldEnd
+                    )
+                } else {
+                    Modifier
                 },
                 icon = {
                     BabyLogIconTile(
@@ -3721,6 +3799,28 @@ private fun BottomNav(
                 unselectedContentColor = Color.White.copy(alpha = 0.68f)
             )
         }
+    }
+}
+
+private fun Modifier.voiceNavGesture(
+    longPressMillis: Long,
+    onClick: () -> Unit,
+    onHoldStart: () -> Unit,
+    onHoldEnd: () -> Unit
+): Modifier = pointerInput(longPressMillis, onClick, onHoldStart, onHoldEnd) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        val releasedBeforeLongPress = withTimeoutOrNull(longPressMillis) {
+            waitForUpOrCancellation()
+        }
+        if (releasedBeforeLongPress != null) {
+            onClick()
+            return@awaitEachGesture
+        }
+
+        onHoldStart()
+        waitForUpOrCancellation()
+        onHoldEnd()
     }
 }
 
