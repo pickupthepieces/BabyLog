@@ -2390,12 +2390,20 @@ internal fun TimelineRow(
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
-    val tone = eventTone(event.eventType)
+    val tone = remember(event.eventType) { eventTone(event.eventType) }
+    val rowText = remember(event) {
+        TimelineRowText(
+            occurredAt = "${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}",
+            label = BabyLogFormatters.eventLabel(event.eventType),
+            summary = BabyLogFormatters.eventSummary(event),
+            attachmentLabel = if (event.attachmentIds.isEmpty()) "" else "附件 ${event.attachmentIds.size}"
+        )
+    }
     Card(
         shape = RoundedCornerShape(14.dp),
         backgroundColor = ChestnutPalette.Surface,
         border = BorderStroke(if (highlighted) 2.dp else 1.dp, if (highlighted) ChestnutPalette.Primary else ChestnutPalette.Border),
-        elevation = 2.dp
+        elevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -2411,14 +2419,14 @@ internal fun TimelineRow(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}",
+                        text = rowText.occurredAt,
                         color = ChestnutPalette.Muted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
                     )
                     Chip(
-                        text = BabyLogFormatters.eventLabel(event.eventType),
+                        text = rowText.label,
                         bg = tone.copy(alpha = 0.14f),
                         fg = tone
                     )
@@ -2426,7 +2434,7 @@ internal fun TimelineRow(
                 Spacer(Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = BabyLogFormatters.eventSummary(event),
+                        text = rowText.summary,
                         color = ChestnutPalette.Ink,
                         fontSize = 17.sp,
                         maxLines = 3,
@@ -2454,12 +2462,19 @@ internal fun TimelineRow(
                 }
                 if (event.attachmentIds.isNotEmpty()) {
                     Spacer(Modifier.height(5.dp))
-                    Text("附件 ${event.attachmentIds.size}", color = ChestnutPalette.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(rowText.attachmentLabel, color = ChestnutPalette.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
+
+private data class TimelineRowText(
+    val occurredAt: String,
+    val label: String,
+    val summary: String,
+    val attachmentLabel: String
+)
 
 @Composable
 internal fun LibraryScreen(

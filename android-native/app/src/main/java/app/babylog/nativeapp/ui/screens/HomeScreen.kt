@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
@@ -15,6 +16,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import app.babylog.nativeapp.ui.screens.BabyLogRoutes
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
 internal fun HomeScreen(
@@ -31,24 +33,30 @@ internal fun HomeScreen(
     val stage = currentCareStage(state.childProfile)
     val listState = rememberLazyListState()
     val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
+    val railTargetVisible = remember { mutableStateOf(true) }
     val railNestedScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 when {
-                    available.y < -6f -> currentOnQuickRailVisibilityChange(false)
-                    available.y > 6f -> currentOnQuickRailVisibilityChange(true)
+                    available.y < -6f && railTargetVisible.value -> railTargetVisible.value = false
+                    available.y > 6f && !railTargetVisible.value -> railTargetVisible.value = true
                 }
                 return Offset.Zero
             }
         }
     }
+    LaunchedEffect(Unit) {
+        snapshotFlow { railTargetVisible.value }
+            .distinctUntilChanged()
+            .collect { visible -> currentOnQuickRailVisibilityChange(visible) }
+    }
     LaunchedEffect(listState) {
         snapshotFlow {
             val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
             !listState.isScrollInProgress || atTop
-        }.collect { shouldShow ->
+        }.distinctUntilChanged().collect { shouldShow ->
             if (shouldShow) {
-                currentOnQuickRailVisibilityChange(true)
+                railTargetVisible.value = true
             }
         }
     }
