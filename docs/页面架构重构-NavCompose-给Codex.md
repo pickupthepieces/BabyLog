@@ -271,3 +271,16 @@
 - 修：① `TimelineRow` 派生串提到 `remember(event.id, event.occurredAt, event.updatedAt){ … }` 只算一次；② 行 `Card` `elevation 2.dp → 0`（与 Panel/TrendCard 一致，靠 border/高亮分隔）。
 
 **约束/验收**：一笔 `perf:` 提交，不混 Q2b/冻结 UI、不并 main；不改数据/逻辑/确认链/阶段投影/已锁配色 token（仅 elevation 与计算时机）；assemble+lint+smoke 绿；装机 gfxinfo 首页与时间线 fling 50/90 分位 ≤ ~16ms、无明显掉帧。Claude 用一次真机 gfxinfo/截图验收（perf 关口）。
+
+### perf-D：编辑 B 超表单页卡顿（用户精确定位，独立 perf:，不混 Q2b/perf-C）
+
+用户："主要是编辑 B 超记录这个页面卡"。Claude 代码核查：`UltrasoundFormScreen` 的 Hadlock 估算(line 100 `remember(bpd,ac,fl,efw)`)与 warnings(line 90 `remember`)、`LaunchedEffect` 均已正确 remember/keyed — **非重算问题**。
+
+**真因（结构性 Compose 模式）**：~28 个字段 state 全 hoist 在屏 composable 作用域；`RecordFormScaffold(content = { LazyListScope })` 尾随 lambda 每次重组为新实例。任一 TextField 打字 → 整个 `UltrasoundFormScreen` 重组 → content lambda 重建 → LazyColumn 当前可见的 6–10 个 Material `TextField` 全部重组。该页字段最多最重，故打字/滚动卡最明显（轻表单字段少无感）。
+
+**修（分两步，先便宜后结构）**：
+1. 给 `UltrasoundFormScreen` 内每个 `item { … }` 加**稳定 `key`**（如 `item(key="bpd"){}`），让 LazyColumn 跳过未变 item。先做并装机量。
+2. 若仍卡：把表单 state 收进 `remember` 的**状态持有者**（如 `class UltrasoundFormState` 持各字段 state），使单字段编辑只重组对应 item，不再整屏重组 + 重建 content lambda。
+3. 同型重表单（MaternalMetric/PregnancyEvent）若同样卡，按同法（item key 优先）；轻表单可不动。
+
+**约束/验收**：独立 `perf:` 提交，不混 Q2b/perf-C/冻结 UI、不并 main；**不改字段集/校验/人工确认链/保存逻辑/编辑(Q2)行为/数据**，仅改组合结构与 key；assemble+lint+smoke 绿；装机 gfxinfo 编辑 B 超页打字+滚动 50/90 ≤ ~16ms、无明显掉帧。Claude perf 关口用一次真机 gfxinfo 验收。
