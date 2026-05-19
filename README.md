@@ -3,6 +3,9 @@
 > 家庭自用的孕育记录 App，覆盖怀孕全阶段到宝宝 3 岁。本地优先，单胎单宝宝，医疗内容只做记录、趋势与参考提示，不做诊断。
 
 [![Android Native](https://github.com/pickupthepieces/BabyLog/actions/workflows/android-native.yml/badge.svg)](https://github.com/pickupthepieces/BabyLog/actions/workflows/android-native.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
+> 许可证 / License：本项目以 **Apache License 2.0** 授权（含 "AS IS" 无担保与责任限制条款），详见 [LICENSE](LICENSE)；并须与 [DISCLAIMER.md](DISCLAIMER.md) 一并阅读。当前仓库为私有，待完善后再考虑开源。
 
 BabyLog 给一个真实家庭（父母、祖辈，必要时月嫂）记录从备孕、孕期到宝宝 3 岁的连续过程。设计上优先离线可用、数据本机可控、隐私边界清晰，不追求公开商业化。
 
