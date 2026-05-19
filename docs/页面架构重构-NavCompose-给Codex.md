@@ -136,3 +136,11 @@
 3. 通用：首页重派生值一律 `remember` 按输入 key 缓存;composable 体内勿 new Brush/对象。
 
 验收补充：装机首页上下滑应顺滑（无明显掉帧）;FGR 面板在屏滚动不卡。
+
+### P5 交互收敛+性能 — 通过（commit `45ee224`），但根因B遗留
+
+**结论**：架构/交互/性能A 通过;**根因B 未做,须立即补一笔 `perf:` 独立提交**（先于 P5后队列 Q1）。
+
+**核实通过**：① 旧 FAB/`QuickActionDialog`/隐藏长按手势清除;`PersistentQuickRail` 两阶段常驻 + 显式"按住说话/文字录入"语音条(修 P1 可发现性);底栏中央语音仅显式打开。② 根因A：全屏 `Brush.verticalGradient` 已删,恢复扁平(性能+视觉双兑现);残留 1855 `linearGradient` 仅小卡片背景,非滚动容器,无碍。③ CMA 3140→2921;仅 CMA+QuickRail,逻辑/数据零改;单 commit 干净;装机回归通过。④ NavCompose P0–P5 闭环,CMA 4331→2921。
+
+**遗留（必须补，记过程问题）**：根因B（`FetalGrowthChart.kt` p10/p50/p90 仍在 `FetalGrowthCanvas` 的 `Canvas{}` DrawScope 内每帧重算）**未做**——该项在文档「P5 追加」已明确并入 P5,Codex 只做 A、漏 B 且未声明。**要求：单独一笔 `perf: FGR 参考曲线移出 DrawScope 提到 remember(metric.key)`，先于 Q 队列执行。** 流程纪律：并入范围的项若不做须显式说明,不得静默丢弃。
