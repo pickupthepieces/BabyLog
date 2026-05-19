@@ -67,6 +67,7 @@ import androidx.compose.material.icons.rounded.FormatListBulleted
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LocalDrink
 import androidx.compose.material.icons.rounded.MedicalInformation
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SsidChart
@@ -182,6 +183,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onTimelineFilterSelected = { timelineFilter = it },
                     onBabyDaySelected = { selectedBabyDay = it },
                     onQuickClick = { showQuickSheet = true },
+                    onSmartEntryClick = { showSmartEntryDialog = true },
                     quickActions = quickActions(),
                     onQuickAction = ::handleQuickAction,
                     onShowAttachments = { title, attachments ->
@@ -1333,6 +1335,7 @@ private fun BabyLogApp(
     onTimelineFilterSelected: (String) -> Unit,
     onBabyDaySelected: (String) -> Unit,
     onQuickClick: () -> Unit,
+    onSmartEntryClick: () -> Unit,
     quickActions: List<BabyLogService.QuickAction>,
     onQuickAction: (BabyLogService.QuickAction) -> Unit,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
@@ -1375,7 +1378,7 @@ private fun BabyLogApp(
                     if (activeTab == "home" && currentCareStage(state.childProfile) == BabyLogDomain.STAGE_BABY) {
                         BabyQuickRail(actions = quickActions, onAction = onQuickAction)
                     }
-                    BottomNav(activeTab = activeTab, onTabSelected = onTabSelected)
+                    BottomNav(activeTab = activeTab, onTabSelected = onTabSelected, onSmartEntryClick = onSmartEntryClick)
                 }
             }
         }
@@ -3660,10 +3663,15 @@ private fun quickActionIcon(eventType: String): LineIcon {
 }
 
 @Composable
-private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
+private fun BottomNav(
+    activeTab: String,
+    onTabSelected: (String) -> Unit,
+    onSmartEntryClick: () -> Unit
+) {
     val items = listOf(
         NavItem("home", "首页", LineIcon.Home),
         NavItem("timeline", "时间线", LineIcon.Timeline),
+        NavItem("smart", "语音", LineIcon.Voice, isAction = true),
         NavItem("library", "资料", LineIcon.Library),
         NavItem("settings", "设置", LineIcon.Settings)
     )
@@ -3673,18 +3681,32 @@ private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
         elevation = 0.dp
     ) {
         items.forEach { item ->
-            val selected = activeTab == item.key
-            val itemColor = if (selected) Color.White else Color.White.copy(alpha = 0.68f)
+            val selected = !item.isAction && activeTab == item.key
+            val itemColor = when {
+                item.isAction -> Color.White
+                selected -> Color.White
+                else -> Color.White.copy(alpha = 0.68f)
+            }
             BottomNavigationItem(
                 selected = selected,
-                onClick = { onTabSelected(item.key) },
+                onClick = {
+                    if (item.isAction) {
+                        onSmartEntryClick()
+                    } else {
+                        onTabSelected(item.key)
+                    }
+                },
                 icon = {
                     BabyLogIconTile(
                         icon = item.icon,
                         tint = itemColor,
-                        tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
-                        modifier = Modifier.size(40.dp),
-                        iconSize = 24.dp
+                        tileColor = when {
+                            item.isAction -> Color.White.copy(alpha = 0.24f)
+                            selected -> Color.White.copy(alpha = 0.20f)
+                            else -> Color.White.copy(alpha = 0.10f)
+                        },
+                        modifier = Modifier.size(if (item.isAction) 46.dp else 40.dp),
+                        iconSize = if (item.isAction) 27.dp else 24.dp
                     )
                 },
                 label = {
@@ -3702,7 +3724,7 @@ private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
     }
 }
 
-private data class NavItem(val key: String, val label: String, val icon: LineIcon)
+private data class NavItem(val key: String, val label: String, val icon: LineIcon, val isAction: Boolean = false)
 
 private enum class LineIcon(val imageVector: ImageVector) {
     Home(Icons.Rounded.Home),
@@ -3710,6 +3732,7 @@ private enum class LineIcon(val imageVector: ImageVector) {
     Library(Icons.Rounded.Article),
     Settings(Icons.Rounded.Settings),
     Plus(Icons.Rounded.Add),
+    Voice(Icons.Rounded.Mic),
     Smart(Icons.Rounded.Assessment),
     Ultrasound(Icons.Rounded.MonitorHeart),
     Checkup(Icons.Rounded.Checklist),
