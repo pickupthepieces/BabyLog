@@ -737,9 +737,18 @@ public final class BabyLogService {
     }
 
     public List<BabyLogDomain.BabyLogEvent> listRecentEvents(int limit) {
-        List<BabyLogDomain.BabyLogEvent> events = repository.listEvents();
-        Collections.sort(events, (left, right) -> Long.compare(parseTime(right.occurredAt), parseTime(left.occurredAt)));
+        List<BabyLogDomain.BabyLogEvent> events = sortEventsNewestFirst(repository.listEvents());
         return events.size() <= limit ? events : new ArrayList<>(events.subList(0, limit));
+    }
+
+    public List<BabyLogDomain.BabyLogEvent> listTimelineEvents() {
+        return sortEventsNewestFirst(repository.listEvents());
+    }
+
+    public static List<BabyLogDomain.BabyLogEvent> sortEventsNewestFirst(List<BabyLogDomain.BabyLogEvent> source) {
+        List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>(source);
+        Collections.sort(events, (left, right) -> Long.compare(parseTime(right.occurredAt), parseTime(left.occurredAt)));
+        return events;
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachmentsNewestFirst() {
@@ -1045,7 +1054,7 @@ public final class BabyLogService {
         return value == null || value.trim().isEmpty();
     }
 
-    private long parseTime(String value) {
+    private static long parseTime(String value) {
         return BabyLogFormatters.parseIsoMillis(value);
     }
 

@@ -5,7 +5,9 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public final class BabyLogServiceSmokeTest {
     public static void main(String[] args) throws Exception {
@@ -180,6 +182,31 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(BabyLogDomain.UPDATED_BY_LOCAL, edited.updatedBy);
         assertTrue(!original.updatedAt.equals(edited.updatedAt));
         assertEquals(2, edited.attachmentIds.size());
+
+        List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
+        for (int i = 0; i < 105; i++) {
+            int month = 1 + (i / 28);
+            int day = 1 + (i % 28);
+            manyEvents.add(new BabyLogDomain.BabyLogEvent(
+                    "evt_" + i,
+                    BabyLogDomain.FAMILY_ID,
+                    BabyLogDomain.CHILD_ID,
+                    "ultrasound",
+                    String.format("2026-%02d-%02dT12:00:00.000+0800", month, day),
+                    null,
+                    Arrays.asList(),
+                    "manual",
+                    "2026-01-01T12:00:00.000+0800",
+                    "2026-01-01T12:00:00.000+0800",
+                    BabyLogDomain.UPDATED_BY_LOCAL,
+                    BabyLogDomain.SCHEMA_VERSION,
+                    null
+            ));
+        }
+        List<BabyLogDomain.BabyLogEvent> sortedEvents = BabyLogService.sortEventsNewestFirst(manyEvents);
+        assertEquals(105, sortedEvents.size());
+        assertEquals("evt_104", sortedEvents.get(0).id);
+        assertEquals("evt_0", sortedEvents.get(sortedEvents.size() - 1).id);
     }
 
     private static void assertEquals(Object expected, Object actual) {

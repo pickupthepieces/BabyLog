@@ -503,7 +503,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             service.purgeExpiredTrash()
             val nextState = BabyLogUiState(
                 dashboard = service.loadDashboard(),
-                timeline = service.listRecentEvents(100),
+                timeline = service.listTimelineEvents(),
                 trashEvents = service.listTrashEvents(),
                 attachments = service.listAttachmentsNewestFirst(),
                 syncConfig = repository.loadSyncSettings(),
