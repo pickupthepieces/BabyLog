@@ -674,6 +674,22 @@ public final class ComposeMainActivity : ComponentActivity() {
                 maternalMetricDraft = draftFromMaternalMetricEvent(event)
                 pendingNavRoute = BabyLogRoutes.RecordMaternalMetric
             }
+            "fetal_movement", "contraction" -> {
+                pregnancyAction = editQuickActionByEventType(event.eventType)
+                pregnancyDraft = draftFromPregnancyEvent(event)
+                pendingCheckupAttachmentPath = null
+                pendingCheckupAttachmentName = null
+                checkupOcrCandidate = null
+                checkupOcrRunning = false
+                pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
+            }
+            else -> {
+                if (isEditableBabyRecord(event.eventType)) {
+                    babyCareAction = editQuickActionByEventType(event.eventType)
+                    babyCareDraft = draftFromBabyCareEvent(event)
+                    pendingNavRoute = BabyLogRoutes.RecordBabyCare
+                }
+            }
         }
     }
 
@@ -718,13 +734,19 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun recordBabyCare(input: BabyLogService.BabyCareInput) {
         runInBackground {
             try {
-                val event = service.recordBabyCareEvent(input)
+                val editing = editingEvent?.takeIf { it.eventType == input.eventType }
+                val event = if (editing != null) {
+                    service.updateBabyCareEvent(editing.id, input)
+                } else {
+                    service.recordBabyCareEvent(input)
+                }
                 runOnUiThread {
+                    editingEvent = null
                     babyCareAction = null
                     babyCareDraft = null
                     markRecordSaved(event)
                 }
-                showToast("已保存记录")
+                showToast(if (editing != null) "已更新记录" else "已保存记录")
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存记录")
@@ -1292,6 +1314,18 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun editQuickActionByEventType(eventType: String): BabyLogService.QuickAction? {
         return quickActionByEventType(eventType) ?: when (eventType) {
             "pregnancy_checkup" -> BabyLogService.QuickAction("产检", "常规指标 / 结论 / 附件", ChestnutPalette.VioletArgb, "pregnancy_checkup")
+            "fetal_movement" -> BabyLogService.QuickAction("胎动", "时段 / 次数 / 备注", ChestnutPalette.GreenArgb, "fetal_movement")
+            "contraction" -> BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", ChestnutPalette.PeachArgb, "contraction")
+            "breastfeed" -> BabyLogService.QuickAction("母乳", "补充时长 / 侧别 / 备注", ChestnutPalette.PeachArgb, "breastfeed")
+            "bottle" -> BabyLogService.QuickAction("奶瓶", "补充奶量 / 备注", ChestnutPalette.BlueArgb, "bottle")
+            "feed" -> BabyLogService.QuickAction("喂养", "方式 / 奶量 / 备注", ChestnutPalette.BlueArgb, "feed")
+            "sleep" -> BabyLogService.QuickAction("睡眠", "开始 / 结束 / 地点", ChestnutPalette.VioletArgb, "sleep")
+            "diaper" -> BabyLogService.QuickAction("尿布", "类型 / 性状 / 备注", ChestnutPalette.YellowArgb, "diaper")
+            "temperature" -> BabyLogService.QuickAction("体温", "温度 / 测量方式", ChestnutPalette.GreenArgb, "temperature")
+            "medication" -> BabyLogService.QuickAction("用药", "药名 / 剂量 / 原因", ChestnutPalette.PeachArgb, "medication")
+            "wake" -> BabyLogService.QuickAction("起床", "补充状态 / 备注", ChestnutPalette.GreenArgb, "wake")
+            "pee" -> BabyLogService.QuickAction("尿尿", "补充尿布情况 / 备注", ChestnutPalette.YellowArgb, "pee")
+            "poop" -> BabyLogService.QuickAction("便便", "补充性状 / 备注", ChestnutPalette.PeachArgb, "poop")
             else -> null
         }
     }
@@ -3083,6 +3117,11 @@ internal fun babyCareLabels(eventType: String): BabyCareLabels {
         "diaper" -> BabyCareLabels("类型，例如 尿 / 便 / 混合", "性状或备注", null, "备注")
         "temperature" -> BabyCareLabels("体温", "测量方式，例如 腋温", null, "备注", KeyboardType.Decimal, KeyboardType.Text)
         "medication" -> BabyCareLabels("药名", "剂量，例如 2 ml", "原因", null)
+        "breastfeed" -> BabyCareLabels("详情，例如 左侧 12 分钟", "备注", null, null)
+        "bottle" -> BabyCareLabels("详情，例如 120 ml", "备注", null, null, KeyboardType.Text, KeyboardType.Text)
+        "wake" -> BabyCareLabels("状态，例如 自然醒 / 哭醒", "备注", null, null)
+        "pee" -> BabyCareLabels("尿布情况", "备注", null, null)
+        "poop" -> BabyCareLabels("性状 / 颜色", "备注", null, null)
         else -> BabyCareLabels("详情", "备注", null, null)
     }
 }
@@ -3133,6 +3172,7 @@ internal fun buildBabyCareInput(
         "diaper" -> BabyLogService.BabyCareInput.diaper(primary, secondary, note)
         "temperature" -> BabyLogService.BabyCareInput.temperature(primary, secondary, note)
         "medication" -> BabyLogService.BabyCareInput.medication(primary, secondary, tertiary)
+        "breastfeed", "bottle", "wake", "pee", "poop" -> BabyLogService.BabyCareInput.quick(eventType, primary, secondary)
         else -> BabyLogService.BabyCareInput.feed(primary, secondary, note)
     }
 }
@@ -3181,11 +3221,85 @@ private fun smartFormFields(vararg values: Pair<String, String?>): Map<String, S
 internal fun isEditablePregnancyRecord(eventType: String): Boolean {
     return eventType == "ultrasound" ||
         eventType == "pregnancy_checkup" ||
-        eventType == "maternal_metric"
+        eventType == "maternal_metric" ||
+        eventType == "fetal_movement" ||
+        eventType == "contraction" ||
+        isEditableBabyRecord(eventType)
+}
+
+private fun isEditableBabyRecord(eventType: String): Boolean {
+    return eventType == "feed" ||
+        eventType == "sleep" ||
+        eventType == "diaper" ||
+        eventType == "temperature" ||
+        eventType == "medication" ||
+        eventType == "breastfeed" ||
+        eventType == "bottle" ||
+        eventType == "wake" ||
+        eventType == "pee" ||
+        eventType == "poop"
+}
+
+private fun draftFromBabyCareEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
+    val payload = event.payload
+    val values = when (event.eventType) {
+        "feed" -> smartFormFields(
+            "primary" to payload.optString("feedType"),
+            "secondary" to payloadNumberText(payload, "amountMl"),
+            "note" to payload.optString("note")
+        )
+        "sleep" -> smartFormFields(
+            "primary" to payload.optString("sleepStart"),
+            "secondary" to payload.optString("sleepEnd"),
+            "tertiary" to payload.optString("sleepPlace"),
+            "note" to payload.optString("note")
+        )
+        "diaper" -> smartFormFields(
+            "primary" to payload.optString("diaperType"),
+            "secondary" to payload.optString("diaperDetail"),
+            "note" to payload.optString("note")
+        )
+        "temperature" -> smartFormFields(
+            "primary" to payloadNumberText(payload, "temperatureC"),
+            "secondary" to payload.optString("measureMethod"),
+            "note" to payload.optString("note")
+        )
+        "medication" -> smartFormFields(
+            "primary" to payload.optString("medicationName"),
+            "secondary" to payload.optString("dosage"),
+            "tertiary" to payload.optString("reason")
+        )
+        else -> smartFormFields(
+            "primary" to payload.optString("detail"),
+            "secondary" to payload.optString("note")
+        )
+    }
+    return SmartEntryDraft(values = values)
 }
 
 private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
     val payload = event.payload
+    if (event.eventType == "fetal_movement") {
+        return SmartEntryDraft(
+            values = smartFormFields(
+                "primary" to payload.optString("movementWindow").ifBlank {
+                    sessionWindowDraft(payload.optString("startedAt"), payload.optString("endedAt"))
+                },
+                "secondary" to payloadNumberText(payload, "movementCount"),
+                "note" to payload.optString("note")
+            )
+        )
+    }
+    if (event.eventType == "contraction") {
+        return SmartEntryDraft(
+            values = smartFormFields(
+                "primary" to payload.optString("contractionStart").ifBlank { BabyLogFormatters.formatEventTime(event.occurredAt).takeUnless { it == "--:--" } },
+                "secondary" to payloadNumberText(payload, "intervalMinutes"),
+                "tertiary" to payloadNumberText(payload, "durationSeconds"),
+                "note" to payload.optString("note")
+            )
+        )
+    }
     return SmartEntryDraft(
         values = smartFormFields(
             "primary" to payload.optString("checkupDate").ifBlank { BabyLogFormatters.recordDay(event.occurredAt) },
@@ -3214,6 +3328,17 @@ private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEnt
             }
         )
     )
+}
+
+private fun sessionWindowDraft(startedAt: String, endedAt: String): String {
+    val start = BabyLogFormatters.formatEventTime(startedAt)
+    val end = BabyLogFormatters.formatEventTime(endedAt)
+    return when {
+        start != "--:--" && end != "--:--" -> "$start-$end"
+        start != "--:--" -> start
+        end != "--:--" -> end
+        else -> ""
+    }
 }
 
 private fun draftFromMaternalMetricEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {

@@ -50,6 +50,14 @@ public final class BabyLogServiceSmokeTest {
                 "喂养 · 待补充详情",
                 BabyLogService.formatBabyCareSummary(BabyLogService.BabyCareInput.feed("", "", ""))
         );
+        assertEquals(
+                "奶瓶 · 120 ml",
+                BabyLogService.formatBabyCareSummary(BabyLogService.BabyCareInput.quick("bottle", "120 ml", ""))
+        );
+        assertEquals(
+                "尿尿",
+                BabyLogService.formatBabyCareSummary(BabyLogService.BabyCareInput.quick("pee", "", ""))
+        );
 
         assertEquals(
                 "产检 · 市妇幼产科 · 一切正常",

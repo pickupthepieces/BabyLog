@@ -83,6 +83,19 @@ public final class BabyLogService {
         return event;
     }
 
+    public BabyLogDomain.BabyLogEvent updateBabyCareEvent(String eventId, BabyCareInput input) throws JSONException {
+        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
+        BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                existing,
+                input.eventType,
+                buildBabyCarePayload(input),
+                existing.attachmentIds
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
     public BabyLogDomain.BabyLogEvent recordPregnancyEvent(PregnancyInput input) throws JSONException {
         JSONObject payload = buildPregnancyPayload(input);
         String occurredAt = "pregnancy_checkup".equals(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
@@ -274,6 +287,9 @@ public final class BabyLogService {
             putStringIfNotBlank(payload, "dosage", input.secondary);
             putStringIfNotBlank(payload, "reason", input.tertiary);
             putStringIfNotBlank(payload, "note", input.note);
+        } else {
+            putStringIfNotBlank(payload, "detail", input.primary);
+            putStringIfNotBlank(payload, "note", input.secondary);
         }
 
         payload.put("summary", formatBabyCareSummary(input));
@@ -383,6 +399,12 @@ public final class BabyLogService {
             appendSummary(summary, input.primary);
             appendSummary(summary, input.secondary);
             appendSummary(summary, input.tertiary);
+        } else {
+            appendSummary(summary, input.primary);
+            appendSummary(summary, input.secondary);
+            if (summary.toString().equals(BabyLogFormatters.eventLabel(input.eventType))) {
+                return summary.toString();
+            }
         }
         if (summary.toString().equals(BabyLogFormatters.eventLabel(input.eventType))) {
             summary.append(" · 待补充详情");
@@ -1355,6 +1377,10 @@ public final class BabyLogService {
 
         public static BabyCareInput medication(String medicationName, String dosage, String reason) {
             return new BabyCareInput("medication", medicationName, dosage, reason, "");
+        }
+
+        public static BabyCareInput quick(String eventType, String detail, String note) {
+            return new BabyCareInput(eventType, detail, note, "", "");
         }
     }
 
