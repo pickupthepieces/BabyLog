@@ -241,3 +241,11 @@
 | 标签 `fontSize = 11.sp` | 11 | 10sp |
 
 要求：仅 `QuickRail.kt` 视觉微调；5 项仍全可见（变窄后更易容纳）、整体明显变矮变轻、接近 Piyo 紧凑感；保证可点（tile≈28 + 标签 + padding 总高仍达可点）；不改动作集/逻辑/滚动显隐/底栏/已锁配色 token。一笔 `ui:` 提交不混不并 main；assemble+lint+smoke 绿；装机对比 Piyo 观感。Claude review 用一次真机截图与 Piyo 比对验收。
+
+### P5 收尾修正 IV — 通过（commit `1d036cc`）
+
+**结论**：通过。首页底部 UI 至此为最终终态。
+
+**核实**：值全部按 spec（width 76→58、tile 34→28、icon 22→18、去 border、item pad 7→5、row pad 6→4、spacing 8→6、label 11→10sp）；仅 `QuickRail.kt` 单 commit、树干净、逻辑/滚动显隐/底栏/配色 token 未动。真机截图 `diagnostics/p5-quickrail-iv/home.png` 对比 Piyo：rail 明显变轻、无边框盒、5 项全可见可点、贴近 Piyo 紧凑小图标；语音仍仅底栏正中。assemble+lint+smoke 绿 + Codex 装机回归。
+
+**收口确认**：NavCompose 架构线 + P5 全部收尾（I~IV + perf-A/B）通过，首页底部终态固定，不再迭代。后续严格走 `docs/P5后工作队列-给Codex.md`：Q1 → Q2 → Q2b → Q4 → Q6（Q3 已完成，Q5 待设备）。
