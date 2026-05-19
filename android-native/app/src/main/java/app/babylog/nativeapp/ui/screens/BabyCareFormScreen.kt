@@ -26,6 +26,7 @@ internal fun BabyCareFormScreen(
     var secondary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["secondary"].orEmpty()) }
     var tertiary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["tertiary"].orEmpty()) }
     var note by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
+    var formError by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf("") }
     val labels = babyCareLabels(action.eventType)
 
     RecordFormScaffold(
@@ -33,9 +34,20 @@ internal fun BabyCareFormScreen(
         subtitle = "核对字段后手动保存",
         saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
-        onSave = { onSave(buildBabyCareInput(action.eventType, primary, secondary, tertiary, note)) }
+        onSave = {
+            val input = buildBabyCareInput(action.eventType, primary, secondary, tertiary, note)
+            if (!BabyLogService.hasBabyCareMinimumContent(input)) {
+                formError = "请至少填写一项记录内容"
+            } else {
+                formError = ""
+                onSave(input)
+            }
+        }
     ) {
         item { Text("常用信息", color = ChestnutPalette.Ink) }
+        if (formError.isNotBlank()) {
+            item { Text(formError, color = ChestnutPalette.Danger) }
+        }
         item { ChestnutTextField(labels.primary, primary, { primary = it }, labels.primaryKeyboard) }
         item { ChestnutTextField(labels.secondary, secondary, { secondary = it }, labels.secondaryKeyboard) }
         if (labels.tertiary != null) {

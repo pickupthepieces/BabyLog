@@ -699,7 +699,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 service.recordQuickEvent(action)
                 showToast("已记录：${action.label}")
                 reloadData()
-            } catch (error: JSONException) {
+            } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存记录")
             }
         }
@@ -748,7 +748,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 }
                 showToast(if (editing != null) "已更新记录" else "已保存记录")
                 reloadData()
-            } catch (error: JSONException) {
+            } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存记录")
             }
         }
@@ -809,7 +809,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 }
                 showToast(if (editing != null) "已更新孕妈指标" else "已保存孕妈指标")
                 reloadData()
-            } catch (error: JSONException) {
+            } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存孕妈指标")
             }
         }
@@ -834,7 +834,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 }
                 showToast(if (editing != null) "已更新 B 超记录" else "已保存 B 超记录")
                 reloadData()
-            } catch (error: JSONException) {
+            } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存 B 超记录")
             }
         }

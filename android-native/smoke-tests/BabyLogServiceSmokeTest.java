@@ -58,6 +58,8 @@ public final class BabyLogServiceSmokeTest {
                 "尿尿",
                 BabyLogService.formatBabyCareSummary(BabyLogService.BabyCareInput.quick("pee", "", ""))
         );
+        assertFalse(BabyLogService.hasBabyCareMinimumContent(BabyLogService.BabyCareInput.quick("pee", "", "")));
+        assertTrue(BabyLogService.hasBabyCareMinimumContent(BabyLogService.BabyCareInput.quick("pee", "尿量偏多", "")));
 
         assertEquals(
                 "产检 · 市妇幼产科 · 一切正常",
@@ -98,6 +100,8 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.formatPregnancySummary(structuredCheckup)
         );
         JSONObject structuredPayload = BabyLogService.buildPregnancyPayload(structuredCheckup);
+        assertTrue(BabyLogService.hasPregnancyMinimumContent(structuredCheckup));
+        assertFalse(BabyLogService.hasPregnancyMinimumContent(BabyLogService.PregnancyInput.checkup("2026-05-18", "", "", "")));
         assertEquals(159, structuredPayload.optInt("gestationalAgeDays"));
         assertEquals("头位", structuredPayload.optString("fetalPresentation"));
         assertEquals("无", structuredPayload.optString("edema"));
@@ -138,6 +142,8 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.MaternalMetricInput.create("60.4", "118", "76", "5.2", "fasting", "")
                 )
         );
+        assertFalse(BabyLogService.hasMaternalMetricMinimumContent(BabyLogService.MaternalMetricInput.create("", "", "", "", "fasting", "")));
+        assertTrue(BabyLogService.hasMaternalMetricMinimumContent(BabyLogService.MaternalMetricInput.create("", "", "", "", "fasting", "今天状态稳定")));
         assertEquals(
                 "羊水 AFI 12.3 cm · 最大羊水池 5.1 cm · 胎盘 前壁 · 成熟度 I 级 · 胎位 头位 · 脐动脉 S/D 2.5 · PI 0.9 · RI 0.6",
                 BabyLogService.formatUltrasoundClinicalDetails(ultrasound("2026-05-18", "22+5", "55", "205", "180", "38", "520", "12.3", "5.1", "前壁", "I 级", "头位", "2.5", "0.9", "0.6", "", ""))

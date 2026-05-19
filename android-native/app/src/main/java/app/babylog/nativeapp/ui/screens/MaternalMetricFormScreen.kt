@@ -30,6 +30,7 @@ internal fun MaternalMetricFormScreen(
         mutableStateOf(values["glucoseContext"]?.let { normalizeGlucoseContext(it) } ?: "fasting")
     }
     var note by rememberSaveable(draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
+    var formError by rememberSaveable(draft?.nonce) { mutableStateOf("") }
     val glucoseWarning = BabyLogFormatters.formatMaternalGlucoseWarning(
         BabyLogFormatters.parseOptionalNumber(glucose),
         glucoseContext
@@ -41,18 +42,25 @@ internal fun MaternalMetricFormScreen(
         saveText = if (isEditing) "保存修改" else "保存孕妈指标",
         onBack = onBack,
         onSave = {
-            onSave(
-                BabyLogService.MaternalMetricInput.create(
-                    weight,
-                    systolic,
-                    diastolic,
-                    glucose,
-                    glucoseContext,
-                    note
-                )
+            val input = BabyLogService.MaternalMetricInput.create(
+                weight,
+                systolic,
+                diastolic,
+                glucose,
+                glucoseContext,
+                note
             )
+            if (!BabyLogService.hasMaternalMetricMinimumContent(input)) {
+                formError = "请至少填写体重、血压、血糖或备注"
+            } else {
+                formError = ""
+                onSave(input)
+            }
         }
     ) {
+        if (formError.isNotBlank()) {
+            item { Text(formError, color = ChestnutPalette.Danger, fontWeight = FontWeight.Bold) }
+        }
         item { UnitInputRow("体重", weight, { weight = it }, "kg") }
         item {
             Row(

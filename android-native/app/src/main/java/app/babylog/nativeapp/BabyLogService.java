@@ -70,6 +70,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input) throws JSONException {
+        if (!hasBabyCareMinimumContent(input)) {
+            throw new IllegalArgumentException("请至少填写一项记录内容");
+        }
         JSONObject payload = buildBabyCarePayload(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 input.eventType,
@@ -84,6 +87,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent updateBabyCareEvent(String eventId, BabyCareInput input) throws JSONException {
+        if (!hasBabyCareMinimumContent(input)) {
+            throw new IllegalArgumentException("请至少填写一项记录内容");
+        }
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
         BabyLogDomain.BabyLogEvent event = createEditedEvent(
                 existing,
@@ -97,6 +103,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent recordPregnancyEvent(PregnancyInput input) throws JSONException {
+        if (!hasPregnancyMinimumContent(input)) {
+            throw new IllegalArgumentException("请至少填写一项记录内容");
+        }
         JSONObject payload = buildPregnancyPayload(input);
         String occurredAt = "pregnancy_checkup".equals(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
@@ -115,6 +124,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent updatePregnancyEvent(String eventId, PregnancyInput input) throws JSONException {
+        if (!hasPregnancyMinimumContent(input)) {
+            throw new IllegalArgumentException("请至少填写一项记录内容");
+        }
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
         attachmentIds.addAll(createPregnancyAttachmentIds(input));
@@ -144,6 +156,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent recordMaternalMetric(MaternalMetricInput input) throws JSONException {
+        if (!hasMaternalMetricMinimumContent(input)) {
+            throw new IllegalArgumentException("请至少填写一项孕妈指标或备注");
+        }
         JSONObject payload = buildMaternalMetricPayload(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 "maternal_metric",
@@ -158,6 +173,9 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent updateMaternalMetric(String eventId, MaternalMetricInput input) throws JSONException {
+        if (!hasMaternalMetricMinimumContent(input)) {
+            throw new IllegalArgumentException("请至少填写一项孕妈指标或备注");
+        }
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, "maternal_metric");
         BabyLogDomain.BabyLogEvent event = createEditedEvent(
                 existing,
@@ -544,6 +562,60 @@ public final class BabyLogService {
                 || BabyLogFormatters.parseOptionalNumber(input.acMm) != null
                 || BabyLogFormatters.parseOptionalNumber(input.flMm) != null
                 || BabyLogFormatters.parseOptionalNumber(input.efwGram) != null;
+    }
+
+    public static boolean hasBabyCareMinimumContent(BabyCareInput input) {
+        if (input == null) {
+            return false;
+        }
+        return !isBlank(input.primary)
+                || !isBlank(input.secondary)
+                || !isBlank(input.tertiary)
+                || !isBlank(input.note);
+    }
+
+    public static boolean hasPregnancyMinimumContent(PregnancyInput input) {
+        if (input == null) {
+            return false;
+        }
+        if ("pregnancy_checkup".equals(input.eventType)) {
+            return !isBlank(input.secondary)
+                    || !isBlank(input.department)
+                    || !isBlank(input.systolicBp)
+                    || !isBlank(input.diastolicBp)
+                    || !isBlank(input.weightKg)
+                    || !isBlank(input.fundalHeightCm)
+                    || !isBlank(input.abdominalCircumferenceCm)
+                    || !isBlank(input.fetalHeartRateBpm)
+                    || !isBlank(input.fetalPresentation)
+                    || !isBlank(input.edema)
+                    || !isBlank(input.urineRoutine)
+                    || !isBlank(input.urineProtein)
+                    || !isBlank(input.hemoglobinGL)
+                    || !isBlank(input.highRiskFactors)
+                    || !isBlank(input.tertiary)
+                    || !isBlank(input.treatmentAdvice)
+                    || !isBlank(input.nextVisitDate)
+                    || !isBlank(input.reportType)
+                    || !isBlank(input.attachmentNote)
+                    || !isBlank(input.note)
+                    || !isBlank(input.attachmentPath);
+        }
+        return !isBlank(input.primary)
+                || !isBlank(input.secondary)
+                || !isBlank(input.tertiary)
+                || !isBlank(input.note);
+    }
+
+    public static boolean hasMaternalMetricMinimumContent(MaternalMetricInput input) {
+        if (input == null) {
+            return false;
+        }
+        return !isBlank(input.weightKg)
+                || !isBlank(input.systolicBp)
+                || !isBlank(input.diastolicBp)
+                || !isBlank(input.glucoseMmolL)
+                || !isBlank(input.note);
     }
 
     private static boolean hasUsableUltrasoundPhoto(String photoPath) {

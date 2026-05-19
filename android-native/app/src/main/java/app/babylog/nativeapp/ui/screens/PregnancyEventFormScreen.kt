@@ -79,6 +79,7 @@ internal fun PregnancyEventFormScreen(
     var reportType by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["reportType"].orEmpty()) }
     var attachmentNote by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["attachmentNote"].orEmpty()) }
     var note by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
+    var formError by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf("") }
     val labels = pregnancyLabels(action.eventType)
     val isCheckup = action.eventType == "pregnancy_checkup"
 
@@ -97,40 +98,47 @@ internal fun PregnancyEventFormScreen(
         saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
         onSave = {
-            if (isCheckup) {
-                onSave(
-                    BabyLogService.PregnancyInput.checkupStructured(
-                        primary,
-                        gestationalAge,
-                        secondary,
-                        department,
-                        systolicBp,
-                        diastolicBp,
-                        weightKg,
-                        fundalHeightCm,
-                        abdominalCircumferenceCm,
-                        fetalHeartRateBpm,
-                        fetalPresentation,
-                        edema,
-                        urineRoutine,
-                        urineProtein,
-                        hemoglobinGL,
-                        highRiskFactors,
-                        tertiary,
-                        treatmentAdvice,
-                        nextVisitDate,
-                        reportType,
-                        attachmentNote,
-                        note,
-                        attachmentPath ?: "",
-                        attachmentName ?: ""
-                    )
+            val input = if (isCheckup) {
+                BabyLogService.PregnancyInput.checkupStructured(
+                    primary,
+                    gestationalAge,
+                    secondary,
+                    department,
+                    systolicBp,
+                    diastolicBp,
+                    weightKg,
+                    fundalHeightCm,
+                    abdominalCircumferenceCm,
+                    fetalHeartRateBpm,
+                    fetalPresentation,
+                    edema,
+                    urineRoutine,
+                    urineProtein,
+                    hemoglobinGL,
+                    highRiskFactors,
+                    tertiary,
+                    treatmentAdvice,
+                    nextVisitDate,
+                    reportType,
+                    attachmentNote,
+                    note,
+                    attachmentPath ?: "",
+                    attachmentName ?: ""
                 )
             } else {
-                onSave(buildPregnancyInput(action.eventType, primary, secondary, tertiary, note))
+                buildPregnancyInput(action.eventType, primary, secondary, tertiary, note)
+            }
+            if (!BabyLogService.hasPregnancyMinimumContent(input)) {
+                formError = "请至少填写一项记录内容"
+            } else {
+                formError = ""
+                onSave(input)
             }
         }
     ) {
+        if (formError.isNotBlank()) {
+            item { Text(formError, color = ChestnutPalette.Danger, fontWeight = FontWeight.Bold) }
+        }
         if (isCheckup) {
             item { DateInputRow("检查日期", primary, { primary = it }, allowClear = false) }
             item {
