@@ -89,3 +89,11 @@
 1. **双状态收敛**：P0 暂留 `activeTab`(mutableStateOf) 与 navController 双向同步作为过渡桥。P1/P2 必须收敛为**单一事实源(navController 唯一)**,清除 `activeTab`,不得固化。
 2. **瘦身兑现**：P0 文件 4331→4380(脚手架未抽屏,符合预期)。**P1 起必须把 4 tab 体抽到 `ui/screens/*.kt`,MainActivity 须开始显著变薄**——置顶第〇节终态硬线持续作为每阶段验收门。
 3. 编译/smoke 由 CI assembleDebug 兜底验证(本地沙箱限制无法跑)。
+
+### P1 重表单上页 — 通过（commit `2600e75`）
+
+**结论**：通过,放行 P2。
+
+**核实**：① P0 遗留①已解决——`activeTab` mutableStateOf 删除,改为从 navController currentRoute 派生的 val,单一事实源（`recordReturnRoute` 为"存完回来源页"的合法独立状态,非双源）。② P0 遗留②兑现——CMA 4331→3715,4 tab + 4 表单抽到 `ui/screens/*.kt`,共享 `RecordFormScaffold`。③ 数据/逻辑/OCR/FGR/STT 层零改动（commit 仅 CMA+ui/screens;Ultrasound 仍调 `estimateEfwHadlock3Gram`,接线仅迁移）。④ 人工确认链保留（`onSave` 显式回调、无 autoSave）。⑤ 单 commit、纪律守住。编译/smoke 由 CI 兜底。
+
+**P2+ 持续门**：CMA 仍 3715 行（SmartEntry 等仍内联），瘦身继续;装机字段全等性建议 P2 一并抽查。
