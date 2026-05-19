@@ -46,7 +46,6 @@ import androidx.compose.material.BottomNavigationItem
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
-import androidx.compose.material.Checkbox
 import androidx.compose.material.Divider
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
@@ -101,7 +100,6 @@ import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -148,7 +146,6 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var babyCareAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var pregnancyAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var showFetalMovementSession by mutableStateOf(false)
-    private var showSyncSettings by mutableStateOf(false)
     private var smartSettingsConfig by mutableStateOf<BabyLogSmartConfigStore.Config?>(null)
     private var speechSettingsConfig by mutableStateOf<BabyLogSmartConfigStore.SpeechConfig?>(null)
     private var smartConfigSummary by mutableStateOf("智能识别未配置")
@@ -164,7 +161,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var ultrasoundOcrCandidate by mutableStateOf<BabyLogSmartInput.UltrasoundOcrCandidate?>(null)
     private var showClearLocalConfirm by mutableStateOf(false)
     private var showTrashDialog by mutableStateOf(false)
-    private var profileDialog by mutableStateOf<ProfileDialogState?>(null)
+    private var profilePageState by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
     private var syncConfirmUrl by mutableStateOf<String?>(null)
     private var attachmentDialog by mutableStateOf<AttachmentDialogState?>(null)
@@ -227,11 +224,23 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onSyncNow = ::syncNow,
                     onExportBackup = ::exportBackup,
                     onImportBackup = ::importBackup,
-                    onOpenSyncSettings = { showSyncSettings = true },
+                    onOpenSyncSettings = { pendingNavRoute = BabyLogRoutes.SettingsSync },
                     onOpenSmartSettings = ::openSmartSettings,
                     onOpenSpeechSettings = ::openSpeechSettings,
+                    profilePageState = profilePageState,
+                    smartSettingsConfig = smartSettingsConfig,
+                    speechSettingsConfig = speechSettingsConfig,
                     smartConfigSummary = smartConfigSummary,
                     speechConfigSummary = speechConfigSummary,
+                    onCloseSettingsPage = {
+                        profilePageState = null
+                        smartSettingsConfig = null
+                        speechSettingsConfig = null
+                    },
+                    onSaveSyncSettings = ::saveSyncSettings,
+                    onSaveSmartSettings = ::saveSmartSettings,
+                    onSaveSpeechSettings = ::saveSpeechSettings,
+                    onSaveProfile = ::saveProfile,
                     onClearLocalData = { showClearLocalConfirm = true },
                     onOpenTrash = { showTrashDialog = true },
                     onCreatePregnancyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_PREGNANCY) },
@@ -321,50 +330,6 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onSave = { input ->
                             showFetalMovementSession = false
                             recordFetalMovementSession(input)
-                        }
-                    )
-                }
-
-                if (showSyncSettings) {
-                    SyncSettingsDialog(
-                        config = uiState.syncConfig,
-                        onDismiss = { showSyncSettings = false },
-                        onSave = { backendBaseUrl ->
-                            showSyncSettings = false
-                            saveSyncSettings(backendBaseUrl)
-                        }
-                    )
-                }
-
-                smartSettingsConfig?.let { config ->
-                    SmartModelSettingsDialog(
-                        config = config,
-                        onDismiss = { smartSettingsConfig = null },
-                        onSave = { next ->
-                            smartSettingsConfig = null
-                            saveSmartSettings(next)
-                        }
-                    )
-                }
-
-                speechSettingsConfig?.let { config ->
-                    SpeechSettingsDialog(
-                        config = config,
-                        onDismiss = { speechSettingsConfig = null },
-                        onSave = { next ->
-                            speechSettingsConfig = null
-                            saveSpeechSettings(next)
-                        }
-                    )
-                }
-
-                profileDialog?.let { dialog ->
-                    ProfileDialog(
-                        state = dialog,
-                        onDismiss = { profileDialog = null },
-                        onSave = { input ->
-                            saveProfile(input, dialog.firstRun)
-                            profileDialog = null
                         }
                     )
                 }
@@ -565,7 +530,10 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 val config = smartConfigStore.load()
-                runOnUiThread { smartSettingsConfig = config }
+                runOnUiThread {
+                    smartSettingsConfig = config
+                    pendingNavRoute = BabyLogRoutes.SettingsModel
+                }
             } catch (error: Exception) {
                 showInfo("无法读取智能识别配置", error.message ?: "请稍后重试")
             }
@@ -592,7 +560,10 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 val config = smartConfigStore.loadSpeechConfig()
-                runOnUiThread { speechSettingsConfig = config }
+                runOnUiThread {
+                    speechSettingsConfig = config
+                    pendingNavRoute = BabyLogRoutes.SettingsSpeech
+                }
             } catch (error: Exception) {
                 showInfo("无法读取语音配置", error.message ?: "请稍后重试")
             }
@@ -1208,21 +1179,23 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun openNewFamilyForm(stage: String) {
         val profile = BabyLogDomain.ChildProfile.createForNewFamily("", "unknown", "", "", stage, true)
-        profileDialog = ProfileDialogState(
+        profilePageState = ProfileDialogState(
             title = if (stage == BabyLogDomain.STAGE_PREGNANCY) "新建孕期家庭" else "新建出生后家庭",
             profile = profile,
             firstRun = true,
             initialStage = stage
         )
+        pendingNavRoute = BabyLogRoutes.SettingsProfile
     }
 
     private fun openProfileEditDialog() {
-        profileDialog = ProfileDialogState(
+        profilePageState = ProfileDialogState(
             title = "编辑宝宝档案",
             profile = uiState.childProfile,
             firstRun = false,
             initialStage = uiState.childProfile.stageOverride
         )
+        pendingNavRoute = BabyLogRoutes.SettingsProfile
     }
 
     private fun saveProfile(input: ProfileInput, firstRun: Boolean) {
@@ -1351,14 +1324,14 @@ internal data class BabyLogUiState(
     val lastBackupExportMs: Long = 0L
 )
 
-private data class ProfileDialogState(
+internal data class ProfileDialogState(
     val title: String,
     val profile: BabyLogDomain.ChildProfile,
     val firstRun: Boolean,
     val initialStage: String
 )
 
-private data class ProfileInput(
+internal data class ProfileInput(
     val nickname: String,
     val sex: String,
     val expectedDueDate: String,
@@ -1424,8 +1397,16 @@ private fun BabyLogApp(
     onOpenSyncSettings: () -> Unit,
     onOpenSmartSettings: () -> Unit,
     onOpenSpeechSettings: () -> Unit,
+    profilePageState: ProfileDialogState?,
+    smartSettingsConfig: BabyLogSmartConfigStore.Config?,
+    speechSettingsConfig: BabyLogSmartConfigStore.SpeechConfig?,
     smartConfigSummary: String,
     speechConfigSummary: String,
+    onCloseSettingsPage: () -> Unit,
+    onSaveSyncSettings: (String) -> Unit,
+    onSaveSmartSettings: (BabyLogSmartConfigStore.Config) -> Unit,
+    onSaveSpeechSettings: (BabyLogSmartConfigStore.SpeechConfig) -> Unit,
+    onSaveProfile: (ProfileInput, Boolean) -> Unit,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
     onCreatePregnancyProfile: () -> Unit,
@@ -1506,11 +1487,20 @@ private fun BabyLogApp(
             selectTopLevelTab(if (BabyLogRoutes.isTopLevel(recordReturnRoute)) recordReturnRoute else BabyLogRoutes.Home)
         }
     }
+    fun closeSettingsPage() {
+        onCloseSettingsPage()
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(if (state.setupCompleted) BabyLogRoutes.Settings else BabyLogRoutes.Home)
+        }
+    }
 
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
         topBar = {
-            if (!BabyLogRoutes.isRecord(currentRoute) && currentRoute != BabyLogRoutes.SmartEntry) {
+            if (!BabyLogRoutes.isRecord(currentRoute) &&
+                currentRoute != BabyLogRoutes.SmartEntry &&
+                !BabyLogRoutes.isSettingsSubpage(currentRoute)
+            ) {
                 TopBrandBand(activeTab = activeTab, state = state)
             }
         },
@@ -1546,22 +1536,22 @@ private fun BabyLogApp(
             }
         }
     ) { inner ->
-        if (!state.setupCompleted) {
-            BabyLogScreenColumn(inner) {
-                item {
-                    FirstRunScreen(
-                        onCreatePregnancyProfile = onCreatePregnancyProfile,
-                        onCreateBabyProfile = onCreateBabyProfile,
-                        onImportBackup = onImportBackup
-                    )
-                }
-            }
-        } else {
-            NavHost(
-                navController = navController,
-                startDestination = BabyLogRoutes.Home
-            ) {
-                composable(BabyLogRoutes.Home) {
+        NavHost(
+            navController = navController,
+            startDestination = BabyLogRoutes.Home
+        ) {
+            composable(BabyLogRoutes.Home) {
+                if (!state.setupCompleted) {
+                    BabyLogScreenColumn(inner) {
+                        item {
+                            FirstRunScreen(
+                                onCreatePregnancyProfile = onCreatePregnancyProfile,
+                                onCreateBabyProfile = onCreateBabyProfile,
+                                onImportBackup = onImportBackup
+                            )
+                        }
+                    }
+                } else {
                     HomeScreen(
                         inner = inner,
                         state = state,
@@ -1572,94 +1562,134 @@ private fun BabyLogApp(
                         onDeleteEvent = onDeleteEvent
                     )
                 }
-                composable(BabyLogRoutes.Timeline) {
-                    TimelineScreen(
-                        inner = inner,
-                        state = state,
-                        selectedFilter = timelineFilter,
-                        highlightedEventId = highlightedEventId,
-                        onFilterSelected = onTimelineFilterSelected,
-                        onDeleteEvent = onDeleteEvent
-                    )
-                }
-                composable(BabyLogRoutes.Library) {
-                    LibraryRootScreen(
-                        inner = inner,
-                        state = state,
-                        onShowAttachments = onShowAttachments
-                    )
-                }
-                composable(BabyLogRoutes.Settings) {
-                    SettingsRootScreen(
-                        inner = inner,
-                        state = state,
-                        smartConfigSummary = smartConfigSummary,
-                        speechConfigSummary = speechConfigSummary,
-                        onSyncNow = onSyncNow,
-                        onExportBackup = onExportBackup,
-                        onImportBackup = onImportBackup,
-                        onOpenSyncSettings = onOpenSyncSettings,
-                        onOpenSmartSettings = onOpenSmartSettings,
-                        onOpenSpeechSettings = onOpenSpeechSettings,
-                        onClearLocalData = onClearLocalData,
-                        onOpenTrash = onOpenTrash,
-                        onEditProfile = onEditProfile
-                    )
-                }
-                composable(BabyLogRoutes.RecordBabyCare) {
-                    BabyCareFormScreen(
-                        action = babyCareAction,
-                        draft = babyCareDraft,
-                        onBack = { closeRecord(onBabyCareCancel) },
-                        onSave = onBabyCareSave
-                    )
-                }
-                composable(BabyLogRoutes.RecordPregnancyEvent) {
-                    PregnancyEventFormScreen(
-                        action = pregnancyAction,
-                        draft = pregnancyDraft,
-                        onBack = { closeRecord(onPregnancyCancel) },
-                        onSave = onPregnancySave
-                    )
-                }
-                composable(BabyLogRoutes.RecordMaternalMetric) {
-                    MaternalMetricFormScreen(
-                        draft = maternalMetricDraft,
-                        onBack = { closeRecord(onMaternalMetricCancel) },
-                        onSave = onMaternalMetricSave
-                    )
-                }
-                composable(BabyLogRoutes.RecordUltrasound) {
-                    UltrasoundFormScreen(
-                        defaultGestationalAge = currentGestationalAgeInput(state.childProfile),
-                        expectedDueDate = state.childProfile.expectedDueDate,
-                        draft = ultrasoundDraft,
-                        photoPath = pendingUltrasoundPhotoPath,
-                        photoName = pendingUltrasoundPhotoName,
-                        ocrRunning = ultrasoundOcrRunning,
-                        ocrCandidate = ultrasoundOcrCandidate,
-                        onPickPhoto = onPickUltrasoundPhoto,
-                        onCapturePhoto = onCaptureUltrasoundPhoto,
-                        onRecognizePhoto = onRecognizeUltrasoundPhoto,
-                        onCandidateDismiss = onDismissUltrasoundCandidate,
-                        onCandidateApplied = onApplyUltrasoundCandidate,
-                        onBack = { closeRecord(onUltrasoundCancel) },
-                        onSave = onUltrasoundSave
-                    )
-                }
-                composable(BabyLogRoutes.SmartEntry) {
-                    SmartEntryScreen(
-                        running = smartEntryRunning,
-                        voiceState = smartVoiceState,
-                        candidate = smartEntryCandidate,
-                        onBack = ::closeSmartEntry,
-                        onVoiceStart = onSmartEntryVoiceStart,
-                        onVoiceStop = onSmartEntryVoiceStop,
-                        onSubmit = onSmartEntrySubmit,
-                        onOpenCandidate = onSmartEntryCandidateConfirm,
-                        onDismissCandidate = onSmartEntryCandidateDismiss
-                    )
-                }
+            }
+            composable(BabyLogRoutes.Timeline) {
+                TimelineScreen(
+                    inner = inner,
+                    state = state,
+                    selectedFilter = timelineFilter,
+                    highlightedEventId = highlightedEventId,
+                    onFilterSelected = onTimelineFilterSelected,
+                    onDeleteEvent = onDeleteEvent
+                )
+            }
+            composable(BabyLogRoutes.Library) {
+                LibraryRootScreen(
+                    inner = inner,
+                    state = state,
+                    onShowAttachments = onShowAttachments
+                )
+            }
+            composable(BabyLogRoutes.Settings) {
+                SettingsRootScreen(
+                    inner = inner,
+                    state = state,
+                    smartConfigSummary = smartConfigSummary,
+                    speechConfigSummary = speechConfigSummary,
+                    onSyncNow = onSyncNow,
+                    onExportBackup = onExportBackup,
+                    onImportBackup = onImportBackup,
+                    onOpenSyncSettings = onOpenSyncSettings,
+                    onOpenSmartSettings = onOpenSmartSettings,
+                    onOpenSpeechSettings = onOpenSpeechSettings,
+                    onClearLocalData = onClearLocalData,
+                    onOpenTrash = onOpenTrash,
+                    onEditProfile = onEditProfile
+                )
+            }
+            composable(BabyLogRoutes.SettingsProfile) {
+                ProfileSettingsScreen(
+                    state = profilePageState,
+                    onBack = ::closeSettingsPage,
+                    onSave = { input, firstRun ->
+                        closeSettingsPage()
+                        onSaveProfile(input, firstRun)
+                    }
+                )
+            }
+            composable(BabyLogRoutes.SettingsSync) {
+                SyncSettingsScreen(
+                    config = state.syncConfig,
+                    onBack = ::closeSettingsPage,
+                    onSave = { backendBaseUrl ->
+                        closeSettingsPage()
+                        onSaveSyncSettings(backendBaseUrl)
+                    }
+                )
+            }
+            composable(BabyLogRoutes.SettingsModel) {
+                SmartModelSettingsScreen(
+                    config = smartSettingsConfig,
+                    onBack = ::closeSettingsPage,
+                    onSave = { config ->
+                        closeSettingsPage()
+                        onSaveSmartSettings(config)
+                    }
+                )
+            }
+            composable(BabyLogRoutes.SettingsSpeech) {
+                SpeechSettingsScreen(
+                    config = speechSettingsConfig,
+                    onBack = ::closeSettingsPage,
+                    onSave = { config ->
+                        closeSettingsPage()
+                        onSaveSpeechSettings(config)
+                    }
+                )
+            }
+            composable(BabyLogRoutes.RecordBabyCare) {
+                BabyCareFormScreen(
+                    action = babyCareAction,
+                    draft = babyCareDraft,
+                    onBack = { closeRecord(onBabyCareCancel) },
+                    onSave = onBabyCareSave
+                )
+            }
+            composable(BabyLogRoutes.RecordPregnancyEvent) {
+                PregnancyEventFormScreen(
+                    action = pregnancyAction,
+                    draft = pregnancyDraft,
+                    onBack = { closeRecord(onPregnancyCancel) },
+                    onSave = onPregnancySave
+                )
+            }
+            composable(BabyLogRoutes.RecordMaternalMetric) {
+                MaternalMetricFormScreen(
+                    draft = maternalMetricDraft,
+                    onBack = { closeRecord(onMaternalMetricCancel) },
+                    onSave = onMaternalMetricSave
+                )
+            }
+            composable(BabyLogRoutes.RecordUltrasound) {
+                UltrasoundFormScreen(
+                    defaultGestationalAge = currentGestationalAgeInput(state.childProfile),
+                    expectedDueDate = state.childProfile.expectedDueDate,
+                    draft = ultrasoundDraft,
+                    photoPath = pendingUltrasoundPhotoPath,
+                    photoName = pendingUltrasoundPhotoName,
+                    ocrRunning = ultrasoundOcrRunning,
+                    ocrCandidate = ultrasoundOcrCandidate,
+                    onPickPhoto = onPickUltrasoundPhoto,
+                    onCapturePhoto = onCaptureUltrasoundPhoto,
+                    onRecognizePhoto = onRecognizeUltrasoundPhoto,
+                    onCandidateDismiss = onDismissUltrasoundCandidate,
+                    onCandidateApplied = onApplyUltrasoundCandidate,
+                    onBack = { closeRecord(onUltrasoundCancel) },
+                    onSave = onUltrasoundSave
+                )
+            }
+            composable(BabyLogRoutes.SmartEntry) {
+                SmartEntryScreen(
+                    running = smartEntryRunning,
+                    voiceState = smartVoiceState,
+                    candidate = smartEntryCandidate,
+                    onBack = ::closeSmartEntry,
+                    onVoiceStart = onSmartEntryVoiceStart,
+                    onVoiceStop = onSmartEntryVoiceStop,
+                    onSubmit = onSmartEntrySubmit,
+                    onOpenCandidate = onSmartEntryCandidateConfirm,
+                    onDismissCandidate = onSmartEntryCandidateDismiss
+                )
             }
         }
     }
@@ -2464,352 +2494,6 @@ private fun VoiceRecordingPopup() {
         }
     }
 }
-
-@Composable
-private fun ProfileDialog(
-    state: ProfileDialogState,
-    onDismiss: () -> Unit,
-    onSave: (ProfileInput) -> Unit
-) {
-    var nickname by rememberSaveable(state.title) { mutableStateOf(state.profile.nickname) }
-    var sex by rememberSaveable(state.title) {
-        mutableStateOf(if (state.profile.sex == "unknown") "unknown" else state.profile.sex)
-    }
-    var expectedDueDate by rememberSaveable(state.title) { mutableStateOf(state.profile.expectedDueDate) }
-    var birthDate by rememberSaveable(state.title) { mutableStateOf(state.profile.birthDate) }
-    var stageOverride by rememberSaveable(state.title) { mutableStateOf(state.initialStage) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(state.title, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            LazyColumn(
-                modifier = Modifier.height(440.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item { ChestnutTextField("乳名 / 昵称，例如 栗子", nickname, { nickname = it }, KeyboardType.Text) }
-                item {
-                    ChoiceChipRow(
-                        label = "性别",
-                        selected = sex,
-                        options = listOf(
-                            "female" to "女宝",
-                            "male" to "男宝",
-                            "unknown" to "暂不确定"
-                        ),
-                        onSelect = { sex = it }
-                    )
-                }
-                item { DateInputRow("预产期", expectedDueDate, { expectedDueDate = it }) }
-                item { DateInputRow("出生日期", birthDate, { birthDate = it }) }
-                item {
-                    ChoiceChipRow(
-                        label = "阶段",
-                        selected = stageOverride,
-                        options = listOf(
-                            BabyLogDomain.STAGE_AUTO to "自动",
-                            BabyLogDomain.STAGE_PREGNANCY to "孕期",
-                            BabyLogDomain.STAGE_BABY to "出生后",
-                            BabyLogDomain.STAGE_UNKNOWN to "未知"
-                        ),
-                        onSelect = { stageOverride = it }
-                    )
-                }
-                item {
-                    Text(
-                        "日期可后补",
-                        color = Color(0xFF7C4A21),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFFEBCB))
-                            .padding(12.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(
-                        ProfileInput(
-                            nickname.trim(),
-                            sex.trim(),
-                            expectedDueDate.trim(),
-                            birthDate.trim(),
-                            stageOverride.trim()
-                        )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
-            ) { Text("保存", color = Color.White) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
-private fun SyncSettingsDialog(
-    config: BabyLogDomain.BackendConfig,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
-    var backendBaseUrl by remember(config.backendBaseUrl) { mutableStateOf(config.backendBaseUrl) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("同步设置", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChestnutTextField(
-                    label = "后端地址，例如 https://api.example.com",
-                    value = backendBaseUrl,
-                    onValueChange = { backendBaseUrl = it },
-                    keyboardType = KeyboardType.Uri
-                )
-                Text("留空会关闭后端同步，本机记录不受影响。", color = ChestnutPalette.Muted, fontSize = 13.sp)
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(backendBaseUrl) },
-                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
-            ) { Text("保存", color = Color.White) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
-private fun SmartModelSettingsDialog(
-    config: BabyLogSmartConfigStore.Config,
-    onDismiss: () -> Unit,
-    onSave: (BabyLogSmartConfigStore.Config) -> Unit
-) {
-    var enabled by rememberSaveable(config.isEnabled()) { mutableStateOf(config.isEnabled()) }
-    var baseUrl by rememberSaveable(config.getBaseUrl()) { mutableStateOf(config.getBaseUrl()) }
-    var model by rememberSaveable(config.getModel()) { mutableStateOf(config.getModel()) }
-    var apiKey by rememberSaveable(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("OCR / 智能解析模型", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            LazyColumn(
-                modifier = Modifier.height(390.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = enabled, onCheckedChange = { enabled = it })
-                        Text("启用 OCR / 智能解析", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                    }
-                }
-                item {
-                    Text("服务商预设", color = ChestnutPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        smartModelPresets().forEach { preset ->
-                            OutlinedButton(
-                                onClick = {
-                                    enabled = true
-                                    baseUrl = preset.baseUrl
-                                    model = preset.model
-                                },
-                                border = BorderStroke(1.dp, ChestnutPalette.Border)
-                            ) {
-                                Text(preset.label, color = ChestnutPalette.Ink, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                    Text(
-                        "预设只填 Base URL 和模型名，API Key 仍需你手动填写。",
-                        color = ChestnutPalette.Muted,
-                        fontSize = 12.sp
-                    )
-                }
-                item {
-                    ChestnutTextField(
-                        label = "Base URL",
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        keyboardType = KeyboardType.Uri
-                    )
-                }
-                item {
-                    ChestnutTextField(
-                        label = "模型",
-                        value = model,
-                        onValueChange = { model = it },
-                        keyboardType = KeyboardType.Text
-                    )
-                }
-                item {
-                    ChestnutTextField(
-                        label = "API Key",
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        keyboardType = KeyboardType.Password,
-                        visualTransformation = PasswordVisualTransformation()
-                    )
-                }
-                item {
-                    Text(
-                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片和文字只会在你主动点击 B 超识别或智能录入时发送给该模型服务商。",
-                        color = Color(0xFF7C4A21),
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFFEBCB))
-                            .padding(12.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(
-                        BabyLogSmartConfigStore.Config(
-                            baseUrl.trim(),
-                            model.trim(),
-                            apiKey.trim(),
-                            enabled
-                        )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
-            ) { Text("保存", color = Color.White) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
-private fun SpeechSettingsDialog(
-    config: BabyLogSmartConfigStore.SpeechConfig,
-    onDismiss: () -> Unit,
-    onSave: (BabyLogSmartConfigStore.SpeechConfig) -> Unit
-) {
-    var enabled by rememberSaveable(config.isEnabled()) { mutableStateOf(config.isEnabled()) }
-    var model by rememberSaveable(config.getModel()) {
-        mutableStateOf(config.getModel().ifBlank { BabyLogSpeechToTextProtocol.DEFAULT_MODEL })
-    }
-    var apiKey by rememberSaveable(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("语音转文字 STT", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            LazyColumn(
-                modifier = Modifier.height(330.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = enabled, onCheckedChange = { enabled = it })
-                        Text("启用语音转文字", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                    }
-                }
-                item {
-                    OutlinedButton(
-                        onClick = {
-                            enabled = true
-                            model = BabyLogSpeechToTextProtocol.DEFAULT_MODEL
-                        },
-                        border = BorderStroke(1.dp, ChestnutPalette.Border)
-                    ) {
-                        Text("DashScope Paraformer", color = ChestnutPalette.Ink, fontSize = 12.sp)
-                    }
-                    Text(
-                        "首版使用 DashScope Paraformer WebSocket；API Key 与 OCR/智能解析可相同，也可以单独填写。",
-                        color = ChestnutPalette.Muted,
-                        fontSize = 12.sp
-                    )
-                }
-                item {
-                    ChestnutTextField(
-                        label = "模型",
-                        value = model,
-                        onValueChange = { model = it },
-                        keyboardType = KeyboardType.Text
-                    )
-                }
-                item {
-                    ChestnutTextField(
-                        label = "API Key",
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        keyboardType = KeyboardType.Password,
-                        visualTransformation = PasswordVisualTransformation()
-                    )
-                }
-                item {
-                    Text(
-                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。只有你主动按住说话时，本次语音才会发送给语音识别服务商。",
-                        color = Color(0xFF7C4A21),
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFFEBCB))
-                            .padding(12.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(
-                        BabyLogSmartConfigStore.SpeechConfig(
-                            apiKey.trim(),
-                            model.trim(),
-                            enabled
-                        )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
-            ) { Text("保存", color = Color.White) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-private data class SmartModelPreset(
-    val label: String,
-    val baseUrl: String,
-    val model: String
-)
-
-private fun smartModelPresets() = listOf(
-    SmartModelPreset(
-        "Qwen Plus",
-        "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "qwen3-vl-plus"
-    ),
-    SmartModelPreset(
-        "Qwen Flash",
-        "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "qwen3-vl-flash"
-    ),
-    SmartModelPreset(
-        "OpenAI",
-        "https://api.openai.com/v1",
-        "gpt-4o-mini"
-    )
-)
 
 @Composable
 private fun ConfirmDialog(
