@@ -216,3 +216,11 @@
 **取代关系**：本节 C+B 取代「P5 收尾修正 II」中"麦克风并入 rail"的做法；II 的 A（MetricCard）并入本节 A 不变。以本节为准。
 
 **验收**：line 78 已 heightIn 且大字号不裁；BottomNav 正中有语音按钮、点按进智能录入、长按录音全链正常、底栏常驻；rail 无麦克风、明显变矮、下滑隐上滑现过渡平滑；一拍即记正常；assembleDebug+lint+smoke 绿；装机回归。一笔 `ui:` 提交不混不并 main。
+
+### P5 收尾修正 III — 通过（commit `41a830d`，终态达成）
+
+**结论**：通过。首页底部 UI 收敛终态达成；放行 Q 队列（Q1 起）。
+
+**核实（git+grep+一次真机截图 `diagnostics/p5-final-home.png`）**：A `BabyLogComponents.kt:79 .heightIn(min=76.dp)`，截图摘要宫格文字不再被裁。B QuickRail 去麦克风（-140 行）、纯快捷 5 项可见且变矮；HomeScreen `rememberLazyListState`+`nestedScroll`+atTop/isScrollInProgress 驱动 rail 滚动显隐。C BottomNav = 4 NavItem + 正中语音（点按 `onSmartEntryClick`、长按 `onVoiceHoldStart/End`），截图见正中大圆麦克风钮，底栏常驻、无 VoiceEntryRail、零重复。仅 4 UI 文件、逻辑/数据/STT 接线零动、单 commit、树干净；assemble+lint+smoke 绿（CI 兜底）+ Codex 装机回归。
+
+**收口**：NavCompose 架构线 + P5 全部收尾（I~III + perf-A/B）通过。后续严格按 `docs/P5后工作队列-给Codex.md`：Q1 首启免责门 → Q2 记录可编辑 → Q2b 产检结构化 → Q4 → Q6（Q3 已完成，Q5 待设备）。
