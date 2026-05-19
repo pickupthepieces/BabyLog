@@ -13,9 +13,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +42,6 @@ import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
 import androidx.compose.material.Divider
-import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
@@ -56,9 +52,7 @@ import androidx.compose.material.TextButton
 import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Article
-import androidx.compose.material.icons.rounded.Assessment
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Description
@@ -80,19 +74,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -108,7 +98,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import org.json.JSONObject
 import app.babylog.nativeapp.ui.screens.BabyLogRoutes
@@ -138,7 +127,6 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var highlightedEventId by mutableStateOf<String?>(null)
     private var timelineFilter by mutableStateOf("all")
     private var selectedBabyDay by mutableStateOf(BabyLogFormatters.todayDateInput())
-    private var showQuickSheet by mutableStateOf(false)
     private var babyCareAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var pregnancyAction by mutableStateOf<BabyLogService.QuickAction?>(null)
     private var showFetalMovementSession by mutableStateOf(false)
@@ -192,10 +180,6 @@ public final class ComposeMainActivity : ComponentActivity() {
                     selectedBabyDay = selectedBabyDay,
                     onTimelineFilterSelected = { timelineFilter = it },
                     onBabyDaySelected = { selectedBabyDay = it },
-                    onQuickClick = { sourceRoute ->
-                        recordReturnRoute = sourceRoute
-                        showQuickSheet = true
-                    },
                     onSmartEntryClick = { sourceRoute ->
                         recordReturnRoute = sourceRoute
                         pendingNavRoute = BabyLogRoutes.SmartEntry
@@ -311,25 +295,6 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onSmartEntryCandidateConfirm = ::openSmartEntryCandidate,
                     onSmartEntryCandidateDismiss = { smartEntryCandidate = null }
                 )
-
-                if (showQuickSheet) {
-                    QuickActionDialog(
-                        actions = quickActions(),
-                        onDismiss = { showQuickSheet = false },
-                        onSmartEntry = {
-                            showQuickSheet = false
-                            window.decorView.postDelayed({
-                                if (!isFinishing && !isDestroyed) {
-                                    pendingNavRoute = BabyLogRoutes.SmartEntry
-                                }
-                            }, 120L)
-                        },
-                        onAction = { action ->
-                            showQuickSheet = false
-                            handleQuickActionAfterQuickSheetDismiss(action)
-                        }
-                    )
-                }
 
                 if (smartVoiceState.isRecording) {
                     VoiceRecordingPopup()
@@ -611,14 +576,6 @@ public final class ComposeMainActivity : ComponentActivity() {
         } else {
             recordQuickAction(action)
         }
-    }
-
-    private fun handleQuickActionAfterQuickSheetDismiss(action: BabyLogService.QuickAction) {
-        window.decorView.postDelayed({
-            if (!isFinishing && !isDestroyed) {
-                handleQuickAction(action)
-            }
-        }, 120L)
     }
 
     private fun recordBabyCare(input: BabyLogService.BabyCareInput) {
@@ -1369,7 +1326,6 @@ private fun BabyLogApp(
     selectedBabyDay: String,
     onTimelineFilterSelected: (String) -> Unit,
     onBabyDaySelected: (String) -> Unit,
-    onQuickClick: (String) -> Unit,
     onSmartEntryClick: (String) -> Unit,
     onSmartVoiceHoldStart: (String) -> Unit,
     onSmartVoiceHoldEnd: (String) -> Unit,
@@ -1513,33 +1469,25 @@ private fun BabyLogApp(
                 TopBrandBand(activeTab = activeTab, state = state)
             }
         },
-        floatingActionButton = {
-            if (showTopLevelChrome && quickActions.isNotEmpty()) {
-                FloatingActionButton(
-                    onClick = { onQuickClick(activeTab) },
-                    backgroundColor = ChestnutPalette.Surface,
-                    contentColor = ChestnutPalette.Primary
-                ) {
-                    BabyLogMaterialIcon(
-                        icon = LineIcon.Plus,
-                        tint = ChestnutPalette.Primary,
-                        modifier = Modifier.size(34.dp)
-                    )
-                }
-            }
-        },
         bottomBar = {
             if (showTopLevelChrome) {
                 Column {
-                    if (activeTab == BabyLogRoutes.Home && currentCareStage(state.childProfile) == BabyLogDomain.STAGE_BABY) {
-                        BabyQuickRail(actions = quickActions, onAction = { action -> onQuickAction(action, BabyLogRoutes.Home) })
+                    if (activeTab == BabyLogRoutes.Home && quickActions.isNotEmpty()) {
+                        PersistentQuickRail(
+                            actions = quickActions,
+                            onAction = { action -> onQuickAction(action, BabyLogRoutes.Home) }
+                        )
                     }
+                    VoiceEntryRail(
+                        voiceState = smartVoiceState,
+                        onTextEntry = { onSmartEntryClick(activeTab) },
+                        onVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
+                        onVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) }
+                    )
                     BottomNav(
                         activeTab = activeTab,
                         onTabSelected = selectTopLevelTab,
-                        onSmartEntryClick = { onSmartEntryClick(activeTab) },
-                        onSmartVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
-                        onSmartVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) }
+                        onSmartEntryClick = { onSmartEntryClick(activeTab) }
                     )
                 }
             }
@@ -1732,11 +1680,7 @@ internal fun BabyLogScreenColumn(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(ChestnutPalette.Bg, Color(0xFFFFFBF4), ChestnutPalette.Bg)
-                )
-            ),
+            .background(ChestnutPalette.Bg),
         contentPadding = PaddingValues(
             start = 18.dp,
             top = inner.calculateTopPadding() + 16.dp,
@@ -2373,124 +2317,6 @@ internal fun SettingsScreen(
 }
 
 @Composable
-private fun BabyQuickRail(
-    actions: List<BabyLogService.QuickAction>,
-    onAction: (BabyLogService.QuickAction) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ChestnutPalette.Surface)
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        actions.forEach { action ->
-            Column(
-                modifier = Modifier
-                    .width(84.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(action.toneColor).copy(alpha = 0.16f))
-                    .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(18.dp))
-                    .clickable { onAction(action) }
-                    .padding(vertical = 11.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                BabyLogIconTile(
-                    icon = quickActionIcon(action.eventType),
-                    tint = Color(action.toneColor),
-                    tileColor = Color(action.toneColor).copy(alpha = 0.18f),
-                    modifier = Modifier.size(44.dp),
-                    iconSize = 28.dp
-                )
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    action.label,
-                    color = ChestnutPalette.Ink,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickActionDialog(
-    actions: List<BabyLogService.QuickAction>,
-    onDismiss: () -> Unit,
-    onSmartEntry: () -> Unit,
-    onAction: (BabyLogService.QuickAction) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("快捷记录", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ChestnutPalette.Primary.copy(alpha = 0.10f))
-                        .border(1.dp, ChestnutPalette.Primary.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                        .clickable { onSmartEntry() }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BabyLogIconTile(
-                        icon = LineIcon.Smart,
-                        tint = ChestnutPalette.Primary,
-                        tileColor = ChestnutPalette.Primary.copy(alpha = 0.16f),
-                        modifier = Modifier.size(48.dp),
-                        iconSize = 28.dp
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("智能录入", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                        Text("一句话判断类型，打开表单后再确认保存", color = ChestnutPalette.Muted, fontSize = 13.sp)
-                    }
-                    Text("识别", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
-                }
-                actions.forEach { action ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(ChestnutPalette.Surface)
-                            .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(14.dp))
-                            .clickable { onAction(action) }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        BabyLogIconTile(
-                            icon = quickActionIcon(action.eventType),
-                            tint = Color(action.toneColor),
-                            tileColor = Color(action.toneColor).copy(alpha = 0.16f),
-                            modifier = Modifier.size(48.dp),
-                            iconSize = 29.dp
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(action.label, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                            if (action.hint.isNotBlank()) {
-                                Text(action.hint, color = ChestnutPalette.Muted, fontSize = 13.sp)
-                            }
-                        }
-                        Text("记录", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
 private fun VoiceRecordingPopup() {
     Popup(
         alignment = Alignment.Center,
@@ -2629,7 +2455,7 @@ internal fun ActionRow(
 }
 
 @Composable
-private fun BabyLogIconTile(
+internal fun BabyLogIconTile(
     icon: LineIcon,
     tint: Color,
     tileColor: Color,
@@ -2651,7 +2477,7 @@ private fun BabyLogIconTile(
 }
 
 @Composable
-private fun BabyLogMaterialIcon(
+internal fun BabyLogMaterialIcon(
     icon: LineIcon,
     tint: Color,
     modifier: Modifier = Modifier.size(24.dp)
@@ -2664,7 +2490,7 @@ private fun BabyLogMaterialIcon(
     )
 }
 
-private fun quickActionIcon(eventType: String): LineIcon {
+internal fun quickActionIcon(eventType: String): LineIcon {
     return when (eventType) {
         "ultrasound" -> LineIcon.Ultrasound
         "pregnancy_checkup" -> LineIcon.Checkup
@@ -2684,11 +2510,8 @@ private fun quickActionIcon(eventType: String): LineIcon {
 private fun BottomNav(
     activeTab: String,
     onTabSelected: (String) -> Unit,
-    onSmartEntryClick: () -> Unit,
-    onSmartVoiceHoldStart: () -> Unit,
-    onSmartVoiceHoldEnd: () -> Unit
+    onSmartEntryClick: () -> Unit
 ) {
-    val viewConfiguration = LocalViewConfiguration.current
     val items = listOf(
         NavItem(BabyLogRoutes.Home, "首页", LineIcon.Home),
         NavItem(BabyLogRoutes.Timeline, "时间线", LineIcon.Timeline),
@@ -2716,16 +2539,6 @@ private fun BottomNav(
                     } else {
                         onTabSelected(item.key)
                     }
-                },
-                modifier = if (item.isAction) {
-                    Modifier.voiceNavGesture(
-                        longPressMillis = viewConfiguration.longPressTimeoutMillis,
-                        onClick = onSmartEntryClick,
-                        onHoldStart = onSmartVoiceHoldStart,
-                        onHoldEnd = onSmartVoiceHoldEnd
-                    )
-                } else {
-                    Modifier
                 },
                 icon = {
                     if (item.isAction) {
@@ -2775,36 +2588,6 @@ private fun VoiceNavActionTile() {
     }
 }
 
-private fun Modifier.voiceNavGesture(
-    longPressMillis: Long,
-    onClick: () -> Unit,
-    onHoldStart: () -> Unit,
-    onHoldEnd: () -> Unit
-): Modifier = composed {
-    val currentOnClick by rememberUpdatedState(onClick)
-    val currentOnHoldStart by rememberUpdatedState(onHoldStart)
-    val currentOnHoldEnd by rememberUpdatedState(onHoldEnd)
-    pointerInput(longPressMillis) {
-        awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
-            val releasedBeforeLongPress = withTimeoutOrNull(longPressMillis) {
-                waitForUpOrCancellation()
-            }
-            if (releasedBeforeLongPress != null) {
-                currentOnClick()
-                return@awaitEachGesture
-            }
-
-            currentOnHoldStart()
-            try {
-                waitForUpOrCancellation()
-            } finally {
-                currentOnHoldEnd()
-            }
-        }
-    }
-}
-
 private data class NavItem(val key: String, val label: String, val icon: LineIcon, val isAction: Boolean = false)
 
 internal enum class LineIcon(val imageVector: ImageVector) {
@@ -2812,9 +2595,7 @@ internal enum class LineIcon(val imageVector: ImageVector) {
     Timeline(Icons.Rounded.FormatListBulleted),
     Library(Icons.Rounded.Article),
     Settings(Icons.Rounded.Settings),
-    Plus(Icons.Rounded.Add),
     Voice(Icons.Rounded.Mic),
-    Smart(Icons.Rounded.Assessment),
     Ultrasound(Icons.Rounded.MonitorHeart),
     Checkup(Icons.Rounded.Checklist),
     Movement(Icons.Rounded.Favorite),
