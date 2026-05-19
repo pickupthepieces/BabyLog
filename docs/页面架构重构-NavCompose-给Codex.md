@@ -224,3 +224,20 @@
 **核实（git+grep+一次真机截图 `diagnostics/p5-final-home.png`）**：A `BabyLogComponents.kt:79 .heightIn(min=76.dp)`，截图摘要宫格文字不再被裁。B QuickRail 去麦克风（-140 行）、纯快捷 5 项可见且变矮；HomeScreen `rememberLazyListState`+`nestedScroll`+atTop/isScrollInProgress 驱动 rail 滚动显隐。C BottomNav = 4 NavItem + 正中语音（点按 `onSmartEntryClick`、长按 `onVoiceHoldStart/End`），截图见正中大圆麦克风钮，底栏常驻、无 VoiceEntryRail、零重复。仅 4 UI 文件、逻辑/数据/STT 接线零动、单 commit、树干净；assemble+lint+smoke 绿（CI 兜底）+ Codex 装机回归。
 
 **收口**：NavCompose 架构线 + P5 全部收尾（I~III + perf-A/B）通过。后续严格按 `docs/P5后工作队列-给Codex.md`：Q1 首启免责门 → Q2 记录可编辑 → Q2b 产检结构化 → Q4 → Q6（Q3 已完成，Q5 待设备）。
+
+### P5 收尾修正 IV：quick rail 缩小贴 Piyo（用户反馈偏大，先于 Q1）
+
+对照 Piyo（`diagnostics/app-compare/piyolog-main-screen.png`）：其快捷为轻量小圆图标、无边框盒、更小更密。当前 `PersistentQuickRail`（QuickRail.kt）每格是 76dp 宽 + 1px 边框 + 圆角卡盒，偏大偏重。一笔独立 `ui:` 提交，**先于 Q1**：
+
+| 参数 | 现 | 改为 |
+|---|---|---|
+| 每格 `.width(76.dp)` | 76 | ~58–60dp（或去固定宽，内容自适应/均分） |
+| 图标 tile `.size(34.dp)` | 34 | ~26–28dp |
+| `iconSize = 22.dp` | 22 | ~18dp |
+| 每格 `.border(1.dp, …)` | 有边框 | **去掉边框**（仅保留轻色 tint 背景；盒子重感主因） |
+| 格内 `.padding(vertical = 7.dp)` | 7 | 5dp |
+| row `padding(… vertical = 6.dp)` | 6 | 4dp |
+| `Arrangement.spacedBy(8.dp)` | 8 | 6dp |
+| 标签 `fontSize = 11.sp` | 11 | 10sp |
+
+要求：仅 `QuickRail.kt` 视觉微调；5 项仍全可见（变窄后更易容纳）、整体明显变矮变轻、接近 Piyo 紧凑感；保证可点（tile≈28 + 标签 + padding 总高仍达可点）；不改动作集/逻辑/滚动显隐/底栏/已锁配色 token。一笔 `ui:` 提交不混不并 main；assemble+lint+smoke 绿；装机对比 Piyo 观感。Claude review 用一次真机截图与 Piyo 比对验收。
