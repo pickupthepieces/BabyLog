@@ -76,3 +76,16 @@
 ## 六、给 Codex 的话（直接照做）
 
 > 读 `docs/页面架构重构-NavCompose-给Codex.md` 全文（含第五节 Piyo 实证与体验准则）。架构已定 Navigation-Compose 多页面,Piyo 实证为单 Activity 多页面、本方向正确。**严格按 P0→P5 分阶段,每阶段一笔独立 commit（message 标「架构:NavCompose 第N阶段」）,不与任何功能/视觉轮混提交,不并 main。** P0 先做纯脚手架（引 Nav + NavHost + 现有 4 tab 原样搬入,零行为变化）交 Claude review,通过再做 P1。P1 起遵循第五节:页面化≠原样平移,逐字段保留但用页面尺度分区呼吸、常用字段首屏、保存后回来源页并高亮新记录、核心动作≤2 点击/≤2 屏、人工确认绝不自动入库。别动数据/逻辑/已锁视觉/阶段投影/FGR/OCR/STT 接线。每阶段本地 assembleDebug+lintDebug+smoke 全绿;P1/P2 装机回归。把迁移部分从 4331 行 god 文件拆到 `ui/screens/*.kt`、`ui/dialogs/*.kt`。
+
+## 七、阶段评审记录（Claude）
+
+### P0 脚手架 — 通过（commit `a33352b`）
+
+**结论**：通过,放行 P1。
+
+**核实**：nav-compose 2.8.5 引入;NavHost+rememberNavController+4 顶层 composable 目的地;底栏切换用标准 `popUpTo(Home){saveState=true}`+`launchSingleTop=true`;4 tab 原样搬入,IA 未变;onCreate 各路径 reset Home;单 commit、零数据/逻辑/视觉改动、未混功能。
+
+**P1 必须处理的遗留**：
+1. **双状态收敛**：P0 暂留 `activeTab`(mutableStateOf) 与 navController 双向同步作为过渡桥。P1/P2 必须收敛为**单一事实源(navController 唯一)**,清除 `activeTab`,不得固化。
+2. **瘦身兑现**：P0 文件 4331→4380(脚手架未抽屏,符合预期)。**P1 起必须把 4 tab 体抽到 `ui/screens/*.kt`,MainActivity 须开始显著变薄**——置顶第〇节终态硬线持续作为每阶段验收门。
+3. 编译/smoke 由 CI assembleDebug 兜底验证(本地沙箱限制无法跑)。
