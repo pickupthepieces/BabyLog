@@ -8,7 +8,9 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class BabyLogServiceSmokeTest {
     public static void main(String[] args) throws Exception {
@@ -111,6 +113,32 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("继续常规产检", structuredPayload.optString("treatmentAdvice"));
         assertEquals("产检报告", structuredPayload.optString("reportType"));
         assertEquals("血常规照片", structuredPayload.optString("attachmentNote"));
+        Map<String, String> ogttValues = new LinkedHashMap<>();
+        ogttValues.put("fastingGlucoseMmolL", "4.8");
+        ogttValues.put("oneHourGlucoseMmolL", "8.1");
+        ogttValues.put("twoHourGlucoseMmolL", "7.0");
+        ogttValues.put("abnormalFlag", "见报告");
+        BabyLogService.PregnancyInput ogtt = BabyLogService.PregnancyInput.screening(
+                "screening_ogtt",
+                "2026-05-18",
+                "24+1",
+                ogttValues,
+                "报告原文记录",
+                "/tmp/ogtt.jpg",
+                "ogtt.jpg"
+        );
+        JSONObject ogttPayload = BabyLogService.buildPregnancyPayload(ogtt);
+        assertTrue(BabyLogService.hasPregnancyMinimumContent(ogtt));
+        assertEquals(169, ogttPayload.optInt("gestationalAgeDays"));
+        assertEquals(4.8, ogttPayload.optDouble("fastingGlucoseMmolL"));
+        assertEquals("见报告", ogttPayload.optString("abnormalFlag"));
+        assertEquals(
+                "糖耐 OGTT · 24+1 周 · 空腹 4.8 mmol/L · 1h 8.1 mmol/L · 2h 7 mmol/L · 见报告 · 报告原文记录",
+                BabyLogService.formatPregnancySummary(ogtt)
+        );
+        assertFalse(BabyLogService.hasPregnancyMinimumContent(
+                BabyLogService.PregnancyInput.screening("screening_nst", "2026-05-18", "33+0", new LinkedHashMap<>(), "", "", "")
+        ));
         assertEquals(
                 "胎动 · 20:00-21:00 · 10 次",
                 BabyLogService.formatPregnancySummary(

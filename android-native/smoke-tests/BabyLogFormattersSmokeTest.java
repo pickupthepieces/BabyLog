@@ -44,6 +44,13 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals("baby", BabyLogFormatters.timelineFilterGroup("feed"));
         String[][] eventGroups = {
                 {"pregnancy_checkup", "checkup"},
+                {"screening_nt", "checkup"},
+                {"screening_serum", "checkup"},
+                {"screening_nipt", "checkup"},
+                {"screening_anomaly", "checkup"},
+                {"screening_ogtt", "checkup"},
+                {"screening_gbs", "checkup"},
+                {"screening_nst", "checkup"},
                 {"ultrasound", "ultrasound"},
                 {"fetal_movement", "pregnancy"},
                 {"contraction", "pregnancy"},
@@ -112,6 +119,10 @@ public final class BabyLogFormattersSmokeTest {
         }
         if (!BabyLogFormatters.matchesTimelineFilter("pregnancy_checkup", "pregnancy")) {
             throw new AssertionError("pregnancy_checkup should match pregnancy filter");
+        }
+        if (!BabyLogFormatters.matchesTimelineFilter("screening_ogtt", "pregnancy")
+                || !BabyLogFormatters.matchesTimelineFilter("screening_ogtt", "checkup")) {
+            throw new AssertionError("screening_ogtt should match pregnancy and checkup filters");
         }
         if (!BabyLogFormatters.matchesTimelineFilter("temperature", "baby")) {
             throw new AssertionError("temperature should match baby filter");

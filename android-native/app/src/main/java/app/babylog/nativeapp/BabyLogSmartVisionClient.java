@@ -160,10 +160,13 @@ public final class BabyLogSmartVisionClient {
 
     public static String pregnancyDocumentRecognitionPrompt() {
         return "请先判断图片类型，然后识别字段。只返回 JSON object："
-                + "{\"eventType\":\"ultrasound 或 pregnancy_checkup 或 空字符串\",\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"可见报告文字摘要\"}。"
+                + "{\"eventType\":\"ultrasound、pregnancy_checkup、screening_nt、screening_serum、screening_nipt、screening_anomaly、screening_ogtt、screening_gbs、screening_nst 或空字符串\",\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"可见报告文字摘要\"}。"
                 + "eventType=ultrasound 时，values 只能包含这些 B 超字段：examDate, hospital, reportTime, diagnosisText, bpdMm, hcMm, acMm, flMm, efwGram, afiCm, deepestPocketCm, placentaLocation, placentaGrade, fetalPresentation, fetalHeartRateBpm, fetalCount, fetalMovement, umbilicalInsertion, cervicalLengthMm, crlMm, ntMm, umbilicalSd, umbilicalPi, umbilicalRi。"
                 + "eventType=pregnancy_checkup 时，values 只能包含这些产检字段："
                 + checkupRecognitionFields().keySet()
+                + "。"
+                + "eventType=screening_* 时，values 只能包含这些专项字段："
+                + screeningRecognitionFields().keySet()
                 + "。"
                 + "如果同时有 B 超和产检字段，优先选择图片主体对应的报告类型；无法判断时 eventType 置空。"
                 + "不要识别姓名、身份证、门诊号、住院号、床号、手机号、医生签名等个人身份信息。"
@@ -195,6 +198,32 @@ public final class BabyLogSmartVisionClient {
         fields.put("treatmentAdvice", "处理及建议");
         fields.put("nextVisitDate", "下次产检日期 yyyy-MM-dd");
         fields.put("reportType", "报告类型");
+        fields.put("attachmentNote", "附件备注");
+        fields.put("note", "备注");
+        return Collections.unmodifiableMap(fields);
+    }
+
+    public static Map<String, String> screeningRecognitionFields() {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("primary", "检查日期 yyyy-MM-dd");
+        fields.put("gestationalAge", "孕周，例如 20+3");
+        fields.put("ntMm", "NT 值 mm");
+        fields.put("riskT21", "21 三体风险值，照报告原文");
+        fields.put("riskT18", "18 三体风险值，照报告原文");
+        fields.put("riskOntd", "开放性神经管风险，照报告原文");
+        fields.put("riskLevel", "分级：低危 / 临界 / 高危 / 见报告");
+        fields.put("t21Result", "T21 结果：低风险 / 高风险 / 见报告");
+        fields.put("t18Result", "T18 结果：低风险 / 高风险 / 见报告");
+        fields.put("t13Result", "T13 结果：低风险 / 高风险 / 见报告");
+        fields.put("sexChromosome", "性染色体结果，可空");
+        fields.put("structureConclusion", "结构结论 / 大排畸描述");
+        fields.put("fastingGlucoseMmolL", "空腹血糖 mmol/L");
+        fields.put("oneHourGlucoseMmolL", "1h 血糖 mmol/L");
+        fields.put("twoHourGlucoseMmolL", "2h 血糖 mmol/L");
+        fields.put("abnormalFlag", "是否异常：报告写正常/异常/见报告");
+        fields.put("gbsResult", "GBS：阴性 / 阳性 / 见报告");
+        fields.put("nstResult", "胎心监护：反应型 / 无反应型 / 见报告");
+        fields.put("conclusion", "结论文本");
         fields.put("attachmentNote", "附件备注");
         fields.put("note", "备注");
         return Collections.unmodifiableMap(fields);
@@ -235,14 +264,16 @@ public final class BabyLogSmartVisionClient {
                     rawText
             );
         }
-        if ("pregnancy_checkup".equals(eventType)) {
-            Map<String, String> checkupValues = filterCheckupValues(values);
+        if ("pregnancy_checkup".equals(eventType) || BabyLogFormatters.isScreeningEventType(eventType)) {
+            Map<String, String> checkupValues = "pregnancy_checkup".equals(eventType)
+                    ? filterValues(values, checkupRecognitionFields())
+                    : filterValues(values, screeningRecognitionFields());
             List<String> nextWarnings = new ArrayList<>(warnings);
             if (checkupValues.isEmpty()) {
-                nextWarnings.add("未识别到可直接填写的产检字段，请保留原图手动核对");
+                nextWarnings.add("未识别到可直接填写的字段，请保留原图手动核对");
             }
             return new PregnancyDocumentOcrCandidate(
-                    "pregnancy_checkup",
+                    eventType,
                     null,
                     new BabyLogSmartTextClient.SmartFillCandidate(checkupValues, nextWarnings, rawText == null ? "" : rawText),
                     nextWarnings,
@@ -256,8 +287,12 @@ public final class BabyLogSmartVisionClient {
     }
 
     private static Map<String, String> filterCheckupValues(Map<String, Object> values) {
+        return filterValues(values, checkupRecognitionFields());
+    }
+
+    private static Map<String, String> filterValues(Map<String, Object> values, Map<String, String> allowedFields) {
         Map<String, String> result = new LinkedHashMap<>();
-        for (String key : checkupRecognitionFields().keySet()) {
+        for (String key : allowedFields.keySet()) {
             String value = optionalString(values, key);
             if (value != null) {
                 result.put(key, value);

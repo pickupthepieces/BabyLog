@@ -24,8 +24,10 @@ public final class BabyLogSmartVisionClientSmokeTest {
         assertTrue(documentPrompt.contains("eventType"));
         assertTrue(documentPrompt.contains("ultrasound"));
         assertTrue(documentPrompt.contains("pregnancy_checkup"));
+        assertTrue(documentPrompt.contains("screening_ogtt"));
         assertTrue(documentPrompt.contains("bpdMm"));
         assertTrue(documentPrompt.contains("hemoglobinGL"));
+        assertTrue(documentPrompt.contains("fastingGlucoseMmolL"));
         assertTrue(documentPrompt.contains("不要识别姓名"));
 
         String ultrasoundResponse = "{"
@@ -52,6 +54,19 @@ public final class BabyLogSmartVisionClientSmokeTest {
         assertEquals("112", checkup.checkup.values.get("hemoglobinGL"));
         assertEquals(null, checkup.checkup.values.get("extra"));
         assertEquals(null, checkup.ultrasound);
+
+        String ogttResponse = "{"
+                + "\"choices\":[{\"message\":{\"content\":\"{"
+                + "\\\"eventType\\\":\\\"screening_ogtt\\\","
+                + "\\\"values\\\":{\\\"primary\\\":\\\"2026-05-18\\\",\\\"fastingGlucoseMmolL\\\":\\\"4.8\\\",\\\"extra\\\":\\\"drop\\\"},"
+                + "\\\"warnings\\\":[\\\"照报告核对\\\"],"
+                + "\\\"rawText\\\":\\\"OGTT 空腹 4.8\\\"}\"}}]}";
+        BabyLogSmartVisionClient.PregnancyDocumentOcrCandidate ogtt =
+                BabyLogSmartVisionClient.parsePregnancyDocumentResponse(ogttResponse);
+        assertEquals("screening_ogtt", ogtt.eventType);
+        assertEquals("4.8", ogtt.checkup.values.get("fastingGlucoseMmolL"));
+        assertEquals(null, ogtt.checkup.values.get("extra"));
+        assertEquals(null, ogtt.ultrasound);
 
         RecordingPreparer preparer = new RecordingPreparer();
         BabyLogSmartVisionClient client = new BabyLogSmartVisionClient(preparer);

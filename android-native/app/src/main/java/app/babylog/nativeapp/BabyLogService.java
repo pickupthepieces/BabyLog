@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,7 +108,7 @@ public final class BabyLogService {
             throw new IllegalArgumentException("请至少填写一项记录内容");
         }
         JSONObject payload = buildPregnancyPayload(input);
-        String occurredAt = "pregnancy_checkup".equals(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
+        String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : BabyLogFormatters.nowIso();
         List<String> attachmentIds = createPregnancyAttachmentIds(input);
@@ -345,6 +346,26 @@ public final class BabyLogService {
             putStringIfNotBlank(payload, "reportType", input.reportType);
             putStringIfNotBlank(payload, "attachmentNote", input.attachmentNote);
             putStringIfNotBlank(payload, "note", input.note);
+        } else if (isScreeningEventType(input.eventType)) {
+            putStringIfNotBlank(payload, "screeningDate", input.primary);
+            Integer gestationalAgeDays = BabyLogFormatters.parseGestationalAgeDays(input.gestationalAge);
+            if (gestationalAgeDays != null) {
+                payload.put("gestationalAgeDays", gestationalAgeDays);
+            }
+            for (Map.Entry<String, String> entry : input.screeningValues.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                if (isBlank(key) || isBlank(value)) {
+                    continue;
+                }
+                if (isScreeningNumericField(key)) {
+                    putNumberIfNotNull(payload, key, BabyLogFormatters.parseOptionalNumber(value));
+                } else {
+                    putStringIfNotBlank(payload, key, value);
+                }
+            }
+            putStringIfNotBlank(payload, "note", input.note);
+            putStringIfNotBlank(payload, "attachmentNote", input.attachmentNote);
         } else if ("fetal_movement".equals(input.eventType)) {
             putStringIfNotBlank(payload, "movementWindow", input.primary);
             putNumberIfNotNull(payload, "movementCount", BabyLogFormatters.parseOptionalNumber(input.secondary));
@@ -463,6 +484,12 @@ public final class BabyLogService {
             }
             appendSummary(summary, input.tertiary);
             appendSummary(summary, input.treatmentAdvice);
+        } else if (isScreeningEventType(input.eventType)) {
+            Integer gestationalAgeDays = BabyLogFormatters.parseGestationalAgeDays(input.gestationalAge);
+            if (gestationalAgeDays != null) {
+                appendSummary(summary, BabyLogFormatters.formatGestationalAge(gestationalAgeDays));
+            }
+            appendScreeningSummary(summary, input);
         } else if ("fetal_movement".equals(input.eventType)) {
             appendSummary(summary, input.primary);
             Double count = BabyLogFormatters.parseOptionalNumber(input.secondary);
@@ -500,6 +527,58 @@ public final class BabyLogService {
             summary.append(" · 待补充详情");
         }
         return summary.toString();
+    }
+
+    public static boolean isScreeningEventType(String eventType) {
+        return BabyLogFormatters.isScreeningEventType(eventType);
+    }
+
+    public static boolean isPregnancyDocumentEvent(String eventType) {
+        return "pregnancy_checkup".equals(eventType) || isScreeningEventType(eventType);
+    }
+
+    private static boolean isScreeningNumericField(String key) {
+        return "ntMm".equals(key)
+                || "fastingGlucoseMmolL".equals(key)
+                || "oneHourGlucoseMmolL".equals(key)
+                || "twoHourGlucoseMmolL".equals(key);
+    }
+
+    private static void appendScreeningSummary(StringBuilder summary, PregnancyInput input) {
+        if ("screening_nt".equals(input.eventType)) {
+            appendNumberSummary(summary, "NT", input.screeningValues.get("ntMm"), "mm");
+            appendSummary(summary, input.screeningValues.get("conclusion"));
+        } else if ("screening_serum".equals(input.eventType)) {
+            appendSummary(summary, input.screeningValues.get("riskLevel"));
+            appendSummary(summary, withLabel("T21", input.screeningValues.get("riskT21")));
+            appendSummary(summary, withLabel("T18", input.screeningValues.get("riskT18")));
+            appendSummary(summary, withLabel("ONTD", input.screeningValues.get("riskOntd")));
+        } else if ("screening_nipt".equals(input.eventType)) {
+            appendSummary(summary, withLabel("T21", input.screeningValues.get("t21Result")));
+            appendSummary(summary, withLabel("T18", input.screeningValues.get("t18Result")));
+            appendSummary(summary, withLabel("T13", input.screeningValues.get("t13Result")));
+            appendSummary(summary, input.screeningValues.get("conclusion"));
+        } else if ("screening_anomaly".equals(input.eventType)) {
+            appendSummary(summary, input.screeningValues.get("structureConclusion"));
+            appendSummary(summary, input.screeningValues.get("conclusion"));
+        } else if ("screening_ogtt".equals(input.eventType)) {
+            appendNumberSummary(summary, "空腹", input.screeningValues.get("fastingGlucoseMmolL"), "mmol/L");
+            appendNumberSummary(summary, "1h", input.screeningValues.get("oneHourGlucoseMmolL"), "mmol/L");
+            appendNumberSummary(summary, "2h", input.screeningValues.get("twoHourGlucoseMmolL"), "mmol/L");
+            appendSummary(summary, input.screeningValues.get("abnormalFlag"));
+        } else if ("screening_gbs".equals(input.eventType)) {
+            appendSummary(summary, input.screeningValues.get("gbsResult"));
+        } else if ("screening_nst".equals(input.eventType)) {
+            appendSummary(summary, input.screeningValues.get("nstResult"));
+        }
+        appendSummary(summary, input.note);
+    }
+
+    private static void appendNumberSummary(StringBuilder summary, String label, String rawValue, String unit) {
+        Double value = BabyLogFormatters.parseOptionalNumber(rawValue);
+        if (value != null) {
+            appendSummary(summary, label + " " + BabyLogFormatters.formatNumber(value) + " " + unit);
+        }
     }
 
     public static String formatUltrasoundClinicalDetails(UltrasoundInput input) {
@@ -599,6 +678,16 @@ public final class BabyLogService {
                     || !isBlank(input.reportType)
                     || !isBlank(input.attachmentNote)
                     || !isBlank(input.note)
+                    || !isBlank(input.attachmentPath);
+        }
+        if (isScreeningEventType(input.eventType)) {
+            for (String value : input.screeningValues.values()) {
+                if (!isBlank(value)) {
+                    return true;
+                }
+            }
+            return !isBlank(input.note)
+                    || !isBlank(input.attachmentNote)
                     || !isBlank(input.attachmentPath);
         }
         return !isBlank(input.primary)
@@ -726,7 +815,7 @@ public final class BabyLogService {
 
     private List<String> createPregnancyAttachmentIds(PregnancyInput input) throws JSONException {
         List<String> attachmentIds = new ArrayList<>();
-        if (!"pregnancy_checkup".equals(input.eventType) || isBlank(input.attachmentPath)) {
+        if (!isPregnancyDocumentEvent(input.eventType) || isBlank(input.attachmentPath)) {
             return attachmentIds;
         }
         File image = new File(input.attachmentPath);
@@ -1482,6 +1571,7 @@ public final class BabyLogService {
         public final String attachmentNote;
         public final String attachmentPath;
         public final String attachmentName;
+        public final Map<String, String> screeningValues;
 
         private PregnancyInput(String eventType, String primary, String secondary, String tertiary, String note) {
             this(
@@ -1509,7 +1599,8 @@ public final class BabyLogService {
                     "",
                     "",
                     "",
-                    ""
+                    "",
+                    Collections.emptyMap()
             );
         }
 
@@ -1538,7 +1629,8 @@ public final class BabyLogService {
                 String reportType,
                 String attachmentNote,
                 String attachmentPath,
-                String attachmentName
+                String attachmentName,
+                Map<String, String> screeningValues
         ) {
             this.eventType = eventType;
             this.primary = primary == null ? "" : primary.trim();
@@ -1565,6 +1657,7 @@ public final class BabyLogService {
             this.attachmentNote = attachmentNote == null ? "" : attachmentNote.trim();
             this.attachmentPath = attachmentPath == null ? "" : attachmentPath.trim();
             this.attachmentName = attachmentName == null ? "" : attachmentName.trim();
+            this.screeningValues = trimScreeningValues(screeningValues);
         }
 
         public static PregnancyInput checkup(String checkupDate, String provider, String finding, String nextVisitNote) {
@@ -1622,7 +1715,47 @@ public final class BabyLogService {
                     reportType,
                     attachmentNote,
                     attachmentPath,
-                    attachmentName
+                    attachmentName,
+                    Collections.emptyMap()
+            );
+        }
+
+        public static PregnancyInput screening(
+                String eventType,
+                String screeningDate,
+                String gestationalAge,
+                Map<String, String> values,
+                String note,
+                String attachmentPath,
+                String attachmentName
+        ) {
+            return new PregnancyInput(
+                    eventType,
+                    screeningDate,
+                    gestationalAge,
+                    "",
+                    "",
+                    note,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    attachmentPath,
+                    attachmentName,
+                    values
             );
         }
 
@@ -1632,6 +1765,21 @@ public final class BabyLogService {
 
         public static PregnancyInput contraction(String startTime, String intervalMinutes, String durationSeconds, String note) {
             return new PregnancyInput("contraction", startTime, intervalMinutes, durationSeconds, note);
+        }
+
+        private static Map<String, String> trimScreeningValues(Map<String, String> values) {
+            Map<String, String> result = new LinkedHashMap<>();
+            if (values == null) {
+                return result;
+            }
+            for (Map.Entry<String, String> entry : values.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                if (key != null && value != null && !value.trim().isEmpty()) {
+                    result.put(key.trim(), value.trim());
+                }
+            }
+            return result;
         }
     }
 

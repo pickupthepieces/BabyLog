@@ -670,6 +670,15 @@ public final class ComposeMainActivity : ComponentActivity() {
                 checkupOcrRunning = false
                 pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
             }
+            "screening_nt", "screening_serum", "screening_nipt", "screening_anomaly", "screening_ogtt", "screening_gbs", "screening_nst" -> {
+                pregnancyAction = editQuickActionByEventType(event.eventType)
+                pregnancyDraft = draftFromPregnancyEvent(event)
+                pendingCheckupAttachmentPath = null
+                pendingCheckupAttachmentName = null
+                checkupOcrCandidate = null
+                checkupOcrRunning = false
+                pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
+            }
             "maternal_metric" -> {
                 maternalMetricDraft = draftFromMaternalMetricEvent(event)
                 pendingNavRoute = BabyLogRoutes.RecordMaternalMetric
@@ -775,7 +784,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 }
                 showToast(if (editing != null) "已更新记录" else "已保存记录")
                 reloadData()
-            } catch (error: JSONException) {
+            } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存记录")
             }
         }
@@ -1094,8 +1103,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             "ultrasound" -> {
                 openUltrasoundForm(draft)
             }
-            "pregnancy_checkup", "contraction" -> {
-                val action = quickActionByEventType(candidate.eventType)
+            "pregnancy_checkup", "contraction", "screening_nt", "screening_serum", "screening_nipt", "screening_anomaly", "screening_ogtt", "screening_gbs", "screening_nst" -> {
+                val action = editQuickActionByEventType(candidate.eventType)
                 if (action == null) {
                     showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
                     return
@@ -1314,6 +1323,13 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun editQuickActionByEventType(eventType: String): BabyLogService.QuickAction? {
         return quickActionByEventType(eventType) ?: when (eventType) {
             "pregnancy_checkup" -> BabyLogService.QuickAction("产检", "常规指标 / 结论 / 附件", ChestnutPalette.VioletArgb, "pregnancy_checkup")
+            "screening_nt" -> BabyLogService.QuickAction("NT", "NT 值 / 结论 / 附件", ChestnutPalette.VioletArgb, "screening_nt")
+            "screening_serum" -> BabyLogService.QuickAction("唐筛", "风险值 / 分级 / 附件", ChestnutPalette.VioletArgb, "screening_serum")
+            "screening_nipt" -> BabyLogService.QuickAction("无创", "T21/T18/T13 / 结论", ChestnutPalette.VioletArgb, "screening_nipt")
+            "screening_anomaly" -> BabyLogService.QuickAction("大排畸", "结构结论 / 附件", ChestnutPalette.VioletArgb, "screening_anomaly")
+            "screening_ogtt" -> BabyLogService.QuickAction("糖耐", "空腹 / 1h / 2h", ChestnutPalette.VioletArgb, "screening_ogtt")
+            "screening_gbs" -> BabyLogService.QuickAction("GBS", "阴性 / 阳性 / 备注", ChestnutPalette.VioletArgb, "screening_gbs")
+            "screening_nst" -> BabyLogService.QuickAction("胎监", "反应型 / 备注", ChestnutPalette.VioletArgb, "screening_nst")
             "fetal_movement" -> BabyLogService.QuickAction("胎动", "时段 / 次数 / 备注", ChestnutPalette.GreenArgb, "fetal_movement")
             "contraction" -> BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", ChestnutPalette.PeachArgb, "contraction")
             "breastfeed" -> BabyLogService.QuickAction("母乳", "补充时长 / 侧别 / 备注", ChestnutPalette.PeachArgb, "breastfeed")
@@ -1382,6 +1398,66 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "nextVisitDate" to "下次产检日期 yyyy-MM-dd",
                 "reportType" to "报告类型，例如 常规产检 / 血常规 / 尿常规",
                 "attachmentNote" to "附件备注",
+                "note" to "备注"
+            )
+            forms["screening_nt"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周，例如 12+3；只在原文明确写出时填写",
+                "ntMm" to "NT 值 mm",
+                "conclusion" to "结论文本",
+                "attachmentNote" to "附件备注",
+                "note" to "备注"
+            )
+            forms["screening_serum"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周，例如 16+5",
+                "riskT21" to "21 三体风险值，照原文",
+                "riskT18" to "18 三体风险值，照原文",
+                "riskOntd" to "开放性神经管风险，照原文",
+                "riskLevel" to "分级：低危 / 临界 / 高危 / 见报告",
+                "conclusion" to "结论文本",
+                "note" to "备注"
+            )
+            forms["screening_nipt"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周",
+                "t21Result" to "T21：低风险 / 高风险 / 见报告",
+                "t18Result" to "T18：低风险 / 高风险 / 见报告",
+                "t13Result" to "T13：低风险 / 高风险 / 见报告",
+                "sexChromosome" to "性染色体结果，可空",
+                "conclusion" to "结论文本",
+                "note" to "备注"
+            )
+            forms["screening_anomaly"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周",
+                "structureConclusion" to "结构结论 / 异常描述，照报告原文",
+                "conclusion" to "结论文本",
+                "attachmentNote" to "附件备注",
+                "note" to "备注"
+            )
+            forms["screening_ogtt"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周",
+                "fastingGlucoseMmolL" to "空腹血糖 mmol/L",
+                "oneHourGlucoseMmolL" to "1h 血糖 mmol/L",
+                "twoHourGlucoseMmolL" to "2h 血糖 mmol/L",
+                "abnormalFlag" to "报告标注：正常 / 异常 / 见报告",
+                "conclusion" to "结论文本",
+                "note" to "备注"
+            )
+            forms["screening_gbs"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周",
+                "gbsResult" to "GBS：阴性 / 阳性 / 见报告",
+                "conclusion" to "结论文本",
+                "note" to "备注"
+            )
+            forms["screening_nst"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周",
+                "nstResult" to "胎心监护：反应型 / 无反应型 / 见报告",
+                "conclusion" to "结论文本",
                 "note" to "备注"
             )
             forms["contraction"] = smartFormFields(
@@ -1472,6 +1548,13 @@ public final class ComposeMainActivity : ComponentActivity() {
             return listOf(
                 BabyLogService.QuickAction("B超", "指标 / 照片 / 识别", ChestnutPalette.RoseArgb, "ultrasound"),
                 BabyLogService.QuickAction("产检", "常规指标 / 结论 / 附件", ChestnutPalette.VioletArgb, "pregnancy_checkup"),
+                BabyLogService.QuickAction("NT", "NT 值 / 结论", ChestnutPalette.VioletArgb, "screening_nt"),
+                BabyLogService.QuickAction("唐筛", "风险值 / 分级", ChestnutPalette.VioletArgb, "screening_serum"),
+                BabyLogService.QuickAction("无创", "T21/T18/T13", ChestnutPalette.VioletArgb, "screening_nipt"),
+                BabyLogService.QuickAction("大排畸", "结构结论", ChestnutPalette.VioletArgb, "screening_anomaly"),
+                BabyLogService.QuickAction("糖耐", "空腹 / 1h / 2h", ChestnutPalette.VioletArgb, "screening_ogtt"),
+                BabyLogService.QuickAction("GBS", "阴性 / 阳性", ChestnutPalette.VioletArgb, "screening_gbs"),
+                BabyLogService.QuickAction("胎监", "反应型 / 备注", ChestnutPalette.VioletArgb, "screening_nst"),
                 BabyLogService.QuickAction("胎动", "会话计数 / 10 次目标", ChestnutPalette.GreenArgb, "fetal_movement"),
                 BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", ChestnutPalette.PeachArgb, "contraction"),
                 BabyLogService.QuickAction("孕妈指标", "体重 / 血压 / 血糖", ChestnutPalette.BlueArgb, "maternal_metric")
@@ -1501,6 +1584,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun isPregnancyFormAction(eventType: String): Boolean {
         return eventType == "pregnancy_checkup"
             || eventType == "contraction"
+            || BabyLogService.isScreeningEventType(eventType)
     }
 
     private fun runInBackground(block: () -> Unit) {
@@ -2920,6 +3004,7 @@ internal fun quickActionIcon(eventType: String): LineIcon {
     return when (eventType) {
         "ultrasound" -> LineIcon.Ultrasound
         "pregnancy_checkup" -> LineIcon.Checkup
+        "screening_nt", "screening_serum", "screening_nipt", "screening_anomaly", "screening_ogtt", "screening_gbs", "screening_nst" -> LineIcon.Checkup
         "fetal_movement" -> LineIcon.Movement
         "contraction" -> LineIcon.Contraction
         "maternal_metric" -> LineIcon.Metric
@@ -3137,6 +3222,13 @@ internal fun pregnancyLabels(eventType: String): PregnancyLabels {
             "医生结论 / 建议",
             "备注"
         )
+        "screening_nt" -> PregnancyLabels("检查日期 yyyy-MM-dd", "NT 值 mm", "结论文本", "备注", KeyboardType.Text, KeyboardType.Decimal)
+        "screening_serum" -> PregnancyLabels("检查日期 yyyy-MM-dd", "21 三体风险值", "18 三体风险值", "备注")
+        "screening_nipt" -> PregnancyLabels("检查日期 yyyy-MM-dd", "T21 结果", "T18 结果", "结论文本")
+        "screening_anomaly" -> PregnancyLabels("检查日期 yyyy-MM-dd", "结构结论", null, "备注")
+        "screening_ogtt" -> PregnancyLabels("检查日期 yyyy-MM-dd", "空腹血糖", "1h 血糖", "备注", KeyboardType.Text, KeyboardType.Decimal, KeyboardType.Decimal)
+        "screening_gbs" -> PregnancyLabels("检查日期 yyyy-MM-dd", "GBS 结果", null, "备注")
+        "screening_nst" -> PregnancyLabels("检查日期 yyyy-MM-dd", "胎心监护结果", null, "备注")
         "fetal_movement" -> PregnancyLabels(
             "时段，例如 20:00-21:00",
             "次数，例如 10",
@@ -3159,7 +3251,7 @@ internal fun pregnancyLabels(eventType: String): PregnancyLabels {
 }
 
 internal fun defaultPregnancyPrimary(eventType: String): String {
-    return if (eventType == "pregnancy_checkup") BabyLogFormatters.todayDateInput() else ""
+    return if (eventType == "pregnancy_checkup" || BabyLogService.isScreeningEventType(eventType)) BabyLogFormatters.todayDateInput() else ""
 }
 
 internal fun buildBabyCareInput(
@@ -3191,7 +3283,19 @@ internal fun buildPregnancyInput(
         "pregnancy_checkup" -> BabyLogService.PregnancyInput.checkup(primary, secondary, tertiary, note)
         "fetal_movement" -> BabyLogService.PregnancyInput.fetalMovement(primary, secondary, note)
         "contraction" -> BabyLogService.PregnancyInput.contraction(primary, secondary, tertiary, note)
-        else -> BabyLogService.PregnancyInput.fetalMovement(primary, secondary, note)
+        else -> if (BabyLogService.isScreeningEventType(eventType)) {
+            BabyLogService.PregnancyInput.screening(
+                eventType,
+                primary,
+                "",
+                mapOf("conclusion" to tertiary, "detail" to secondary),
+                note,
+                "",
+                ""
+            )
+        } else {
+            BabyLogService.PregnancyInput.fetalMovement(primary, secondary, note)
+        }
     }
 }
 
@@ -3227,6 +3331,7 @@ internal fun isEditablePregnancyRecord(eventType: String): Boolean {
         eventType == "maternal_metric" ||
         eventType == "fetal_movement" ||
         eventType == "contraction" ||
+        BabyLogService.isScreeningEventType(eventType) ||
         isEditableBabyRecord(eventType)
 }
 
@@ -3299,6 +3404,33 @@ private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEnt
                 "primary" to payload.optString("contractionStart").ifBlank { BabyLogFormatters.formatEventTime(event.occurredAt).takeUnless { it == "--:--" } },
                 "secondary" to payloadNumberText(payload, "intervalMinutes"),
                 "tertiary" to payloadNumberText(payload, "durationSeconds"),
+                "note" to payload.optString("note")
+            )
+        )
+    }
+    if (BabyLogService.isScreeningEventType(event.eventType)) {
+        return SmartEntryDraft(
+            values = smartFormFields(
+                "primary" to payload.optString("screeningDate").ifBlank { BabyLogFormatters.recordDay(event.occurredAt) },
+                "gestationalAge" to gestationalAgeDraftValue(payload),
+                "ntMm" to payloadNumberText(payload, "ntMm"),
+                "riskT21" to payload.optString("riskT21"),
+                "riskT18" to payload.optString("riskT18"),
+                "riskOntd" to payload.optString("riskOntd"),
+                "riskLevel" to payload.optString("riskLevel"),
+                "t21Result" to payload.optString("t21Result"),
+                "t18Result" to payload.optString("t18Result"),
+                "t13Result" to payload.optString("t13Result"),
+                "sexChromosome" to payload.optString("sexChromosome"),
+                "structureConclusion" to payload.optString("structureConclusion"),
+                "fastingGlucoseMmolL" to payloadNumberText(payload, "fastingGlucoseMmolL"),
+                "oneHourGlucoseMmolL" to payloadNumberText(payload, "oneHourGlucoseMmolL"),
+                "twoHourGlucoseMmolL" to payloadNumberText(payload, "twoHourGlucoseMmolL"),
+                "abnormalFlag" to payload.optString("abnormalFlag"),
+                "gbsResult" to payload.optString("gbsResult"),
+                "nstResult" to payload.optString("nstResult"),
+                "conclusion" to payload.optString("conclusion"),
+                "attachmentNote" to payload.optString("attachmentNote"),
                 "note" to payload.optString("note")
             )
         )

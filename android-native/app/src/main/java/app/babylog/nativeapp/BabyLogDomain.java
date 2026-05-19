@@ -21,6 +21,13 @@ public final class BabyLogDomain {
 
     public static final String[] EVENT_TYPES = {
             "pregnancy_checkup",
+            "screening_nt",
+            "screening_serum",
+            "screening_nipt",
+            "screening_anomaly",
+            "screening_ogtt",
+            "screening_gbs",
+            "screening_nst",
             "ultrasound",
             "fetal_movement",
             "contraction",

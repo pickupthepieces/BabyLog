@@ -257,6 +257,13 @@ public final class BabyLogFormatters {
 
     public static String eventLabel(String eventType) {
         if ("pregnancy_checkup".equals(eventType)) return "产检";
+        if ("screening_nt".equals(eventType)) return "NT";
+        if ("screening_serum".equals(eventType)) return "唐筛";
+        if ("screening_nipt".equals(eventType)) return "无创 DNA";
+        if ("screening_anomaly".equals(eventType)) return "大排畸";
+        if ("screening_ogtt".equals(eventType)) return "糖耐 OGTT";
+        if ("screening_gbs".equals(eventType)) return "GBS";
+        if ("screening_nst".equals(eventType)) return "胎心监护";
         if ("ultrasound".equals(eventType)) return "B 超";
         if ("fetal_movement".equals(eventType)) return "胎动";
         if ("contraction".equals(eventType)) return "宫缩";
@@ -420,7 +427,7 @@ public final class BabyLogFormatters {
         if ("temperature".equals(eventType)) {
             return "temperature";
         }
-        if ("pregnancy_checkup".equals(eventType)) {
+        if ("pregnancy_checkup".equals(eventType) || isScreeningEventType(eventType)) {
             return "checkup";
         }
         if ("fetal_movement".equals(eventType)
@@ -459,6 +466,10 @@ public final class BabyLogFormatters {
             return "baby".equals(group) || "temperature".equals(group);
         }
         return filter.equals(group);
+    }
+
+    public static boolean isScreeningEventType(String eventType) {
+        return eventType != null && eventType.startsWith("screening_");
     }
 
     private static Date parseIso(String iso) {
