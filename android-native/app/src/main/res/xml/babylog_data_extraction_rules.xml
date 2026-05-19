@@ -4,10 +4,16 @@
         <exclude
             domain="sharedpref"
             path="babylog_smart_config.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_disclaimer_state.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude
             domain="sharedpref"
             path="babylog_smart_config.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_disclaimer_state.xml" />
     </device-transfer>
 </data-extraction-rules>

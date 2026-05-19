@@ -2,6 +2,7 @@ package app.babylog.nativeapp.ui.screens
 
 internal object BabyLogRoutes {
     const val Home = "home"
+    const val Disclaimer = "disclaimer"
     const val Timeline = "timeline"
     const val Library = "library"
     const val Settings = "settings"
@@ -14,6 +15,7 @@ internal object BabyLogRoutes {
     const val SettingsSync = "settings/sync"
     const val SettingsModel = "settings/model"
     const val SettingsSpeech = "settings/speech"
+    const val SettingsDisclaimer = "settings/disclaimer"
     const val LibraryAttachments = "library/attachments"
     const val LibraryTrash = "library/trash"
     const val AttachmentPreview = "attachment/preview"
@@ -33,7 +35,8 @@ internal object BabyLogRoutes {
         return route == SettingsProfile ||
             route == SettingsSync ||
             route == SettingsModel ||
-            route == SettingsSpeech
+            route == SettingsSpeech ||
+            route == SettingsDisclaimer
     }
 
     fun isBrowseSubpage(route: String?): Boolean {

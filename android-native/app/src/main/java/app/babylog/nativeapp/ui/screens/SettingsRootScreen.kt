@@ -17,6 +17,7 @@ internal fun SettingsRootScreen(
     onOpenSpeechSettings: () -> Unit,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
+    onOpenDisclaimer: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     BabyLogScreenColumn(inner) {
@@ -33,6 +34,7 @@ internal fun SettingsRootScreen(
                 speechConfigSummary = speechConfigSummary,
                 onClearLocalData = onClearLocalData,
                 onOpenTrash = onOpenTrash,
+                onOpenDisclaimer = onOpenDisclaimer,
                 onEditProfile = onEditProfile
             )
         }

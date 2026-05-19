@@ -130,6 +130,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var repository: BabyLogRepository
     private lateinit var service: BabyLogService
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
+    private lateinit var disclaimerStore: BabyLogDisclaimerStore
     private val smartVisionClient = BabyLogSmartVisionClient()
     private val smartTextClient = BabyLogSmartTextClient()
     private val speechClient = BabyLogParaformerSpeechClient()
@@ -184,6 +185,8 @@ public final class ComposeMainActivity : ComponentActivity() {
         repository = BabyLogRepository(this)
         service = BabyLogService(this, repository)
         smartConfigStore = BabyLogSmartConfigStore(this)
+        disclaimerStore = BabyLogDisclaimerStore(this)
+        uiState = uiState.copy(disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion())
         registerLaunchers()
         refreshSmartConfigSummary()
 
@@ -238,6 +241,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenSyncSettings = { pendingNavRoute = BabyLogRoutes.SettingsSync },
                     onOpenSmartSettings = ::openSmartSettings,
                     onOpenSpeechSettings = ::openSpeechSettings,
+                    onAcceptDisclaimer = ::acceptMedicalDisclaimer,
                     profilePageState = profilePageState,
                     smartSettingsConfig = smartSettingsConfig,
                     speechSettingsConfig = speechSettingsConfig,
@@ -254,6 +258,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onSaveProfile = ::saveProfile,
                     onClearLocalData = { showClearLocalConfirm = true },
                     onOpenTrash = { pendingNavRoute = BabyLogRoutes.LibraryTrash },
+                    onOpenDisclaimer = { pendingNavRoute = BabyLogRoutes.SettingsDisclaimer },
                     onRestoreTrashEvent = { event ->
                         restoreEvent(event.id)
                     },
@@ -475,6 +480,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 syncConfig = repository.loadSyncSettings(),
                 childProfile = repository.loadChildProfile(),
                 setupCompleted = repository.hasCompletedSetup(),
+                disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion(),
                 lastBackupExportMs = getSharedPreferences(META_PREFS_NAME, MODE_PRIVATE)
                     .getLong(LAST_BACKUP_EXPORT_MS, 0L)
             )
@@ -492,6 +498,22 @@ public final class ComposeMainActivity : ComponentActivity() {
             "已配置；用于按住说话转文字"
         } else {
             "未配置；语音会降级为手动输入"
+        }
+    }
+
+    private fun acceptMedicalDisclaimer() {
+        runInBackground {
+            try {
+                disclaimerStore.markCurrentVersionAccepted()
+                runOnUiThread {
+                    uiState = uiState.copy(disclaimerAccepted = true)
+                    pendingNavRoute = BabyLogRoutes.Home
+                }
+            } catch (error: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this, "保存确认状态失败：${error.message}", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
@@ -1282,6 +1304,7 @@ internal data class BabyLogUiState(
     val syncConfig: BabyLogDomain.BackendConfig = BabyLogDomain.BackendConfig.disabled(),
     val childProfile: BabyLogDomain.ChildProfile = BabyLogDomain.ChildProfile.empty(),
     val setupCompleted: Boolean = false,
+    val disclaimerAccepted: Boolean = false,
     val lastBackupExportMs: Long = 0L
 )
 
@@ -1362,6 +1385,7 @@ private fun BabyLogApp(
     onOpenSyncSettings: () -> Unit,
     onOpenSmartSettings: () -> Unit,
     onOpenSpeechSettings: () -> Unit,
+    onAcceptDisclaimer: () -> Unit,
     profilePageState: ProfileDialogState?,
     smartSettingsConfig: BabyLogSmartConfigStore.Config?,
     speechSettingsConfig: BabyLogSmartConfigStore.SpeechConfig?,
@@ -1374,6 +1398,7 @@ private fun BabyLogApp(
     onSaveProfile: (ProfileInput, Boolean) -> Unit,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
+    onOpenDisclaimer: () -> Unit,
     onRestoreTrashEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onCreatePregnancyProfile: () -> Unit,
     onCreateBabyProfile: () -> Unit,
@@ -1417,7 +1442,7 @@ private fun BabyLogApp(
     val currentRoute = currentBackStackEntry?.destination?.route
     val activeTab = if (BabyLogRoutes.isTopLevel(currentRoute)) currentRoute ?: BabyLogRoutes.Home else BabyLogRoutes.Home
     var quickRailVisible by rememberSaveable { mutableStateOf(true) }
-    val showTopLevelChrome = state.setupCompleted && BabyLogRoutes.isTopLevel(currentRoute)
+    val showTopLevelChrome = state.disclaimerAccepted && state.setupCompleted && BabyLogRoutes.isTopLevel(currentRoute)
     val selectTopLevelTab: (String) -> Unit = { route ->
         if (BabyLogRoutes.isTopLevel(route)) {
             navController.navigate(route) {
@@ -1484,7 +1509,9 @@ private fun BabyLogApp(
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
         topBar = {
-            if (!BabyLogRoutes.isRecord(currentRoute) &&
+            if (state.disclaimerAccepted &&
+                currentRoute != BabyLogRoutes.Disclaimer &&
+                !BabyLogRoutes.isRecord(currentRoute) &&
                 currentRoute != BabyLogRoutes.SmartEntry &&
                 !BabyLogRoutes.isSettingsSubpage(currentRoute) &&
                 !BabyLogRoutes.isBrowseSubpage(currentRoute)
@@ -1521,8 +1548,11 @@ private fun BabyLogApp(
     ) { inner ->
         NavHost(
             navController = navController,
-            startDestination = BabyLogRoutes.Home
+            startDestination = if (state.disclaimerAccepted) BabyLogRoutes.Home else BabyLogRoutes.Disclaimer
         ) {
+            composable(BabyLogRoutes.Disclaimer) {
+                MedicalDisclaimerGateScreen(onAccept = onAcceptDisclaimer)
+            }
             composable(BabyLogRoutes.Home) {
                 if (!state.setupCompleted) {
                     BabyLogScreenColumn(inner) {
@@ -1595,6 +1625,7 @@ private fun BabyLogApp(
                     onOpenSpeechSettings = onOpenSpeechSettings,
                     onClearLocalData = onClearLocalData,
                     onOpenTrash = onOpenTrash,
+                    onOpenDisclaimer = onOpenDisclaimer,
                     onEditProfile = onEditProfile
                 )
             }
@@ -1644,6 +1675,9 @@ private fun BabyLogApp(
                         onSaveSpeechSettings(config)
                     }
                 )
+            }
+            composable(BabyLogRoutes.SettingsDisclaimer) {
+                MedicalDisclaimerReviewScreen(onBack = ::closeSettingsPage)
             }
             composable(BabyLogRoutes.RecordBabyCare) {
                 BabyCareFormScreen(
@@ -2235,6 +2269,7 @@ internal fun SettingsScreen(
     speechConfigSummary: String,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
+    onOpenDisclaimer: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -2322,6 +2357,13 @@ internal fun SettingsScreen(
                 },
                 action = "查看",
                 onClick = onOpenTrash
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
+                title = "医疗免责声明",
+                subtitle = "查看非医疗器械、AI 候选需人工确认等说明",
+                action = "查看",
+                onClick = onOpenDisclaimer
             )
             Divider(color = ChestnutPalette.Border)
             ActionRow(

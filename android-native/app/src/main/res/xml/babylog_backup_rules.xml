@@ -3,4 +3,7 @@
     <exclude
         domain="sharedpref"
         path="babylog_smart_config.xml" />
+    <exclude
+        domain="sharedpref"
+        path="babylog_disclaimer_state.xml" />
 </full-backup-content>
