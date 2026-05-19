@@ -281,6 +281,10 @@ public final class BabyLogService {
 
         if ("pregnancy_checkup".equals(input.eventType)) {
             putStringIfNotBlank(payload, "checkupDate", input.primary);
+            Integer gestationalAgeDays = BabyLogFormatters.parseGestationalAgeDays(input.gestationalAge);
+            if (gestationalAgeDays != null) {
+                payload.put("gestationalAgeDays", gestationalAgeDays);
+            }
             putStringIfNotBlank(payload, "provider", input.secondary);
             putStringIfNotBlank(payload, "department", input.department);
             putNumberIfNotNull(payload, "systolicBp", BabyLogFormatters.parseOptionalNumber(input.systolicBp));
@@ -289,11 +293,19 @@ public final class BabyLogService {
             putNumberIfNotNull(payload, "fundalHeightCm", BabyLogFormatters.parseOptionalNumber(input.fundalHeightCm));
             putNumberIfNotNull(payload, "abdominalCircumferenceCm", BabyLogFormatters.parseOptionalNumber(input.abdominalCircumferenceCm));
             putNumberIfNotNull(payload, "fetalHeartRateBpm", BabyLogFormatters.parseOptionalNumber(input.fetalHeartRateBpm));
+            putStringIfNotBlank(payload, "fetalPresentation", input.fetalPresentation);
+            putStringIfNotBlank(payload, "edema", input.edema);
             putStringIfNotBlank(payload, "urineRoutine", input.urineRoutine);
+            putStringIfNotBlank(payload, "urineProtein", input.urineProtein);
+            putNumberIfNotNull(payload, "hemoglobinGL", BabyLogFormatters.parseOptionalNumber(input.hemoglobinGL));
+            putStringIfNotBlank(payload, "highRiskFactors", input.highRiskFactors);
             putStringIfNotBlank(payload, "doctorConclusion", input.tertiary);
             putStringIfNotBlank(payload, "finding", input.tertiary);
+            putStringIfNotBlank(payload, "treatmentAdvice", input.treatmentAdvice);
             putStringIfNotBlank(payload, "nextVisitDate", input.nextVisitDate);
             putStringIfNotBlank(payload, "nextVisitNote", input.nextVisitDate.isEmpty() ? input.note : input.nextVisitDate);
+            putStringIfNotBlank(payload, "reportType", input.reportType);
+            putStringIfNotBlank(payload, "attachmentNote", input.attachmentNote);
             putStringIfNotBlank(payload, "note", input.note);
         } else if ("fetal_movement".equals(input.eventType)) {
             putStringIfNotBlank(payload, "movementWindow", input.primary);
@@ -377,6 +389,10 @@ public final class BabyLogService {
     public static String formatPregnancySummary(PregnancyInput input) {
         StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel(input.eventType));
         if ("pregnancy_checkup".equals(input.eventType)) {
+            Integer gestationalAgeDays = BabyLogFormatters.parseGestationalAgeDays(input.gestationalAge);
+            if (gestationalAgeDays != null) {
+                appendSummary(summary, BabyLogFormatters.formatGestationalAge(gestationalAgeDays));
+            }
             appendSummary(summary, input.secondary);
             Double systolic = BabyLogFormatters.parseOptionalNumber(input.systolicBp);
             Double diastolic = BabyLogFormatters.parseOptionalNumber(input.diastolicBp);
@@ -391,7 +407,18 @@ public final class BabyLogService {
             if (fetalHeartRate != null) {
                 appendSummary(summary, "胎心 " + BabyLogFormatters.formatNumber(fetalHeartRate) + " bpm");
             }
+            if (!isBlank(input.fetalPresentation)) {
+                appendSummary(summary, "胎位 " + input.fetalPresentation);
+            }
+            if (!isBlank(input.urineProtein)) {
+                appendSummary(summary, "尿蛋白 " + input.urineProtein);
+            }
+            Double hemoglobin = BabyLogFormatters.parseOptionalNumber(input.hemoglobinGL);
+            if (hemoglobin != null) {
+                appendSummary(summary, "Hb " + BabyLogFormatters.formatNumber(hemoglobin) + " g/L");
+            }
             appendSummary(summary, input.tertiary);
+            appendSummary(summary, input.treatmentAdvice);
         } else if ("fetal_movement".equals(input.eventType)) {
             appendSummary(summary, input.primary);
             Double count = BabyLogFormatters.parseOptionalNumber(input.secondary);
@@ -1206,6 +1233,7 @@ public final class BabyLogService {
     public static final class PregnancyInput {
         public final String eventType;
         public final String primary;
+        public final String gestationalAge;
         public final String secondary;
         public final String tertiary;
         public final String note;
@@ -1216,18 +1244,53 @@ public final class BabyLogService {
         public final String fundalHeightCm;
         public final String abdominalCircumferenceCm;
         public final String fetalHeartRateBpm;
+        public final String fetalPresentation;
+        public final String edema;
         public final String urineRoutine;
+        public final String urineProtein;
+        public final String hemoglobinGL;
+        public final String highRiskFactors;
+        public final String treatmentAdvice;
         public final String nextVisitDate;
+        public final String reportType;
+        public final String attachmentNote;
         public final String attachmentPath;
         public final String attachmentName;
 
         private PregnancyInput(String eventType, String primary, String secondary, String tertiary, String note) {
-            this(eventType, primary, secondary, tertiary, note, "", "", "", "", "", "", "", "", "", "", "");
+            this(
+                    eventType,
+                    primary,
+                    "",
+                    secondary,
+                    tertiary,
+                    note,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    ""
+            );
         }
 
         private PregnancyInput(
                 String eventType,
                 String primary,
+                String gestationalAge,
                 String secondary,
                 String tertiary,
                 String note,
@@ -1238,13 +1301,22 @@ public final class BabyLogService {
                 String fundalHeightCm,
                 String abdominalCircumferenceCm,
                 String fetalHeartRateBpm,
+                String fetalPresentation,
+                String edema,
                 String urineRoutine,
+                String urineProtein,
+                String hemoglobinGL,
+                String highRiskFactors,
+                String treatmentAdvice,
                 String nextVisitDate,
+                String reportType,
+                String attachmentNote,
                 String attachmentPath,
                 String attachmentName
         ) {
             this.eventType = eventType;
             this.primary = primary == null ? "" : primary.trim();
+            this.gestationalAge = gestationalAge == null ? "" : gestationalAge.trim();
             this.secondary = secondary == null ? "" : secondary.trim();
             this.tertiary = tertiary == null ? "" : tertiary.trim();
             this.note = note == null ? "" : note.trim();
@@ -1255,8 +1327,16 @@ public final class BabyLogService {
             this.fundalHeightCm = fundalHeightCm == null ? "" : fundalHeightCm.trim();
             this.abdominalCircumferenceCm = abdominalCircumferenceCm == null ? "" : abdominalCircumferenceCm.trim();
             this.fetalHeartRateBpm = fetalHeartRateBpm == null ? "" : fetalHeartRateBpm.trim();
+            this.fetalPresentation = fetalPresentation == null ? "" : fetalPresentation.trim();
+            this.edema = edema == null ? "" : edema.trim();
             this.urineRoutine = urineRoutine == null ? "" : urineRoutine.trim();
+            this.urineProtein = urineProtein == null ? "" : urineProtein.trim();
+            this.hemoglobinGL = hemoglobinGL == null ? "" : hemoglobinGL.trim();
+            this.highRiskFactors = highRiskFactors == null ? "" : highRiskFactors.trim();
+            this.treatmentAdvice = treatmentAdvice == null ? "" : treatmentAdvice.trim();
             this.nextVisitDate = nextVisitDate == null ? "" : nextVisitDate.trim();
+            this.reportType = reportType == null ? "" : reportType.trim();
+            this.attachmentNote = attachmentNote == null ? "" : attachmentNote.trim();
             this.attachmentPath = attachmentPath == null ? "" : attachmentPath.trim();
             this.attachmentName = attachmentName == null ? "" : attachmentName.trim();
         }
@@ -1267,6 +1347,7 @@ public final class BabyLogService {
 
         public static PregnancyInput checkupStructured(
                 String checkupDate,
+                String gestationalAge,
                 String provider,
                 String department,
                 String systolicBp,
@@ -1275,9 +1356,17 @@ public final class BabyLogService {
                 String fundalHeightCm,
                 String abdominalCircumferenceCm,
                 String fetalHeartRateBpm,
+                String fetalPresentation,
+                String edema,
                 String urineRoutine,
+                String urineProtein,
+                String hemoglobinGL,
+                String highRiskFactors,
                 String doctorConclusion,
+                String treatmentAdvice,
                 String nextVisitDate,
+                String reportType,
+                String attachmentNote,
                 String note,
                 String attachmentPath,
                 String attachmentName
@@ -1285,6 +1374,7 @@ public final class BabyLogService {
             return new PregnancyInput(
                     "pregnancy_checkup",
                     checkupDate,
+                    gestationalAge,
                     provider,
                     doctorConclusion,
                     note,
@@ -1295,8 +1385,16 @@ public final class BabyLogService {
                     fundalHeightCm,
                     abdominalCircumferenceCm,
                     fetalHeartRateBpm,
+                    fetalPresentation,
+                    edema,
                     urineRoutine,
+                    urineProtein,
+                    hemoglobinGL,
+                    highRiskFactors,
+                    treatmentAdvice,
                     nextVisitDate,
+                    reportType,
+                    attachmentNote,
                     attachmentPath,
                     attachmentName
             );

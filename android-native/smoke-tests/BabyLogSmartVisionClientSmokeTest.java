@@ -20,6 +20,13 @@ public final class BabyLogSmartVisionClientSmokeTest {
         assertTrue(prompt.contains("ntMm"));
         assertFalse(prompt.contains("gestationalAge"));
 
+        String checkupPrompt = BabyLogSmartVisionClient.checkupRecognitionPrompt();
+        assertTrue(checkupPrompt.contains("gestationalAge"));
+        assertTrue(checkupPrompt.contains("hemoglobinGL"));
+        assertTrue(checkupPrompt.contains("urineProtein"));
+        assertTrue(checkupPrompt.contains("treatmentAdvice"));
+        assertTrue(checkupPrompt.contains("不要识别姓名"));
+
         RecordingPreparer preparer = new RecordingPreparer();
         BabyLogSmartVisionClient client = new BabyLogSmartVisionClient(preparer);
         File source = new File("source-ultrasound.jpg");

@@ -1,6 +1,8 @@
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogService;
 
+import org.json.JSONObject;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -54,6 +56,7 @@ public final class BabyLogServiceSmokeTest {
         );
         BabyLogService.PregnancyInput structuredCheckup = BabyLogService.PregnancyInput.checkupStructured(
                 "2026-05-18",
+                "22+5",
                 "市妇幼",
                 "产科",
                 "118",
@@ -62,9 +65,17 @@ public final class BabyLogServiceSmokeTest {
                 "24",
                 "88",
                 "143",
-                "尿蛋白阴性",
+                "头位",
+                "无",
+                "白细胞少许",
+                "阴性",
+                "112",
+                "无特殊",
                 "一切正常",
+                "继续常规产检",
                 "2026-06-16",
+                "产检报告",
+                "血常规照片",
                 "复查血常规",
                 "/tmp/checkup.jpg",
                 "checkup.jpg"
@@ -72,9 +83,19 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("产科", structuredCheckup.department);
         assertEquals("2026-06-16", structuredCheckup.nextVisitDate);
         assertEquals(
-                "产检 · 市妇幼 · 血压 118/76 mmHg · 体重 60.4 kg · 胎心 143 bpm · 一切正常",
+                "产检 · 22+5 周 · 市妇幼 · 血压 118/76 mmHg · 体重 60.4 kg · 胎心 143 bpm · 胎位 头位 · 尿蛋白 阴性 · Hb 112 g/L · 一切正常 · 继续常规产检",
                 BabyLogService.formatPregnancySummary(structuredCheckup)
         );
+        JSONObject structuredPayload = BabyLogService.buildPregnancyPayload(structuredCheckup);
+        assertEquals(159, structuredPayload.optInt("gestationalAgeDays"));
+        assertEquals("头位", structuredPayload.optString("fetalPresentation"));
+        assertEquals("无", structuredPayload.optString("edema"));
+        assertEquals("阴性", structuredPayload.optString("urineProtein"));
+        assertEquals(112.0, structuredPayload.optDouble("hemoglobinGL"));
+        assertEquals("无特殊", structuredPayload.optString("highRiskFactors"));
+        assertEquals("继续常规产检", structuredPayload.optString("treatmentAdvice"));
+        assertEquals("产检报告", structuredPayload.optString("reportType"));
+        assertEquals("血常规照片", structuredPayload.optString("attachmentNote"));
         assertEquals(
                 "胎动 · 20:00-21:00 · 10 次",
                 BabyLogService.formatPregnancySummary(

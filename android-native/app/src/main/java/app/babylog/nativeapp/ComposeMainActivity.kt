@@ -156,6 +156,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var smartConfigSummary by mutableStateOf("智能识别未配置")
     private var speechConfigSummary by mutableStateOf("语音识别未配置")
     private var ultrasoundOcrRunning by mutableStateOf(false)
+    private var checkupOcrRunning by mutableStateOf(false)
     private var smartEntryRunning by mutableStateOf(false)
     private var smartVoiceState by mutableStateOf(SmartVoiceUiState())
     private var smartEntryCandidate by mutableStateOf<BabyLogSmartTextClient.SmartEntryCandidate?>(null)
@@ -164,6 +165,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var maternalMetricDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var ultrasoundDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var ultrasoundOcrCandidate by mutableStateOf<BabyLogSmartInput.UltrasoundOcrCandidate?>(null)
+    private var checkupOcrCandidate by mutableStateOf<BabyLogSmartTextClient.SmartFillCandidate?>(null)
     private var showClearLocalConfirm by mutableStateOf(false)
     private var profilePageState by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
@@ -286,6 +288,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     pendingCheckupAttachmentName = pendingCheckupAttachmentName,
                     ultrasoundOcrRunning = ultrasoundOcrRunning,
                     ultrasoundOcrCandidate = ultrasoundOcrCandidate,
+                    checkupOcrRunning = checkupOcrRunning,
+                    checkupOcrCandidate = checkupOcrCandidate,
                     onBabyCareCancel = {
                         editingEvent = null
                         babyCareAction = null
@@ -297,6 +301,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                         pregnancyDraft = null
                         pendingCheckupAttachmentPath = null
                         pendingCheckupAttachmentName = null
+                        checkupOcrCandidate = null
+                        checkupOcrRunning = false
                     },
                     onMaternalMetricCancel = {
                         editingEvent = null
@@ -322,6 +328,12 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onDismissUltrasoundCandidate = { ultrasoundOcrCandidate = null },
                     onApplyUltrasoundCandidate = {
                         ultrasoundOcrCandidate = null
+                        showToast("已应用识别字段，请核对后保存")
+                    },
+                    onRecognizeCheckupAttachment = ::recognizeCheckupAttachment,
+                    onDismissCheckupCandidate = { checkupOcrCandidate = null },
+                    onApplyCheckupCandidate = {
+                        checkupOcrCandidate = null
                         showToast("已应用识别字段，请核对后保存")
                     },
                     smartEntryRunning = smartEntryRunning,
@@ -625,6 +637,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 pregnancyDraft = draftFromPregnancyEvent(event)
                 pendingCheckupAttachmentPath = null
                 pendingCheckupAttachmentName = null
+                checkupOcrCandidate = null
+                checkupOcrRunning = false
                 pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
             }
             "maternal_metric" -> {
@@ -659,6 +673,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             pregnancyAction = action
             pendingCheckupAttachmentPath = null
             pendingCheckupAttachmentName = null
+            checkupOcrCandidate = null
+            checkupOcrRunning = false
             pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
         } else if (action.eventType == "maternal_metric") {
             maternalMetricDraft = null
@@ -702,6 +718,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     pregnancyDraft = null
                     pendingCheckupAttachmentPath = null
                     pendingCheckupAttachmentName = null
+                    checkupOcrCandidate = null
+                    checkupOcrRunning = false
                     markRecordSaved(event)
                 }
                 showToast(if (editing != null) "已更新记录" else "已保存记录")
@@ -850,6 +868,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             ImagePickTarget.Checkup -> {
                 pendingCheckupAttachmentPath = path
                 pendingCheckupAttachmentName = File(path).name
+                checkupOcrCandidate = null
             }
         }
     }
@@ -1025,6 +1044,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                 }
                 pregnancyDraft = draft
                 pregnancyAction = action
+                pendingCheckupAttachmentPath = null
+                pendingCheckupAttachmentName = null
+                checkupOcrCandidate = null
+                checkupOcrRunning = false
                 pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
             }
             "maternal_metric" -> {
@@ -1185,6 +1208,37 @@ public final class ComposeMainActivity : ComponentActivity() {
         return quickActions().firstOrNull { it.eventType == eventType }
     }
 
+    private fun recognizeCheckupAttachment() {
+        val path = pendingCheckupAttachmentPath
+        if (path.isNullOrBlank()) {
+            showInfo("先选择图片", "请先拍照或选择产检报告图片，再主动识别字段。")
+            return
+        }
+        if (checkupOcrRunning) {
+            return
+        }
+        checkupOcrRunning = true
+        checkupOcrCandidate = null
+        runInBackground {
+            try {
+                val config = smartConfigStore.load()
+                if (!config.isConfigured()) {
+                    showInfo("智能识别未配置", "请先在设置页填写多模态模型的 Base URL、模型和 API Key。Key 只保存在本机。")
+                    return@runInBackground
+                }
+                val candidate = smartVisionClient.recognizeCheckupImage(File(path), config)
+                runOnUiThread {
+                    checkupOcrCandidate = candidate
+                    showToast("识别完成，请核对候选字段")
+                }
+            } catch (error: Exception) {
+                showInfo("识别失败", smartVisionErrorMessage(error))
+            } finally {
+                runOnUiThread { checkupOcrRunning = false }
+            }
+        }
+    }
+
     private fun editQuickActionByEventType(eventType: String): BabyLogService.QuickAction? {
         return quickActionByEventType(eventType) ?: when (eventType) {
             "pregnancy_checkup" -> BabyLogService.QuickAction("产检", "常规指标 / 结论 / 附件", ChestnutPalette.VioletArgb, "pregnancy_checkup")
@@ -1224,6 +1278,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             )
             forms["pregnancy_checkup"] = smartFormFields(
                 "primary" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周，例如 22+5；可从检查日期和预产期推算，也可按报告原文填写",
                 "secondary" to "医院 / 机构",
                 "department" to "科室",
                 "systolicBp" to "收缩压 mmHg",
@@ -1232,9 +1287,17 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "fundalHeightCm" to "宫高 cm",
                 "abdominalCircumferenceCm" to "腹围 cm",
                 "fetalHeartRateBpm" to "胎心率 bpm",
-                "urineRoutine" to "尿常规，如 正常 / + / ++",
+                "fetalPresentation" to "胎位：头位 / 臀位 / 横位 / 未记录",
+                "edema" to "水肿：无 / 轻 / 中 / 重 / 未记录",
+                "urineRoutine" to "尿常规摘要，如 正常 / 见报告",
+                "urineProtein" to "尿蛋白：阴性 / ± / + / ++ / +++ / 见报告",
+                "hemoglobinGL" to "血红蛋白 Hb g/L",
+                "highRiskFactors" to "高危因素 / 特殊情况",
                 "tertiary" to "医生结论 / 建议",
+                "treatmentAdvice" to "处理及建议",
                 "nextVisitDate" to "下次产检日期 yyyy-MM-dd",
+                "reportType" to "报告类型，例如 常规产检 / 血常规 / 尿常规",
+                "attachmentNote" to "附件备注",
                 "note" to "备注"
             )
             forms["contraction"] = smartFormFields(
@@ -1526,6 +1589,8 @@ private fun BabyLogApp(
     pendingCheckupAttachmentName: String?,
     ultrasoundOcrRunning: Boolean,
     ultrasoundOcrCandidate: BabyLogSmartInput.UltrasoundOcrCandidate?,
+    checkupOcrRunning: Boolean,
+    checkupOcrCandidate: BabyLogSmartTextClient.SmartFillCandidate?,
     onBabyCareCancel: () -> Unit,
     onPregnancyCancel: () -> Unit,
     onMaternalMetricCancel: () -> Unit,
@@ -1541,6 +1606,9 @@ private fun BabyLogApp(
     onRecognizeUltrasoundPhoto: () -> Unit,
     onDismissUltrasoundCandidate: () -> Unit,
     onApplyUltrasoundCandidate: () -> Unit,
+    onRecognizeCheckupAttachment: () -> Unit,
+    onDismissCheckupCandidate: () -> Unit,
+    onApplyCheckupCandidate: () -> Unit,
     smartEntryRunning: Boolean,
     smartVoiceState: SmartVoiceUiState,
     smartEntryCandidate: BabyLogSmartTextClient.SmartEntryCandidate?,
@@ -1811,10 +1879,16 @@ private fun BabyLogApp(
                     action = pregnancyAction,
                     draft = pregnancyDraft,
                     isEditing = editingEventType == pregnancyAction?.eventType,
+                    expectedDueDate = state.childProfile.expectedDueDate,
                     attachmentPath = pendingCheckupAttachmentPath,
                     attachmentName = pendingCheckupAttachmentName,
+                    ocrRunning = checkupOcrRunning,
+                    ocrCandidate = checkupOcrCandidate,
                     onPickAttachment = onPickCheckupAttachment,
                     onCaptureAttachment = onCaptureCheckupAttachment,
+                    onRecognizeAttachment = onRecognizeCheckupAttachment,
+                    onCandidateDismiss = onDismissCheckupCandidate,
+                    onCandidateApplied = onApplyCheckupCandidate,
                     onBack = { closeRecord(onPregnancyCancel) },
                     onSave = onPregnancySave
                 )
@@ -3014,6 +3088,7 @@ private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEnt
     return SmartEntryDraft(
         values = smartFormFields(
             "primary" to payload.optString("checkupDate").ifBlank { BabyLogFormatters.recordDay(event.occurredAt) },
+            "gestationalAge" to gestationalAgeDraftValue(payload),
             "secondary" to payload.optString("provider"),
             "department" to payload.optString("department"),
             "systolicBp" to payloadNumberText(payload, "systolicBp"),
@@ -3022,9 +3097,17 @@ private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEnt
             "fundalHeightCm" to payloadNumberText(payload, "fundalHeightCm"),
             "abdominalCircumferenceCm" to payloadNumberText(payload, "abdominalCircumferenceCm"),
             "fetalHeartRateBpm" to payloadNumberText(payload, "fetalHeartRateBpm"),
+            "fetalPresentation" to payload.optString("fetalPresentation"),
+            "edema" to payload.optString("edema"),
             "urineRoutine" to payload.optString("urineRoutine"),
+            "urineProtein" to payload.optString("urineProtein"),
+            "hemoglobinGL" to payloadNumberText(payload, "hemoglobinGL"),
+            "highRiskFactors" to payload.optString("highRiskFactors"),
             "tertiary" to payload.optString("doctorConclusion").ifBlank { payload.optString("finding") },
+            "treatmentAdvice" to payload.optString("treatmentAdvice"),
             "nextVisitDate" to payload.optString("nextVisitDate").ifBlank { extractDateInput(payload.optString("nextVisitNote")) ?: "" },
+            "reportType" to payload.optString("reportType"),
+            "attachmentNote" to payload.optString("attachmentNote"),
             "note" to payload.optString("note").ifBlank {
                 payload.optString("nextVisitNote").takeUnless { BabyLogFormatters.isValidDateInput(it) }.orEmpty()
             }

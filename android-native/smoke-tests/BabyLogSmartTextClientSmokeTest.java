@@ -7,14 +7,28 @@ public final class BabyLogSmartTextClientSmokeTest {
     public static void main(String[] args) throws Exception {
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("primary", "检查日期");
+        fields.put("gestationalAge", "孕周");
         fields.put("secondary", "医院");
+        fields.put("fetalPresentation", "胎位");
+        fields.put("edema", "水肿");
+        fields.put("urineProtein", "尿蛋白");
+        fields.put("hemoglobinGL", "血红蛋白 Hb g/L");
+        fields.put("highRiskFactors", "高危因素");
+        fields.put("treatmentAdvice", "处理及建议");
         fields.put("note", "备注");
 
         String response = "{"
                 + "\"choices\":[{\"message\":{\"content\":\"```json\\n"
                 + "{\\\"values\\\":{"
                 + "\\\"primary\\\":\\\"2026-05-18\\\","
+                + "\\\"gestationalAge\\\":\\\"22+5\\\","
                 + "\\\"secondary\\\":\\\"奉化区妇幼\\\","
+                + "\\\"fetalPresentation\\\":\\\"头位\\\","
+                + "\\\"edema\\\":\\\"无\\\","
+                + "\\\"urineProtein\\\":\\\"阴性\\\","
+                + "\\\"hemoglobinGL\\\":\\\"112\\\","
+                + "\\\"highRiskFactors\\\":\\\"无特殊\\\","
+                + "\\\"treatmentAdvice\\\":\\\"继续常规产检\\\","
                 + "\\\"extra\\\":\\\"不允许字段\\\"},"
                 + "\\\"warnings\\\":[\\\"日期需核对\\\"],"
                 + "\\\"rawText\\\":\\\"今天在奉化区妇幼做产检\\\"}"
@@ -24,7 +38,14 @@ public final class BabyLogSmartTextClientSmokeTest {
                 BabyLogSmartTextClient.parseSmartFillResponse(response, fields.keySet(), "fallback");
 
         assertEquals("2026-05-18", candidate.values.get("primary"));
+        assertEquals("22+5", candidate.values.get("gestationalAge"));
         assertEquals("奉化区妇幼", candidate.values.get("secondary"));
+        assertEquals("头位", candidate.values.get("fetalPresentation"));
+        assertEquals("无", candidate.values.get("edema"));
+        assertEquals("阴性", candidate.values.get("urineProtein"));
+        assertEquals("112", candidate.values.get("hemoglobinGL"));
+        assertEquals("无特殊", candidate.values.get("highRiskFactors"));
+        assertEquals("继续常规产检", candidate.values.get("treatmentAdvice"));
         assertEquals(null, candidate.values.get("extra"));
         assertEquals("日期需核对", candidate.warnings.get(0));
         assertEquals("今天在奉化区妇幼做产检", candidate.rawText);
