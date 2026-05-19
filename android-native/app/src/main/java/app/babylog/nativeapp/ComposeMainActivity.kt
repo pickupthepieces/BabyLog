@@ -3775,17 +3775,17 @@ private fun BottomNav(
                     Modifier
                 },
                 icon = {
-                    BabyLogIconTile(
-                        icon = item.icon,
-                        tint = itemColor,
-                        tileColor = when {
-                            item.isAction -> Color.White.copy(alpha = 0.24f)
-                            selected -> Color.White.copy(alpha = 0.20f)
-                            else -> Color.White.copy(alpha = 0.10f)
-                        },
-                        modifier = Modifier.size(if (item.isAction) 46.dp else 40.dp),
-                        iconSize = if (item.isAction) 27.dp else 24.dp
-                    )
+                    if (item.isAction) {
+                        VoiceNavActionTile()
+                    } else {
+                        BabyLogIconTile(
+                            icon = item.icon,
+                            tint = itemColor,
+                            tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
+                            modifier = Modifier.size(40.dp),
+                            iconSize = 24.dp
+                        )
+                    }
                 },
                 label = {
                     Text(
@@ -3797,6 +3797,26 @@ private fun BottomNav(
                 },
                 selectedContentColor = Color.White,
                 unselectedContentColor = Color.White.copy(alpha = 0.68f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoiceNavActionTile() {
+    Surface(
+        modifier = Modifier.size(60.dp),
+        shape = CircleShape,
+        color = ChestnutPalette.Surface,
+        contentColor = ChestnutPalette.Primary,
+        elevation = 8.dp,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            BabyLogMaterialIcon(
+                icon = LineIcon.Voice,
+                tint = ChestnutPalette.Primary,
+                modifier = Modifier.size(34.dp)
             )
         }
     }
