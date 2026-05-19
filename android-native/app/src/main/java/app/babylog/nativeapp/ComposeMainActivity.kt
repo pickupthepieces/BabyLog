@@ -15,6 +15,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,6 +90,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -113,6 +115,8 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
     private val smartVisionClient = BabyLogSmartVisionClient()
     private val smartTextClient = BabyLogSmartTextClient()
+    private val speechClient = BabyLogParaformerSpeechClient()
+    private lateinit var audioPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraLauncher: ActivityResultLauncher<Uri>
     private lateinit var pickImageLauncher: ActivityResultLauncher<String>
@@ -135,6 +139,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var ultrasoundOcrRunning by mutableStateOf(false)
     private var showSmartEntryDialog by mutableStateOf(false)
     private var smartEntryRunning by mutableStateOf(false)
+    private var smartVoiceState by mutableStateOf(SmartVoiceUiState())
     private var babyCareDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var pregnancyDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var maternalMetricDraft by mutableStateOf<SmartEntryDraft?>(null)
@@ -149,6 +154,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var deleteEventConfirm by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
     private var infoDialog by mutableStateOf<InfoDialogState?>(null)
+    private var voiceRecorder: BabyLogPcmVoiceRecorder? = null
     private var pendingCameraFile: File? = null
     private var pendingUltrasoundPhotoPath by mutableStateOf<String?>(null)
     private var pendingUltrasoundPhotoName by mutableStateOf<String?>(null)
@@ -217,11 +223,15 @@ public final class ComposeMainActivity : ComponentActivity() {
                 if (showSmartEntryDialog) {
                     SmartEntryDialog(
                         running = smartEntryRunning,
+                        voiceState = smartVoiceState,
                         onDismiss = {
                             if (!smartEntryRunning) {
+                                cancelSmartVoiceRecording()
                                 showSmartEntryDialog = false
                             }
                         },
+                        onVoiceStart = ::startSmartVoiceRecording,
+                        onVoiceStop = ::finishSmartVoiceRecording,
                         onSubmit = ::requestSmartEntry
                     )
                 }
@@ -451,6 +461,18 @@ public final class ComposeMainActivity : ComponentActivity() {
     }
 
     private fun registerLaunchers() {
+        audioPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                smartVoiceState = smartVoiceState.copy(message = "已授权麦克风，请再次按住说话")
+            } else {
+                smartVoiceState = smartVoiceState.copy(
+                    isRecording = false,
+                    isTranscribing = false,
+                    message = "麦克风权限被拒绝，可继续手动输入文本"
+                )
+                showToast("没有麦克风权限，可手动输入")
+            }
+        }
         cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 startCameraCapture()
@@ -758,7 +780,7 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun requestSmartEntry(rawText: String) {
         if (rawText.isBlank()) {
-            showInfo("先输入内容", "可以先用系统键盘语音输入一段话，再点智能录入。")
+            showInfo("先输入内容", "可以按住说话转成文本，或直接输入一段话，再点智能录入。")
             return
         }
         if (smartEntryRunning) {
@@ -792,6 +814,77 @@ public final class ComposeMainActivity : ComponentActivity() {
             } finally {
                 runOnUiThread { smartEntryRunning = false }
             }
+        }
+    }
+
+    private fun startSmartVoiceRecording() {
+        if (smartEntryRunning || smartVoiceState.isTranscribing || smartVoiceState.isRecording) {
+            return
+        }
+        if (!smartConfigStore.isConfigured()) {
+            smartVoiceState = smartVoiceState.copy(message = "语音识别需要先配置智能识别 API；你仍可手动输入文本")
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            smartVoiceState = smartVoiceState.copy(message = "需要麦克风权限；拒绝后仍可手动输入")
+            return
+        }
+        try {
+            val recorder = BabyLogPcmVoiceRecorder()
+            recorder.start(cacheDir)
+            voiceRecorder = recorder
+            smartVoiceState = SmartVoiceUiState(isRecording = true, message = "正在录音，松开后转文字")
+        } catch (error: Exception) {
+            voiceRecorder = null
+            smartVoiceState = SmartVoiceUiState(message = error.message ?: "无法开始录音")
+        }
+    }
+
+    private fun finishSmartVoiceRecording() {
+        val recorder = voiceRecorder ?: return
+        voiceRecorder = null
+        val audioFile = try {
+            recorder.stop()
+        } catch (error: Exception) {
+            smartVoiceState = SmartVoiceUiState(message = error.message ?: "录音失败")
+            return
+        }
+        smartVoiceState = SmartVoiceUiState(isTranscribing = true, message = "正在转文字...")
+        runInBackground {
+            try {
+                val config = smartConfigStore.load()
+                if (!config.isConfigured()) {
+                    runOnUiThread {
+                        smartVoiceState = SmartVoiceUiState(message = "语音识别需要先配置智能识别 API；你仍可手动输入文本")
+                    }
+                    return@runInBackground
+                }
+                val result = speechClient.transcribePcm(audioFile, config)
+                runOnUiThread {
+                    smartVoiceState = SmartVoiceUiState(
+                        transcript = result.text,
+                        transcriptNonce = System.nanoTime(),
+                        message = "语音已转文字，请核对后再识别"
+                    )
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    smartVoiceState = SmartVoiceUiState(
+                        message = smartSpeechErrorMessage(error)
+                    )
+                }
+            } finally {
+                audioFile.delete()
+            }
+        }
+    }
+
+    private fun cancelSmartVoiceRecording() {
+        voiceRecorder?.cancel()
+        voiceRecorder = null
+        if (smartVoiceState.isRecording) {
+            smartVoiceState = SmartVoiceUiState()
         }
     }
 
@@ -852,6 +945,19 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "图片仍然过大。已在上传前压缩，若服务商仍拒绝，请重新裁剪 B 超单主体后再试。"
             message.contains("无法解码图片") ->
                 "无法读取这张图片。请重新拍照或从相册选择清晰的 B 超单。"
+            else -> message
+        }
+    }
+
+    private fun smartSpeechErrorMessage(error: Exception): String {
+        val message = error.message?.takeIf { it.isNotBlank() } ?: "语音识别未返回文字"
+        return when {
+            error is java.net.SocketTimeoutException || message.contains("timed out", ignoreCase = true) ->
+                "语音识别超时，可稍后重试或直接手动输入"
+            message.contains("401") || message.contains("403") || message.contains("unauthorized", ignoreCase = true) ->
+                "语音识别认证失败。请确认智能识别配置里使用的是可调用 DashScope Paraformer 的 API Key"
+            message.contains("network", ignoreCase = true) || message.contains("Unable to resolve", ignoreCase = true) ->
+                "当前网络不可用，语音作为增强功能已降级；可以直接手动输入"
             else -> message
         }
     }
@@ -1207,6 +1313,14 @@ private data class InfoDialogState(
 private data class SmartEntryDraft(
     val nonce: Long = System.nanoTime(),
     val values: Map<String, String> = emptyMap()
+)
+
+private data class SmartVoiceUiState(
+    val isRecording: Boolean = false,
+    val isTranscribing: Boolean = false,
+    val transcript: String = "",
+    val transcriptNonce: Long = 0L,
+    val message: String = ""
 )
 
 @Composable
@@ -2142,22 +2256,49 @@ private fun QuickActionDialog(
 @Composable
 private fun SmartEntryDialog(
     running: Boolean,
+    voiceState: SmartVoiceUiState,
     onDismiss: () -> Unit,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit,
     onSubmit: (String) -> Unit
 ) {
     var text by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(voiceState.transcriptNonce) {
+        if (voiceState.transcriptNonce != 0L && voiceState.transcript.isNotBlank()) {
+            text = if (text.isBlank()) {
+                voiceState.transcript
+            } else {
+                text.trimEnd() + "\n" + voiceState.transcript
+            }
+        }
+    }
     AlertDialog(
         onDismissRequest = { if (!running) onDismiss() },
         title = { Text("智能录入", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "用系统键盘语音或直接输入一句话。模型只会生成候选字段，仍需你在表单里手动保存。",
+                    "按住说话会把本次语音发给你配置的语音识别服务商转成文字；模型只生成候选字段，仍需你在表单里手动保存。",
                     color = ChestnutPalette.Muted,
                     fontSize = 13.sp
                 )
+                VoiceHoldButton(
+                    recording = voiceState.isRecording,
+                    transcribing = voiceState.isTranscribing,
+                    disabled = running,
+                    onVoiceStart = onVoiceStart,
+                    onVoiceStop = onVoiceStop
+                )
+                if (voiceState.message.isNotBlank()) {
+                    Text(
+                        voiceState.message,
+                        color = if (voiceState.isRecording || voiceState.isTranscribing) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = if (voiceState.isRecording || voiceState.isTranscribing) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
                 ChestnutLongTextField(
-                    label = "例如：今天产检在奉化妇幼，血糖餐后一小时 8.8",
+                    label = "转写文本 / 手动输入，例如：今天产检在奉化妇幼，血糖餐后一小时 8.8",
                     value = text,
                     onValueChange = { text = it },
                     minLines = 4,
@@ -2182,6 +2323,60 @@ private fun SmartEntryDialog(
         },
         backgroundColor = ChestnutPalette.Bg
     )
+}
+
+@Composable
+private fun VoiceHoldButton(
+    recording: Boolean,
+    transcribing: Boolean,
+    disabled: Boolean,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit
+) {
+    val enabled = !disabled && !transcribing
+    val bg = when {
+        recording -> ChestnutPalette.Primary
+        transcribing -> ChestnutPalette.Surface2
+        else -> ChestnutPalette.Primary.copy(alpha = 0.12f)
+    }
+    val borderColor = if (recording) ChestnutPalette.Primary else ChestnutPalette.Primary.copy(alpha = 0.42f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(bg)
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                onVoiceStart()
+                                try {
+                                    tryAwaitRelease()
+                                } finally {
+                                    onVoiceStop()
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+            .padding(vertical = 14.dp, horizontal = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            when {
+                recording -> "松开结束录音"
+                transcribing -> "正在转文字..."
+                else -> "按住说话"
+            },
+            color = if (recording) Color.White else ChestnutPalette.Primary,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable
@@ -3050,7 +3245,7 @@ private fun SmartModelSettingsDialog(
                 }
                 item {
                     Text(
-                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片或文字只会在你主动点击识别/智能录入时发送给该模型服务商。",
+                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片、语音或文字只会在你主动点击识别/按住说话/智能录入时发送给该模型或语音识别服务商。",
                         color = Color(0xFF7C4A21),
                         fontSize = 13.sp,
                         modifier = Modifier
