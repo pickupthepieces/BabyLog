@@ -18,7 +18,11 @@ public final class BabyLogSmartInput {
     }
 
     public static UltrasoundOcrCandidate fromOpenAiVisionResponse(String responseJson) {
-        Map<String, Object> response = requireObject(JsonParser.parse(responseJson), "OpenAI-compatible response");
+        return fromMessageContent(extractOpenAiMessageContent(responseJson));
+    }
+
+    public static String extractOpenAiMessageContent(String responseJson) {
+        Map<String, Object> response = parseJsonObject(responseJson, "OpenAI-compatible response");
         Object content = null;
 
         Object choicesValue = response.get("choices");
@@ -44,7 +48,11 @@ public final class BabyLogSmartInput {
         if (content == null) {
             throw new IllegalArgumentException("OpenAI-compatible response missing message.content");
         }
-        return fromMessageContent(contentToString(content));
+        return contentToString(content);
+    }
+
+    public static Map<String, Object> parseJsonObject(String json, String label) {
+        return requireObject(JsonParser.parse(json), label);
     }
 
     public static UltrasoundOcrCandidate fromMessageContent(String content) {
@@ -109,6 +117,9 @@ public final class BabyLogSmartInput {
         return new UltrasoundOcrCandidate(
                 stringField(object, "examDate"),
                 emptyStringField(),
+                stringField(object, "hospital"),
+                stringField(object, "reportTime"),
+                stringField(object, "diagnosisText"),
                 metricNumberField(object, "bpdMm", UnitKind.MM),
                 metricNumberField(object, "hcMm", UnitKind.MM),
                 metricNumberField(object, "acMm", UnitKind.MM),
@@ -150,6 +161,9 @@ public final class BabyLogSmartInput {
 
     private static boolean hasCandidateField(Map<String, Object> object) {
         return object.containsKey("examDate")
+                || object.containsKey("hospital")
+                || object.containsKey("reportTime")
+                || object.containsKey("diagnosisText")
                 || object.containsKey("bpdMm")
                 || object.containsKey("hcMm")
                 || object.containsKey("acMm")
@@ -365,6 +379,9 @@ public final class BabyLogSmartInput {
     public static final class UltrasoundOcrCandidate {
         public final FieldCandidate<String> examDate;
         public final FieldCandidate<String> gestationalAge;
+        public final FieldCandidate<String> hospital;
+        public final FieldCandidate<String> reportTime;
+        public final FieldCandidate<String> diagnosisText;
         public final FieldCandidate<Double> bpdMm;
         public final FieldCandidate<Double> hcMm;
         public final FieldCandidate<Double> acMm;
@@ -391,6 +408,9 @@ public final class BabyLogSmartInput {
         public UltrasoundOcrCandidate(
                 FieldCandidate<String> examDate,
                 FieldCandidate<String> gestationalAge,
+                FieldCandidate<String> hospital,
+                FieldCandidate<String> reportTime,
+                FieldCandidate<String> diagnosisText,
                 FieldCandidate<Double> bpdMm,
                 FieldCandidate<Double> hcMm,
                 FieldCandidate<Double> acMm,
@@ -416,6 +436,9 @@ public final class BabyLogSmartInput {
         ) {
             this.examDate = examDate;
             this.gestationalAge = gestationalAge;
+            this.hospital = hospital;
+            this.reportTime = reportTime;
+            this.diagnosisText = diagnosisText;
             this.bpdMm = bpdMm;
             this.hcMm = hcMm;
             this.acMm = acMm;

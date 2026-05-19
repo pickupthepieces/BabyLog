@@ -93,7 +93,8 @@ public final class BabyLogSmartVisionClient {
 
     public static String ultrasoundRecognitionPrompt() {
         return "请识别这张 B 超单，只提取胎儿生长指标和报告公共信息，并返回 JSON object。"
-                + "字段固定为：examDate, bpdMm, hcMm, acMm, flMm, efwGram, afiCm, deepestPocketCm, placentaLocation, placentaGrade, fetalPresentation, fetalHeartRateBpm, fetalCount, fetalMovement, umbilicalInsertion, cervicalLengthMm, crlMm, ntMm, umbilicalSd, umbilicalPi, umbilicalRi, warnings, rawText。"
+                + "字段固定为：examDate, hospital, reportTime, diagnosisText, bpdMm, hcMm, acMm, flMm, efwGram, afiCm, deepestPocketCm, placentaLocation, placentaGrade, fetalPresentation, fetalHeartRateBpm, fetalCount, fetalMovement, umbilicalInsertion, cervicalLengthMm, crlMm, ntMm, umbilicalSd, umbilicalPi, umbilicalRi, warnings, rawText。"
+                + "公共信息只识别报告明确写出的就诊医院/报告医院、报告时间/检查时间、超声诊断/诊断意见/超声提示；不要识别姓名、身份证、门诊号、住院号、床号、医生签名等个人身份信息。"
                 + "只在报告文字明确出现时填写字段：BPD/双顶径、HC/头围、AC/腹围、FL/股骨长、EFW/估重/胎儿体重、AFI、羊水最大深度/最大平段/最大羊水池、胎盘位置/分级、胎位、胎心率、胎儿个数、胎动、脐带插入处、宫颈管长度、CRL/顶臀径、NT、脐动脉 S/D/PI/RI。"
                 + "不要识别、返回或推断孕周；孕周由用户根据报告手动填写或由预产期计算。"
                 + "efwGram 只在明确出现 EFW、估重、胎儿体重或胎重时填写；不要把胎心率 143bpm 当 EFW。"

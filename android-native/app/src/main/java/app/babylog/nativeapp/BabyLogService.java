@@ -391,6 +391,9 @@ public final class BabyLogService {
         appendSummary(summary, withLabel("胎盘", input.placentaLocation));
         appendSummary(summary, withLabel("成熟度", input.placentaGrade));
         appendSummary(summary, withLabel("胎位", input.fetalPresentation));
+        appendSummary(summary, withLabel("医院", input.hospital));
+        appendSummary(summary, withLabel("报告时间", input.reportTime));
+        appendSummary(summary, withLabel("诊断", input.diagnosisText));
         appendSummary(summary, withLabel("胎儿个数", input.fetalCount));
         appendSummary(summary, withLabel("胎动", input.fetalMovement));
         Double fetalHeartRate = BabyLogFormatters.parseOptionalNumber(input.fetalHeartRateBpm);
@@ -508,6 +511,9 @@ public final class BabyLogService {
         putIfNotNull(payload, "acMm", ac);
         putIfNotNull(payload, "flMm", fl);
         putIfNotNull(payload, "efwGram", efw);
+        putStringIfNotBlank(payload, "hospital", input.hospital);
+        putStringIfNotBlank(payload, "reportTime", input.reportTime);
+        putStringIfNotBlank(payload, "diagnosisText", input.diagnosisText);
         putIfNotNull(payload, "afiCm", BabyLogFormatters.parseOptionalNumber(input.afiCm));
         putIfNotNull(payload, "deepestPocketCm", BabyLogFormatters.parseOptionalNumber(input.deepestPocketCm));
         putStringIfNotBlank(payload, "placentaLocation", input.placentaLocation);
@@ -880,6 +886,9 @@ public final class BabyLogService {
     public static final class UltrasoundInput {
         public final String examDate;
         public final String gestationalAge;
+        public final String hospital;
+        public final String reportTime;
+        public final String diagnosisText;
         public final String bpdMm;
         public final String hcMm;
         public final String acMm;
@@ -929,8 +938,71 @@ public final class BabyLogService {
                 String photoPath,
                 String photoName
         ) {
+            this(
+                    examDate,
+                    gestationalAge,
+                    "",
+                    "",
+                    "",
+                    bpdMm,
+                    hcMm,
+                    acMm,
+                    flMm,
+                    efwGram,
+                    afiCm,
+                    deepestPocketCm,
+                    placentaLocation,
+                    placentaGrade,
+                    fetalPresentation,
+                    fetalHeartRateBpm,
+                    fetalCount,
+                    fetalMovement,
+                    umbilicalInsertion,
+                    cervicalLengthMm,
+                    crlMm,
+                    ntMm,
+                    umbilicalSd,
+                    umbilicalPi,
+                    umbilicalRi,
+                    photoPath,
+                    photoName
+            );
+        }
+
+        public UltrasoundInput(
+                String examDate,
+                String gestationalAge,
+                String hospital,
+                String reportTime,
+                String diagnosisText,
+                String bpdMm,
+                String hcMm,
+                String acMm,
+                String flMm,
+                String efwGram,
+                String afiCm,
+                String deepestPocketCm,
+                String placentaLocation,
+                String placentaGrade,
+                String fetalPresentation,
+                String fetalHeartRateBpm,
+                String fetalCount,
+                String fetalMovement,
+                String umbilicalInsertion,
+                String cervicalLengthMm,
+                String crlMm,
+                String ntMm,
+                String umbilicalSd,
+                String umbilicalPi,
+                String umbilicalRi,
+                String photoPath,
+                String photoName
+        ) {
             this.examDate = examDate;
             this.gestationalAge = gestationalAge;
+            this.hospital = hospital;
+            this.reportTime = reportTime;
+            this.diagnosisText = diagnosisText;
             this.bpdMm = bpdMm;
             this.hcMm = hcMm;
             this.acMm = acMm;
