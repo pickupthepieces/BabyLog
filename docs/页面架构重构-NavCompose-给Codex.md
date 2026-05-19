@@ -184,3 +184,20 @@
 **修法**：`MetricCard` 的 `.height(76.dp)` → `.heightIn(min = 76.dp)`（内容/字号变大时自适应增高、不裁；行内各格 weight 仍对齐到最高）。不动配色/结构/`subtitle` 的 ellipsis。小改低风险。
 
 **约束/验收**：仅此一处高度约束改动；首页摘要文字（尤其 subtitle）不再被裁、大字号下也不裁；行内宫格高度对齐一致；assembleDebug+lint+smoke 绿；可并入"底部收敛"同一笔 `ui:` 提交（同属首页视觉修正）或紧随其后单提交，二者择一勿混入功能轮。
+
+### P5 收尾修正 II：quick rail 压紧+滚动自动隐藏 ＋ 补做 MetricCard 裁切（用户裁定）
+
+`eec488b` 底部收敛已通过（3 带→2 带，占屏 ~40%→~22%，VoiceEntryRail 删净、BottomNav 纯 4 tab、麦克风磁贴并入 rail）。本节为继续收尾，一笔 `ui:` 提交（两子项同属首页底部视觉/交互，可同提交，勿混功能/Q 队列）：
+
+**A. 🔴 补做 MetricCard 文字裁切（已被静默漏两次，本次硬性必做）**
+- `ui/components/BabyLogComponents.kt:78` 仍为 `.height(76.dp)` → 改 `.heightIn(min = 76.dp)`。固定高把摘要宫格底部文字裁掉（大字号更甚），用户最早即报"文字下部被遮挡"。不动配色/结构/ellipsis。**Claude review 会专门查 line 78；scoped 项若决定不做必须显式说明，不得再静默丢弃（perf-B、本项已两次）。**
+
+**B. quick rail 压紧 + 滚动自动隐藏（用户选）**
+- **压紧**：rail 变矮——磁贴缩小/单行/弱化文字标签，目标高度降约 30–40%；麦克风磁贴仍居首，5 个动作仍可达（不够宽则横向可滚）。
+- **滚动自动隐藏**：绑定首页 LazyColumn 滚动——内容下滑（阅读）时 rail 平滑滑出隐藏；上滑 / 停止 / 列表顶部时滑回。用 nestedScroll/滚动增量 + 动画偏移（如 `AnimatedVisibility`/`animateDpAsState`）。
+  - **底栏 BottomNav 不随之隐藏**（全局导航需常驻）；只隐藏 quick rail 这一条。
+  - 内容区 bottom contentPadding 跟随 rail 显隐调整，保证任何状态都不永久遮挡、也不跳动。
+  - rail 隐藏时麦克风/语音不可触发属正常；上滑回来即可用。仅首页;非首页本就只有底栏。
+- 不改动作集/录音逻辑/人工确认链/阶段投影/已锁视觉 token；逻辑只调显隐与尺寸。
+
+**验收**：line 78 已 `heightIn`、摘要文字大字号下不裁；rail 明显变矮；下滑隐藏、上滑/置顶回现、过渡平滑无跳；底栏始终在；一拍即记 + 按住说话在 rail 可见时正常；assembleDebug+lint+smoke 绿；装机回归。一笔 `ui:` 提交不混不并 main。
