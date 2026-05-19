@@ -312,3 +312,16 @@ Codex 反馈定位不到/加 key 未解。Claude 二次核查确诊：
 3. 同理：任何重表单都不得用 `Column+verticalScroll`，统一走 LazyColumn 版。
 
 **验收**：编辑 B 超页 gfxinfo 重测——Slow UI thread 大幅下降、90th ≤ ~16ms、Janky 显著下降；字段集/校验/人工确认链/Q2 编辑/数据不变；assemble+lint+smoke 绿。Claude 复测一次真机 gfxinfo 验收。
+
+#### perf-D 修正：高刷(120/144Hz)适配 + 验收标准更正（用户要求适配高刷）
+
+测试机实为 **144Hz**（`dumpsys display` refreshRate≈144），帧预算 **6.94ms**（120Hz=8.33ms），非 60Hz 的 16.67ms。故先前"90th ≤ ~16ms"验收**作废**。
+
+**澄清（别追不存在的开关）**：Android 本就按屏幕刷新率渲染。"高刷适配"实质 = ① App 不得把刷新率钉死 60；② 每帧主线程工作量压进高刷预算内。对本重表单，杠杆仍是 perf-D 确诊的修复（懒加载容器 + 状态持有者），不是某设置项。
+
+**本轮要做**：
+1. **保留高置信修复**：撤回为追数值做的激进实验；`UltrasoundFormScreen` 改回懒 `RecordFormScaffold`(LazyColumn) + 分组 `item(key=…)` + 已做的 state holder/方法引用/derivedStateOf 子 composable。
+2. **不钉 60Hz**：排查 App 是否有 `preferredRefreshRate`/`preferredDisplayModeId`/`Surface.setFrameRate`/窗口属性把帧率限 60；若有则去除，让系统用原生 120/144；无则说明确认。
+3. **验收按原生刷新率衡量**（不再固定 16ms）：测试机 144Hz 下，编辑 B 超页打字+滚动 **Janky% 显著下降**、`Number Slow UI thread` 大降；百分位对 144Hz 预算（~6.9ms）尽量靠拢，**至少不再是 48% jank/90th 27ms 量级**；若 Material TextField 在 144Hz 仍超预算，记录数据、评估是否需更轻输入控件（不在本笔强求，先 LazyColumn 复测）。
+
+**约束**：独立 `perf:`；字段集/校验/人工确认链/Q2 编辑/数据不变；assemble+lint+smoke 绿。Claude 复测真机 gfxinfo（按 144Hz 解读：看 Janky% 与 Slow UI thread 降幅，不用 16ms 这把尺）。
