@@ -2556,6 +2556,7 @@ private data class TimelineRowText(
 internal fun LibraryScreen(
     attachments: List<BabyLogDomain.AttachmentRecord>,
     stage: String,
+    typeFilter: String = "all",
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit
 ) {
     data class LibraryEntry(
@@ -2563,24 +2564,26 @@ internal fun LibraryScreen(
         val count: String,
         val note: String,
         val icon: LineIcon,
+        val type: String,
         val detailAttachments: List<BabyLogDomain.AttachmentRecord>?
     )
     val ultrasoundAttachments = attachments.filter { it.kind == "ultrasound_image" }
     val documentAttachments = attachments.filter { it.kind == "document_image" }
     val vaccineAttachments = attachments.filter { it.kind == "vaccine_image" }
     val pregnancyEntries = listOf(
-        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "已保存本机；表单内可识别字段", LineIcon.Ultrasound, ultrasoundAttachments),
-        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, documentAttachments),
-        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", LineIcon.File, null),
-        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, vaccineAttachments)
+        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "已保存本机；表单内可识别字段", LineIcon.Ultrasound, "ultrasound_image", ultrasoundAttachments),
+        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, "document_image", documentAttachments),
+        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", LineIcon.File, "other", null),
+        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, "vaccine_image", vaccineAttachments)
     )
     val babyEntries = listOf(
-        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", LineIcon.File, null),
-        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, vaccineAttachments),
-        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "孕期资料仍可查看", LineIcon.Ultrasound, ultrasoundAttachments),
-        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, documentAttachments)
+        LibraryEntry("出生证明", "待支持", "出生资料归档入口待补", LineIcon.File, "other", null),
+        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, "vaccine_image", vaccineAttachments),
+        LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "孕期资料仍可查看", LineIcon.Ultrasound, "ultrasound_image", ultrasoundAttachments),
+        LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, "document_image", documentAttachments)
     )
-    val entries = if (stage == BabyLogDomain.STAGE_BABY) babyEntries else pregnancyEntries
+    val entries = (if (stage == BabyLogDomain.STAGE_BABY) babyEntries else pregnancyEntries)
+        .filter { typeFilter == "all" || it.type == typeFilter }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         entries.forEach { entry ->
             LibraryItem(

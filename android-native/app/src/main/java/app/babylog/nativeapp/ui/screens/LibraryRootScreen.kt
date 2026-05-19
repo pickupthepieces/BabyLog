@@ -1,7 +1,27 @@
 package app.babylog.nativeapp
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 @Composable
 internal fun LibraryRootScreen(
@@ -9,13 +29,154 @@ internal fun LibraryRootScreen(
     state: BabyLogUiState,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit
 ) {
+    var keyword by rememberSaveable { mutableStateOf("") }
+    var typeFilter by rememberSaveable { mutableStateOf("all") }
+    var startDate by rememberSaveable { mutableStateOf("") }
+    var endDate by rememberSaveable { mutableStateOf("") }
+    val filteredAttachments = remember(state.attachments, keyword, typeFilter, startDate, endDate) {
+        state.attachments.filter { attachment ->
+            attachmentMatchesLibrarySearch(attachment, keyword, typeFilter, startDate, endDate)
+        }
+    }
     BabyLogScreenColumn(inner) {
         item {
+            LibrarySearchPanel(
+                keyword = keyword,
+                onKeywordChange = { keyword = it },
+                typeFilter = typeFilter,
+                onTypeSelected = { typeFilter = it },
+                startDate = startDate,
+                onStartDateChange = { startDate = it },
+                endDate = endDate,
+                onEndDateChange = { endDate = it }
+            )
+        }
+        item {
             LibraryScreen(
-                attachments = state.attachments,
+                attachments = filteredAttachments,
                 stage = currentCareStage(state.childProfile),
+                typeFilter = typeFilter,
                 onShowAttachments = onShowAttachments
             )
         }
     }
+}
+
+@Composable
+private fun LibrarySearchPanel(
+    keyword: String,
+    onKeywordChange: (String) -> Unit,
+    typeFilter: String,
+    onTypeSelected: (String) -> Unit,
+    startDate: String,
+    onStartDateChange: (String) -> Unit,
+    endDate: String,
+    onEndDateChange: (String) -> Unit
+) {
+    Panel {
+        SectionHeader("资料检索")
+        Spacer(Modifier.height(10.dp))
+        ChestnutTextField(
+            label = "关键词",
+            value = keyword,
+            onValueChange = onKeywordChange,
+            keyboardType = KeyboardType.Text,
+            placeholder = "文件名、类型、日期"
+        )
+        Spacer(Modifier.height(10.dp))
+        LibraryTypeFilters(selected = typeFilter, onSelect = onTypeSelected)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DateInputRow(
+                label = "开始日期",
+                value = startDate,
+                onValueChange = onStartDateChange,
+                modifier = Modifier.weight(1f)
+            )
+            DateInputRow(
+                label = "结束日期",
+                value = endDate,
+                onValueChange = onEndDateChange,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun LibraryTypeFilters(selected: String, onSelect: (String) -> Unit) {
+    val options = listOf(
+        "all" to "全部",
+        "ultrasound_image" to "B 超单",
+        "document_image" to "检查单",
+        "vaccine_image" to "疫苗本",
+        "other" to "其他"
+    )
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (key, label) ->
+            val active = selected == key
+            OutlinedButton(
+                onClick = { onSelect(key) },
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (active) ChestnutPalette.Primary else ChestnutPalette.Border
+                ),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    backgroundColor = if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface,
+                    contentColor = if (active) ChestnutPalette.Primary else ChestnutPalette.Ink
+                )
+            ) {
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+private fun attachmentMatchesLibrarySearch(
+    attachment: BabyLogDomain.AttachmentRecord,
+    keyword: String,
+    typeFilter: String,
+    startDate: String,
+    endDate: String
+): Boolean {
+    if (typeFilter != "all") {
+        val isOther = typeFilter == "other" &&
+            attachment.kind != "ultrasound_image" &&
+            attachment.kind != "document_image" &&
+            attachment.kind != "vaccine_image"
+        if (!isOther && attachment.kind != typeFilter) {
+            return false
+        }
+    }
+    val createdDate = attachment.createdAt.toDateToken()
+    if (startDate.isNotBlank() && createdDate.isNotBlank() && createdDate < startDate) {
+        return false
+    }
+    if (endDate.isNotBlank() && createdDate.isNotBlank() && createdDate > endDate) {
+        return false
+    }
+    val needle = keyword.trim().lowercase(Locale.ROOT)
+    if (needle.isBlank()) {
+        return true
+    }
+    val haystack = listOf(
+        attachment.originalName,
+        attachment.kind,
+        attachment.mimeType,
+        attachment.createdAt,
+        attachment.ocrStatus,
+        attachment.localPath
+    ).joinToString(" ").lowercase(Locale.ROOT)
+    return haystack.contains(needle)
+}
+
+private fun String?.toDateToken(): String {
+    val value = this ?: return ""
+    if (value.isBlank() || value.length < 10) {
+        return ""
+    }
+    return value.substring(0, 10)
 }
