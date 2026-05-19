@@ -1,4 +1,5 @@
 import app.babylog.nativeapp.BabyLogDomain;
+import app.babylog.nativeapp.BabyLogFormatters;
 import app.babylog.nativeapp.BabyLogService;
 
 import org.json.JSONArray;
@@ -225,6 +226,16 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(BabyLogDomain.UPDATED_BY_LOCAL, edited.updatedBy);
         assertTrue(!original.updatedAt.equals(edited.updatedAt));
         assertEquals(2, edited.attachmentIds.size());
+        BabyLogDomain.BabyLogEvent movedDate = BabyLogService.createEditedEvent(
+                original,
+                "ultrasound",
+                null,
+                Arrays.asList("att_existing"),
+                BabyLogFormatters.createOccurredAtFromDate("2026-05-05")
+        );
+        assertEquals("2026-05-05T12:00:00.000+0800", movedDate.occurredAt);
+        assertEquals(original.id, movedDate.id);
+        assertEquals(original.createdAt, movedDate.createdAt);
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -279,6 +290,13 @@ public final class BabyLogServiceSmokeTest {
         missingAttachmentBlobData.put("attachments", new JSONArray().put(attachment));
         missingAttachmentBlobData.put("attachmentBlobs", new JSONArray());
         assertThrows(() -> BabyLogService.validateBackupDataForImport(missingAttachmentBlobData));
+        JSONObject deletedAttachmentData = new JSONObject(validImportData.toString());
+        JSONObject deletedAttachment = new JSONObject(attachment.toString());
+        deletedAttachment.put("id", "att_deleted_no_blob");
+        deletedAttachment.put("deletedAt", "2026-05-03T12:00:00.000+0800");
+        deletedAttachmentData.put("attachments", new JSONArray().put(deletedAttachment));
+        deletedAttachmentData.put("attachmentBlobs", new JSONArray());
+        BabyLogService.validateBackupDataForImport(deletedAttachmentData);
 
         JSONObject badSyncData = new JSONObject(validImportData.toString());
         badSyncData.getJSONArray("syncChanges").getJSONObject(0).remove("entityId");

@@ -24,6 +24,7 @@ internal fun RecordDetailScreen(
     event: BabyLogDomain.BabyLogEvent?,
     attachments: List<BabyLogDomain.AttachmentRecord>,
     onBack: () -> Unit,
+    onPreviewAttachment: (BabyLogDomain.AttachmentRecord) -> Unit,
     onEdit: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDelete: (BabyLogDomain.BabyLogEvent) -> Unit
 ) {
@@ -70,6 +71,14 @@ internal fun RecordDetailScreen(
                             attachment.kind.ifBlank { "附件" },
                             "${attachment.originalName.ifBlank { attachment.id }} · ${BabyLogFormatters.formatByteSize(attachment.byteSize)}"
                         )
+                        OutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 4.dp),
+                            onClick = { onPreviewAttachment(attachment) }
+                        ) {
+                            Text("查看附件", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -164,9 +173,16 @@ private fun payloadLabel(key: String): String {
         "gestationalAge" -> "孕周"
         "gestationalAgeDays" -> "孕周天数"
         "hospital" -> "医院"
+        "reportTime" -> "报告时间"
+        "diagnosisText" -> "超声诊断"
+        "checkupDate" -> "检查日期"
+        "screeningDate" -> "检查日期"
+        "provider" -> "医院 / 机构"
         "department" -> "科室"
         "doctorConclusion" -> "医生结论"
-        "notes" -> "备注"
+        "finding" -> "结论"
+        "treatmentAdvice" -> "处理及建议"
+        "reportType" -> "报告类型"
         "bpdMm" -> "BPD"
         "hcMm" -> "HC"
         "acMm" -> "AC"
@@ -178,17 +194,29 @@ private fun payloadLabel(key: String): String {
         "placentaGrade" -> "胎盘成熟度"
         "fetalPresentation" -> "胎位"
         "fetalHeartRateBpm" -> "胎心率"
+        "fetalCount" -> "胎儿个数"
+        "fetalMovement" -> "胎动"
+        "umbilicalInsertion" -> "脐带插入处"
+        "cervicalLengthMm" -> "宫颈管长度"
+        "crlMm" -> "CRL"
+        "ntMm" -> "NT"
         "umbilicalSd" -> "脐血流 S/D"
         "umbilicalPi" -> "脐血流 PI"
         "umbilicalRi" -> "脐血流 RI"
         "weightKg" -> "体重"
-        "systolic" -> "收缩压"
-        "diastolic" -> "舒张压"
+        "systolicBp" -> "收缩压"
+        "diastolicBp" -> "舒张压"
+        "fundalHeightCm" -> "宫高"
+        "abdominalCircumferenceCm" -> "腹围"
+        "edema" -> "水肿"
+        "urineRoutine" -> "尿常规"
+        "urineProtein" -> "尿蛋白"
+        "hemoglobinGL" -> "血红蛋白"
+        "highRiskFactors" -> "高危因素"
         "glucoseMmolL" -> "血糖"
         "glucoseContext" -> "血糖情境"
         "nextVisitDate" -> "下次产检"
-        "screeningDate" -> "检查日期"
-        "ntMm" -> "NT"
+        "nextVisitNote" -> "下次产检备注"
         "riskT21" -> "21 三体风险"
         "riskT18" -> "18 三体风险"
         "riskOntd" -> "开放性神经管风险"
@@ -205,8 +233,35 @@ private fun payloadLabel(key: String): String {
         "gbsResult" -> "GBS"
         "nstResult" -> "胎心监护"
         "conclusion" -> "结论"
+        "movementWindow" -> "胎动时段"
+        "movementCount" -> "胎动次数"
+        "entryMode" -> "记录方式"
+        "startedAt" -> "开始时间"
+        "endedAt" -> "结束时间"
+        "durationMinutes" -> "持续分钟"
+        "targetCount" -> "目标次数"
+        "contractionStart" -> "宫缩开始"
+        "intervalMinutes" -> "间隔分钟"
+        "durationSeconds" -> "持续秒"
+        "feedType" -> "喂养方式"
+        "amountMl" -> "奶量"
+        "sleepStart" -> "睡眠开始"
+        "sleepEnd" -> "睡眠结束"
+        "sleepPlace" -> "睡眠地点"
+        "diaperType" -> "尿布类型"
+        "diaperDetail" -> "尿布详情"
+        "temperatureC" -> "体温"
+        "measureMethod" -> "测量方式"
+        "medicationName" -> "药名"
+        "dosage" -> "剂量"
+        "reason" -> "原因"
+        "detail" -> "详情"
+        "quickAction" -> "快捷记录"
         "attachmentNote" -> "附件备注"
         "note" -> "备注"
+        "notes" -> "备注"
+        "summary" -> "摘要"
+        "warningText" -> "提示"
         else -> key
     }
 }

@@ -51,6 +51,23 @@ public final class BabyLogFormatters {
         }
     }
 
+    public static int daysBetweenDateInputs(String fromDate, String toDate) {
+        if (!isValidDateInput(fromDate) || !isValidDateInput(toDate)) {
+            return 0;
+        }
+        try {
+            SimpleDateFormat format = cnFormat("yyyy-MM-dd", Locale.US);
+            Date from = format.parse(fromDate);
+            Date to = format.parse(toDate);
+            if (from == null || to == null) {
+                return 0;
+            }
+            return (int) ((to.getTime() - from.getTime()) / 86_400_000L);
+        } catch (ParseException ignored) {
+            return 0;
+        }
+    }
+
     public static String createOccurredAtFromDate(String date) {
         if (!isValidDateInput(date)) {
             return nowIso();

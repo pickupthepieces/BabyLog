@@ -131,11 +131,15 @@ public final class BabyLogService {
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
         attachmentIds.addAll(createPregnancyAttachmentIds(input));
+        String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
+                ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
+                : existing.occurredAt;
         BabyLogDomain.BabyLogEvent event = createEditedEvent(
                 existing,
                 input.eventType,
                 buildPregnancyPayload(input),
-                attachmentIds
+                attachmentIds,
+                occurredAt
         );
         repository.putEvent(event);
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
@@ -762,11 +766,15 @@ public final class BabyLogService {
         }
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
         attachmentIds.addAll(createUltrasoundAttachmentIds(input));
+        String occurredAt = BabyLogFormatters.isValidDateInput(input.examDate)
+                ? BabyLogFormatters.createOccurredAtFromDate(input.examDate)
+                : existing.occurredAt;
         BabyLogDomain.BabyLogEvent event = createEditedEvent(
                 existing,
                 "ultrasound",
                 buildUltrasoundPayload(input),
-                attachmentIds
+                attachmentIds,
+                occurredAt
         );
         repository.putEvent(event);
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
@@ -779,6 +787,16 @@ public final class BabyLogService {
             JSONObject payload,
             List<String> attachmentIds
     ) throws JSONException {
+        return createEditedEvent(existing, expectedEventType, payload, attachmentIds, existing == null ? null : existing.occurredAt);
+    }
+
+    public static BabyLogDomain.BabyLogEvent createEditedEvent(
+            BabyLogDomain.BabyLogEvent existing,
+            String expectedEventType,
+            JSONObject payload,
+            List<String> attachmentIds,
+            String occurredAt
+    ) throws JSONException {
         if (existing == null || existing.deletedAt != null) {
             throw new JSONException("记录不存在或已删除");
         }
@@ -790,7 +808,7 @@ public final class BabyLogService {
                 existing.familyId,
                 existing.childId,
                 existing.eventType,
-                existing.occurredAt,
+                isBlank(occurredAt) ? existing.occurredAt : occurredAt,
                 payload == null ? existing.payload : payload,
                 attachmentIds == null ? new ArrayList<>() : new ArrayList<>(attachmentIds),
                 existing.source,
@@ -1111,6 +1129,11 @@ public final class BabyLogService {
 
     public void clearLocalData() {
         deleteRecursively(new File(context.getFilesDir(), "attachments"));
+        deleteRecursively(new File(context.getFilesDir(), "camera-captures"));
+        File pictureBase = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        if (pictureBase != null) {
+            deleteRecursively(new File(pictureBase, "camera-captures"));
+        }
         repository.clearLocalData();
     }
 
@@ -1163,7 +1186,12 @@ public final class BabyLogService {
 
     private JSONArray createAttachmentBlobBackup() throws IOException, JSONException {
         JSONArray blobs = new JSONArray();
-        for (BabyLogDomain.AttachmentRecord attachment : repository.listAttachments()) {
+        JSONArray attachments = repository.exportAttachments();
+        for (int i = 0; i < attachments.length(); i++) {
+            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(attachments.optJSONObject(i));
+            if (attachment == null) {
+                continue;
+            }
             File file = new File(attachment.localPath);
             if (!file.exists()) {
                 continue;
@@ -1332,6 +1360,9 @@ public final class BabyLogService {
             BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(json);
             if (attachment == null || isBlank(attachment.id) || isBlank(attachment.kind) || isBlank(attachment.createdAt)) {
                 throw new JSONException("Invalid attachment at index " + i);
+            }
+            if (attachment.deletedAt != null) {
+                continue;
             }
             if (!blobAttachmentIds.contains(attachment.id)) {
                 throw new JSONException("Missing attachment blob for " + attachment.id);

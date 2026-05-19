@@ -1117,11 +1117,25 @@ public final class ComposeMainActivity : ComponentActivity() {
                 checkupOcrRunning = false
                 pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
             }
+            "fetal_movement" -> {
+                val action = editQuickActionByEventType(candidate.eventType)
+                if (action == null) {
+                    showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
+                    return
+                }
+                pregnancyDraft = draft
+                pregnancyAction = action
+                pendingCheckupAttachmentPath = null
+                pendingCheckupAttachmentName = null
+                checkupOcrCandidate = null
+                checkupOcrRunning = false
+                pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
+            }
             "maternal_metric" -> {
                 maternalMetricDraft = draft
                 pendingNavRoute = BabyLogRoutes.RecordMaternalMetric
             }
-            "feed", "sleep", "diaper", "temperature", "medication" -> {
+            "feed", "sleep", "diaper", "temperature", "medication", "breastfeed", "bottle", "wake", "pee", "poop" -> {
                 val action = quickActionByEventType(candidate.eventType)
                 if (action == null) {
                     showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
@@ -1460,6 +1474,11 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "conclusion" to "结论文本",
                 "note" to "备注"
             )
+            forms["fetal_movement"] = smartFormFields(
+                "primary" to "时段，例如 20:00-21:00",
+                "secondary" to "次数",
+                "note" to "备注"
+            )
             forms["contraction"] = smartFormFields(
                 "primary" to "开始时间",
                 "secondary" to "间隔",
@@ -1475,11 +1494,51 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "note" to "备注"
             )
         } else if (stage == BabyLogDomain.STAGE_BABY) {
+            forms["feed"] = smartFormFields(
+                "primary" to "喂养方式，例如 母乳 / 奶瓶",
+                "secondary" to "奶量 ml",
+                "note" to "备注"
+            )
+            forms["breastfeed"] = smartFormFields(
+                "primary" to "补充状态",
+                "secondary" to "备注"
+            )
+            forms["bottle"] = smartFormFields(
+                "primary" to "奶量或详情",
+                "secondary" to "备注"
+            )
             forms["sleep"] = smartFormFields(
                 "primary" to "开始时间",
                 "secondary" to "结束时间",
                 "tertiary" to "时长",
                 "note" to "备注"
+            )
+            forms["wake"] = smartFormFields(
+                "primary" to "醒来时间或状态",
+                "secondary" to "备注"
+            )
+            forms["diaper"] = smartFormFields(
+                "primary" to "尿布类型，例如 尿 / 便",
+                "secondary" to "性状 / 颜色 / 量",
+                "note" to "备注"
+            )
+            forms["pee"] = smartFormFields(
+                "primary" to "尿量或状态",
+                "secondary" to "备注"
+            )
+            forms["poop"] = smartFormFields(
+                "primary" to "性状 / 颜色",
+                "secondary" to "备注"
+            )
+            forms["temperature"] = smartFormFields(
+                "primary" to "体温 ℃",
+                "secondary" to "测量方式",
+                "note" to "备注"
+            )
+            forms["medication"] = smartFormFields(
+                "primary" to "药名",
+                "secondary" to "剂量",
+                "tertiary" to "原因"
             )
         }
         return forms
@@ -1965,6 +2024,7 @@ private fun BabyLogApp(
                     event = event,
                     attachments = state.attachments,
                     onBack = ::closeRecordDetail,
+                    onPreviewAttachment = onPreviewAttachment,
                     onEdit = { detailEvent -> onEditEvent(detailEvent, recordDetailReturnRoute) },
                     onDelete = onDeleteEvent
                 )
@@ -3642,17 +3702,7 @@ internal fun isEventVisibleInHome(event: BabyLogDomain.BabyLogEvent, stage: Stri
 }
 
 private fun daysBetween(fromDate: String, toDate: String): Int {
-    if (!BabyLogFormatters.isValidDateInput(fromDate) || !BabyLogFormatters.isValidDateInput(toDate)) {
-        return 0
-    }
-    return try {
-        val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val from = format.parse(fromDate)
-        val to = format.parse(toDate)
-        if (from == null || to == null) 0 else ((to.time - from.time) / 86_400_000L).toInt()
-    } catch (_: Exception) {
-        0
-    }
+    return BabyLogFormatters.daysBetweenDateInputs(fromDate, toDate)
 }
 
 private fun extractDateInput(text: String?): String? {
