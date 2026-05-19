@@ -84,11 +84,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -3363,20 +3365,28 @@ private fun Modifier.voiceNavGesture(
     onClick: () -> Unit,
     onHoldStart: () -> Unit,
     onHoldEnd: () -> Unit
-): Modifier = pointerInput(longPressMillis, onClick, onHoldStart, onHoldEnd) {
-    awaitEachGesture {
-        awaitFirstDown(requireUnconsumed = false)
-        val releasedBeforeLongPress = withTimeoutOrNull(longPressMillis) {
-            waitForUpOrCancellation()
-        }
-        if (releasedBeforeLongPress != null) {
-            onClick()
-            return@awaitEachGesture
-        }
+): Modifier = composed {
+    val currentOnClick by rememberUpdatedState(onClick)
+    val currentOnHoldStart by rememberUpdatedState(onHoldStart)
+    val currentOnHoldEnd by rememberUpdatedState(onHoldEnd)
+    pointerInput(longPressMillis) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            val releasedBeforeLongPress = withTimeoutOrNull(longPressMillis) {
+                waitForUpOrCancellation()
+            }
+            if (releasedBeforeLongPress != null) {
+                currentOnClick()
+                return@awaitEachGesture
+            }
 
-        onHoldStart()
-        waitForUpOrCancellation()
-        onHoldEnd()
+            currentOnHoldStart()
+            try {
+                waitForUpOrCancellation()
+            } finally {
+                currentOnHoldEnd()
+            }
+        }
     }
 }
 
