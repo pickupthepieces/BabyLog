@@ -2,7 +2,6 @@ package app.babylog.nativeapp
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -11,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -92,8 +90,6 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -160,11 +156,10 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var ultrasoundDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var ultrasoundOcrCandidate by mutableStateOf<BabyLogSmartInput.UltrasoundOcrCandidate?>(null)
     private var showClearLocalConfirm by mutableStateOf(false)
-    private var showTrashDialog by mutableStateOf(false)
     private var profilePageState by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
     private var syncConfirmUrl by mutableStateOf<String?>(null)
-    private var attachmentDialog by mutableStateOf<AttachmentDialogState?>(null)
+    private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var deleteEventConfirm by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
     private var infoDialog by mutableStateOf<InfoDialogState?>(null)
@@ -218,8 +213,21 @@ public final class ComposeMainActivity : ComponentActivity() {
                         recordReturnRoute = sourceRoute
                         handleQuickAction(action)
                     },
+                    attachmentListPageState = attachmentListPageState,
+                    previewAttachment = previewAttachment,
                     onShowAttachments = { title, attachments ->
-                        attachmentDialog = AttachmentDialogState(title, attachments)
+                        attachmentListPageState = AttachmentListPageState(title, attachments)
+                        pendingNavRoute = BabyLogRoutes.LibraryAttachments
+                    },
+                    onCloseAttachmentList = {
+                        attachmentListPageState = null
+                    },
+                    onPreviewAttachment = { attachment ->
+                        previewAttachment = attachment
+                        pendingNavRoute = BabyLogRoutes.AttachmentPreview
+                    },
+                    onCloseAttachmentPreview = {
+                        previewAttachment = null
                     },
                     onSyncNow = ::syncNow,
                     onExportBackup = ::exportBackup,
@@ -242,7 +250,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onSaveSpeechSettings = ::saveSpeechSettings,
                     onSaveProfile = ::saveProfile,
                     onClearLocalData = { showClearLocalConfirm = true },
-                    onOpenTrash = { showTrashDialog = true },
+                    onOpenTrash = { pendingNavRoute = BabyLogRoutes.LibraryTrash },
+                    onRestoreTrashEvent = { event ->
+                        restoreEvent(event.id)
+                    },
                     onCreatePregnancyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_PREGNANCY) },
                     onCreateBabyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_BABY) },
                     onEditProfile = { openProfileEditDialog() },
@@ -388,32 +399,6 @@ public final class ComposeMainActivity : ComponentActivity() {
                             deleteEventConfirm = null
                             deleteEvent(eventId)
                         }
-                    )
-                }
-
-                if (showTrashDialog) {
-                    TrashDialog(
-                        events = uiState.trashEvents,
-                        onDismiss = { showTrashDialog = false },
-                        onRestore = { event ->
-                            restoreEvent(event.id)
-                        }
-                    )
-                }
-
-                attachmentDialog?.let { dialog ->
-                    AttachmentListDialog(
-                        title = dialog.title,
-                        attachments = dialog.attachments,
-                        onDismiss = { attachmentDialog = null },
-                        onPreview = { previewAttachment = it }
-                    )
-                }
-
-                previewAttachment?.let { attachment ->
-                    AttachmentPreviewDialog(
-                        attachment = attachment,
-                        onDismiss = { previewAttachment = null }
                     )
                 }
 
@@ -1350,7 +1335,7 @@ private data class ImportConfirmState(
     val profileLabel: String
 )
 
-private data class AttachmentDialogState(
+internal data class AttachmentListPageState(
     val title: String,
     val attachments: List<BabyLogDomain.AttachmentRecord>
 )
@@ -1390,7 +1375,12 @@ private fun BabyLogApp(
     onSmartVoiceHoldEnd: (String) -> Unit,
     quickActions: List<BabyLogService.QuickAction>,
     onQuickAction: (BabyLogService.QuickAction, String) -> Unit,
+    attachmentListPageState: AttachmentListPageState?,
+    previewAttachment: BabyLogDomain.AttachmentRecord?,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
+    onCloseAttachmentList: () -> Unit,
+    onPreviewAttachment: (BabyLogDomain.AttachmentRecord) -> Unit,
+    onCloseAttachmentPreview: () -> Unit,
     onSyncNow: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
@@ -1409,6 +1399,7 @@ private fun BabyLogApp(
     onSaveProfile: (ProfileInput, Boolean) -> Unit,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
+    onRestoreTrashEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onCreatePregnancyProfile: () -> Unit,
     onCreateBabyProfile: () -> Unit,
     onEditProfile: () -> Unit,
@@ -1493,13 +1484,31 @@ private fun BabyLogApp(
             selectTopLevelTab(if (state.setupCompleted) BabyLogRoutes.Settings else BabyLogRoutes.Home)
         }
     }
+    fun closeAttachmentList() {
+        onCloseAttachmentList()
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(BabyLogRoutes.Library)
+        }
+    }
+    fun closeAttachmentPreview() {
+        onCloseAttachmentPreview()
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(BabyLogRoutes.Library)
+        }
+    }
+    fun closeTrashPage() {
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(BabyLogRoutes.Settings)
+        }
+    }
 
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
         topBar = {
             if (!BabyLogRoutes.isRecord(currentRoute) &&
                 currentRoute != BabyLogRoutes.SmartEntry &&
-                !BabyLogRoutes.isSettingsSubpage(currentRoute)
+                !BabyLogRoutes.isSettingsSubpage(currentRoute) &&
+                !BabyLogRoutes.isBrowseSubpage(currentRoute)
             ) {
                 TopBrandBand(activeTab = activeTab, state = state)
             }
@@ -1580,6 +1589,19 @@ private fun BabyLogApp(
                     onShowAttachments = onShowAttachments
                 )
             }
+            composable(BabyLogRoutes.LibraryAttachments) {
+                AttachmentListScreen(
+                    state = attachmentListPageState,
+                    onBack = ::closeAttachmentList,
+                    onPreview = onPreviewAttachment
+                )
+            }
+            composable(BabyLogRoutes.AttachmentPreview) {
+                AttachmentPreviewScreen(
+                    attachment = previewAttachment,
+                    onBack = ::closeAttachmentPreview
+                )
+            }
             composable(BabyLogRoutes.Settings) {
                 SettingsRootScreen(
                     inner = inner,
@@ -1595,6 +1617,13 @@ private fun BabyLogApp(
                     onClearLocalData = onClearLocalData,
                     onOpenTrash = onOpenTrash,
                     onEditProfile = onEditProfile
+                )
+            }
+            composable(BabyLogRoutes.LibraryTrash) {
+                TrashScreen(
+                    events = state.trashEvents,
+                    onBack = ::closeTrashPage,
+                    onRestore = onRestoreTrashEvent
                 )
             }
             composable(BabyLogRoutes.SettingsProfile) {
@@ -2521,207 +2550,6 @@ private fun ConfirmDialog(
         },
         backgroundColor = ChestnutPalette.Bg
     )
-}
-
-@Composable
-private fun AttachmentListDialog(
-    title: String,
-    attachments: List<BabyLogDomain.AttachmentRecord>,
-    onDismiss: () -> Unit,
-    onPreview: (BabyLogDomain.AttachmentRecord) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            if (attachments.isEmpty()) {
-                Text("暂无附件。", color = ChestnutPalette.Muted)
-            } else {
-                LazyColumn(
-                    modifier = Modifier.height(360.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(attachments, key = { it.id }) { attachment ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ChestnutPalette.Surface)
-                                .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(12.dp))
-                                .clickable { onPreview(attachment) }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            BabyLogIconTile(
-                                icon = LineIcon.File,
-                                tint = ChestnutPalette.Primary,
-                                tileColor = ChestnutPalette.Primary.copy(alpha = 0.14f),
-                                modifier = Modifier.size(44.dp),
-                                iconSize = 26.dp
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(attachment.originalName, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "${BabyLogFormatters.formatDateTime(attachment.createdAt)} · ${BabyLogFormatters.formatByteSize(attachment.byteSize)}",
-                                    color = ChestnutPalette.Muted,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭", color = ChestnutPalette.Primary) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
-private fun AttachmentPreviewDialog(
-    attachment: BabyLogDomain.AttachmentRecord,
-    onDismiss: () -> Unit
-) {
-    val bitmap = remember(attachment.localPath) {
-        BitmapFactory.decodeFile(attachment.localPath)?.asImageBitmap()
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(attachment.originalName, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            if (bitmap == null) {
-                Text("本机文件不存在或无法读取。", color = ChestnutPalette.Muted)
-            } else {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = attachment.originalName,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(360.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(ChestnutPalette.Surface2),
-                    contentScale = ContentScale.Fit
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭", color = ChestnutPalette.Primary) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
-private fun TrashDialog(
-    events: List<BabyLogDomain.BabyLogEvent>,
-    onDismiss: () -> Unit,
-    onRestore: (BabyLogDomain.BabyLogEvent) -> Unit
-) {
-    val nowIso = remember(events) { BabyLogFormatters.nowIso() }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("回收站", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "删除记录保留 7 天，超期自动永久清理",
-                    color = Color(0xFF7C4A21),
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFFFEBCB))
-                        .padding(12.dp)
-                )
-                if (events.isEmpty()) {
-                    EmptyPanel("回收站是空的")
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.height(390.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(events, key = { it.id }) { event ->
-                            TrashRow(
-                                event = event,
-                                nowIso = nowIso,
-                                onRestore = { onRestore(event) }
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭", color = ChestnutPalette.Primary) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
-private fun TrashRow(
-    event: BabyLogDomain.BabyLogEvent,
-    nowIso: String,
-    onRestore: () -> Unit
-) {
-    val remainingDays = BabyLogService.trashRemainingDays(event.deletedAt, nowIso)
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = ChestnutPalette.Surface,
-        border = BorderStroke(1.dp, ChestnutPalette.Border),
-        elevation = 1.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "${BabyLogFormatters.eventLabel(event.eventType)} · ${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}",
-                        color = ChestnutPalette.Muted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        BabyLogFormatters.eventSummary(event),
-                        color = ChestnutPalette.Ink,
-                        fontSize = 16.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (remainingDays <= 0) "即将清理" else "剩 $remainingDays 天",
-                    color = if (remainingDays <= 1) ChestnutPalette.Danger else ChestnutPalette.Accent,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (remainingDays <= 1) Color(0xFFFFE4DF) else ChestnutPalette.AccentSoft)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "删除于 ${BabyLogFormatters.formatDateTime(event.deletedAt)}",
-                    color = ChestnutPalette.Text3,
-                    fontSize = 12.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Button(
-                    onClick = onRestore,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Text("恢复", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
 }
 
 @Composable

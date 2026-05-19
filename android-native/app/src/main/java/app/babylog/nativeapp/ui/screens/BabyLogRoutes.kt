@@ -14,6 +14,9 @@ internal object BabyLogRoutes {
     const val SettingsSync = "settings/sync"
     const val SettingsModel = "settings/model"
     const val SettingsSpeech = "settings/speech"
+    const val LibraryAttachments = "library/attachments"
+    const val LibraryTrash = "library/trash"
+    const val AttachmentPreview = "attachment/preview"
 
     fun isTopLevel(route: String?): Boolean {
         return route == Home || route == Timeline || route == Library || route == Settings
@@ -31,5 +34,11 @@ internal object BabyLogRoutes {
             route == SettingsSync ||
             route == SettingsModel ||
             route == SettingsSpeech
+    }
+
+    fun isBrowseSubpage(route: String?): Boolean {
+        return route == LibraryAttachments ||
+            route == LibraryTrash ||
+            route == AttachmentPreview
     }
 }
