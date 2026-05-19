@@ -144,3 +144,11 @@
 **核实通过**：① 旧 FAB/`QuickActionDialog`/隐藏长按手势清除;`PersistentQuickRail` 两阶段常驻 + 显式"按住说话/文字录入"语音条(修 P1 可发现性);底栏中央语音仅显式打开。② 根因A：全屏 `Brush.verticalGradient` 已删,恢复扁平(性能+视觉双兑现);残留 1855 `linearGradient` 仅小卡片背景,非滚动容器,无碍。③ CMA 3140→2921;仅 CMA+QuickRail,逻辑/数据零改;单 commit 干净;装机回归通过。④ NavCompose P0–P5 闭环,CMA 4331→2921。
 
 **遗留（必须补，记过程问题）**：根因B（`FetalGrowthChart.kt` p10/p50/p90 仍在 `FetalGrowthCanvas` 的 `Canvas{}` DrawScope 内每帧重算）**未做**——该项在文档「P5 追加」已明确并入 P5,Codex 只做 A、漏 B 且未声明。**要求：单独一笔 `perf: FGR 参考曲线移出 DrawScope 提到 remember(metric.key)`，先于 Q 队列执行。** 流程纪律：并入范围的项若不做须显式说明,不得静默丢弃。
+
+### perf-B FGR remember 化 — 通过（commit `afbca2d`）
+
+**结论**：通过。**NavCompose P0–P5 + 性能根因 A/B 全部闭环。**
+
+**核实**：新增 `FetalGrowthReferenceSeries`;p10/p50/p90 计算移入 `remember(metric.key){…}`,位于 `Canvas(` 之前;DrawScope 仅读缓存,不再每帧重算 BCCG。单一 `perf:` commit、仅 FetalGrowthChart.kt、未混、树干净。装机 gfxinfo 50/90=8ms/16ms（≤16.67ms 帧预算,顺滑）;assembleDebug+lint+smoke 绿(CI 兜底)。
+
+**收口**：架构重构线结束。后续转入 `docs/P5后工作队列-给Codex.md`：perf-B 已清 → Q1 首启免责门 → Q2 记录可编辑 → Q2b 产检结构化 → Q4 → Q6（Q3 已完成,Q5 等设备）。
