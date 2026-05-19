@@ -19,6 +19,7 @@ internal object BabyLogRoutes {
     const val LibraryAttachments = "library/attachments"
     const val LibraryTrash = "library/trash"
     const val AttachmentPreview = "attachment/preview"
+    const val RecordDetail = "record/detail"
 
     fun isTopLevel(route: String?): Boolean {
         return route == Home || route == Timeline || route == Library || route == Settings
@@ -42,6 +43,7 @@ internal object BabyLogRoutes {
     fun isBrowseSubpage(route: String?): Boolean {
         return route == LibraryAttachments ||
             route == LibraryTrash ||
-            route == AttachmentPreview
+            route == AttachmentPreview ||
+            route == RecordDetail
     }
 }

@@ -11,6 +11,7 @@ internal fun TimelineScreen(
     selectedFilter: String,
     highlightedEventId: String?,
     onFilterSelected: (String) -> Unit,
+    onOpenDetail: (BabyLogDomain.BabyLogEvent) -> Unit,
     onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit
 ) {
@@ -31,6 +32,7 @@ internal fun TimelineScreen(
                 TimelineRow(
                     event,
                     highlighted = event.id == highlightedEventId,
+                    onClick = { onOpenDetail(event) },
                     onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
                     onDelete = { onDeleteEvent(event) }
                 )

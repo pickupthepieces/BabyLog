@@ -145,6 +145,8 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var pendingNavRoute by mutableStateOf<String?>(null)
     private var pendingNavNonce by mutableStateOf(0L)
     private var recordReturnRoute by mutableStateOf(BabyLogRoutes.Home)
+    private var recordDetailEventId by mutableStateOf<String?>(null)
+    private var recordDetailReturnRoute by mutableStateOf(BabyLogRoutes.Timeline)
     private var highlightedEventId by mutableStateOf<String?>(null)
     private var timelineFilter by mutableStateOf("all")
     private var selectedBabyDay by mutableStateOf(BabyLogFormatters.todayDateInput())
@@ -206,6 +208,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     pendingNavNonce = pendingNavNonce,
                     onNavRouteConsumed = { pendingNavRoute = null },
                     recordReturnRoute = recordReturnRoute,
+                    recordDetailEventId = recordDetailEventId,
+                    recordDetailReturnRoute = recordDetailReturnRoute,
                     highlightedEventId = highlightedEventId,
                     timelineFilter = timelineFilter,
                     selectedBabyDay = selectedBabyDay,
@@ -275,6 +279,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onCreatePregnancyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_PREGNANCY) },
                     onCreateBabyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_BABY) },
                     onEditProfile = { openProfileEditDialog() },
+                    onOpenEventDetail = { event, sourceRoute -> openEventDetail(event, sourceRoute) },
                     onEditEvent = { event, sourceRoute -> openEventForEdit(event, sourceRoute) },
                     onDeleteEvent = { deleteEventConfirm = it },
                     babyCareAction = babyCareAction,
@@ -633,6 +638,13 @@ public final class ComposeMainActivity : ComponentActivity() {
         pendingNavRoute = BabyLogRoutes.RecordUltrasound
     }
 
+    private fun openEventDetail(event: BabyLogDomain.BabyLogEvent, sourceRoute: String) {
+        recordDetailEventId = event.id
+        recordDetailReturnRoute = if (BabyLogRoutes.isTopLevel(sourceRoute)) sourceRoute else BabyLogRoutes.Timeline
+        pendingNavRoute = BabyLogRoutes.RecordDetail
+        pendingNavNonce = System.nanoTime()
+    }
+
     private fun openEventForEdit(event: BabyLogDomain.BabyLogEvent, sourceRoute: String) {
         if (!isEditablePregnancyRecord(event.eventType)) {
             showInfo("暂不支持编辑", "${BabyLogFormatters.eventLabel(event.eventType)} 记录暂时只支持删除后重录。")
@@ -817,6 +829,13 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 service.deleteEvent(eventId)
+                runOnUiThread {
+                    if (recordDetailEventId == eventId) {
+                        recordDetailEventId = null
+                        pendingNavRoute = recordDetailReturnRoute
+                        pendingNavNonce = System.nanoTime()
+                    }
+                }
                 showToast("已移入回收站，7 天内可恢复")
                 reloadData()
             } catch (error: Exception) {
@@ -1566,6 +1585,8 @@ private fun BabyLogApp(
     pendingNavNonce: Long,
     onNavRouteConsumed: () -> Unit,
     recordReturnRoute: String,
+    recordDetailEventId: String?,
+    recordDetailReturnRoute: String,
     highlightedEventId: String?,
     timelineFilter: String,
     selectedBabyDay: String,
@@ -1607,6 +1628,7 @@ private fun BabyLogApp(
     onCreatePregnancyProfile: () -> Unit,
     onCreateBabyProfile: () -> Unit,
     onEditProfile: () -> Unit,
+    onOpenEventDetail: (BabyLogDomain.BabyLogEvent, String) -> Unit,
     onEditEvent: (BabyLogDomain.BabyLogEvent, String) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     babyCareAction: BabyLogService.QuickAction?,
@@ -1722,6 +1744,11 @@ private fun BabyLogApp(
             selectTopLevelTab(BabyLogRoutes.Settings)
         }
     }
+    fun closeRecordDetail() {
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(if (BabyLogRoutes.isTopLevel(recordDetailReturnRoute)) recordDetailReturnRoute else BabyLogRoutes.Timeline)
+        }
+    }
 
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
@@ -1789,6 +1816,7 @@ private fun BabyLogApp(
                         highlightedEventId = highlightedEventId,
                         onBabyDaySelected = onBabyDaySelected,
                         onShowTimeline = { selectTopLevelTab(BabyLogRoutes.Timeline) },
+                        onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Home) },
                         onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Home) },
                         onDeleteEvent = onDeleteEvent,
                         onQuickRailVisibilityChange = { visible ->
@@ -1807,8 +1835,20 @@ private fun BabyLogApp(
                     selectedFilter = timelineFilter,
                     highlightedEventId = highlightedEventId,
                     onFilterSelected = onTimelineFilterSelected,
+                    onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Timeline) },
                     onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Timeline) },
                     onDeleteEvent = onDeleteEvent
+                )
+            }
+            composable(BabyLogRoutes.RecordDetail) {
+                val event = state.timeline.firstOrNull { it.id == recordDetailEventId }
+                    ?: state.trashEvents.firstOrNull { it.id == recordDetailEventId }
+                RecordDetailScreen(
+                    event = event,
+                    attachments = state.attachments,
+                    onBack = ::closeRecordDetail,
+                    onEdit = { detailEvent -> onEditEvent(detailEvent, recordDetailReturnRoute) },
+                    onDelete = onDeleteEvent
                 )
             }
             composable(BabyLogRoutes.Library) {
@@ -2387,6 +2427,7 @@ internal fun TimelineFilters(selected: String, onSelect: (String) -> Unit) {
 internal fun TimelineRow(
     event: BabyLogDomain.BabyLogEvent,
     highlighted: Boolean = false,
+    onClick: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -2400,6 +2441,7 @@ internal fun TimelineRow(
         )
     }
     Card(
+        modifier = Modifier.then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(14.dp),
         backgroundColor = ChestnutPalette.Surface,
         border = BorderStroke(if (highlighted) 2.dp else 1.dp, if (highlighted) ChestnutPalette.Primary else ChestnutPalette.Border),
