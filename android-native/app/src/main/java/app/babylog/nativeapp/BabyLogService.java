@@ -15,17 +15,21 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class BabyLogService {
     public static final String BACKUP_FORMAT = "babylog.backup";
     public static final int BACKUP_VERSION = 1;
     public static final int TRASH_RETENTION_DAYS = 7;
+    private static final String LAST_IMPORT_UNDO_FILE = "last-import-undo.json";
     private static final long TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24L * 60L * 60L * 1000L;
 
     private final Context context;
@@ -810,6 +814,26 @@ public final class BabyLogService {
     }
 
     public int importBackupJson(String raw) throws JSONException, IOException {
+        return importBackupJson(raw, true);
+    }
+
+    public boolean hasImportUndoSnapshot() {
+        File file = importUndoSnapshotFile();
+        return file.isFile() && file.length() > 0;
+    }
+
+    public int undoLastImport() throws JSONException, IOException {
+        File file = importUndoSnapshotFile();
+        if (!file.isFile()) {
+            throw new IOException("没有可撤销的导入快照");
+        }
+        String raw = new String(readBytes(file), StandardCharsets.UTF_8);
+        int count = importBackupJson(raw, false);
+        file.delete();
+        return count;
+    }
+
+    private int importBackupJson(String raw, boolean createUndoSnapshot) throws JSONException, IOException {
         JSONObject backup = new JSONObject(raw);
         if (!BACKUP_FORMAT.equals(backup.optString("format"))) {
             throw new JSONException("Invalid BabyLog backup format");
@@ -821,9 +845,13 @@ public final class BabyLogService {
         if (data == null || data.optJSONArray("events") == null) {
             throw new JSONException("Invalid BabyLog backup data");
         }
+        validateBackupDataForImport(data);
+        if (createUndoSnapshot) {
+            writeImportUndoSnapshot(createBackupJson());
+        }
         JSONArray attachments = data.optJSONArray("attachments");
         JSONArray restoredAttachments = restoreAttachmentBlobs(attachments, data.optJSONArray("attachmentBlobs"));
-        repository.importData(
+        boolean imported = repository.importData(
                 data.optJSONArray("familyProfiles"),
                 data.optJSONArray("childProfiles"),
                 data.optJSONArray("familyMembers"),
@@ -831,7 +859,26 @@ public final class BabyLogService {
                 restoredAttachments,
                 data.optJSONArray("syncChanges")
         );
+        if (!imported) {
+            throw new IOException("导入写入失败，原数据未确认替换");
+        }
         return data.optJSONArray("events").length();
+    }
+
+    public static void validateBackupDataForImport(JSONObject data) throws JSONException {
+        if (data == null) {
+            throw new JSONException("Invalid BabyLog backup data");
+        }
+        JSONArray events = data.optJSONArray("events");
+        if (events == null) {
+            throw new JSONException("Invalid BabyLog backup events");
+        }
+        validateEvents(events);
+        validateProfiles(data.optJSONArray("familyProfiles"), "familyProfiles");
+        validateProfiles(data.optJSONArray("childProfiles"), "childProfiles");
+        validateProfiles(data.optJSONArray("familyMembers"), "familyMembers");
+        validateAttachments(data.optJSONArray("attachments"), data.optJSONArray("attachmentBlobs"));
+        validateSyncChanges(data.optJSONArray("syncChanges"));
     }
 
     public String copyImageUriToPrivateFile(Uri uri, String nameHint) throws IOException {
@@ -989,6 +1036,16 @@ public final class BabyLogService {
         return restored;
     }
 
+    private File importUndoSnapshotFile() {
+        return new File(context.getFilesDir(), LAST_IMPORT_UNDO_FILE);
+    }
+
+    private void writeImportUndoSnapshot(String raw) throws IOException {
+        try (FileOutputStream output = new FileOutputStream(importUndoSnapshotFile())) {
+            output.write(raw.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
     private byte[] readBytes(File file) throws IOException {
         try (FileInputStream input = new FileInputStream(file); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
@@ -1048,6 +1105,68 @@ public final class BabyLogService {
             return start;
         }
         return start + "-" + end;
+    }
+
+    private static void validateEvents(JSONArray events) throws JSONException {
+        for (int i = 0; i < events.length(); i++) {
+            JSONObject json = events.optJSONObject(i);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(json);
+            if (event == null || isBlank(event.id) || isBlank(event.eventType) || isBlank(event.occurredAt)) {
+                throw new JSONException("Invalid event at index " + i);
+            }
+        }
+    }
+
+    private static void validateProfiles(JSONArray profiles, String label) throws JSONException {
+        if (profiles == null) {
+            return;
+        }
+        for (int i = 0; i < profiles.length(); i++) {
+            JSONObject json = profiles.optJSONObject(i);
+            if (json == null || isBlank(json.optString("id"))) {
+                throw new JSONException("Invalid " + label + " at index " + i);
+            }
+        }
+    }
+
+    private static void validateAttachments(JSONArray attachments, JSONArray blobs) throws JSONException {
+        if (attachments == null || attachments.length() == 0) {
+            return;
+        }
+        Set<String> blobAttachmentIds = new HashSet<>();
+        if (blobs != null) {
+            for (int i = 0; i < blobs.length(); i++) {
+                JSONObject blob = blobs.optJSONObject(i);
+                String attachmentId = blob == null ? "" : blob.optString("attachmentId");
+                if (isBlank(attachmentId) || isBlank(blob.optString("dataBase64"))) {
+                    throw new JSONException("Invalid attachment blob at index " + i);
+                }
+                blobAttachmentIds.add(attachmentId);
+            }
+        }
+        for (int i = 0; i < attachments.length(); i++) {
+            JSONObject json = attachments.optJSONObject(i);
+            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(json);
+            if (attachment == null || isBlank(attachment.id) || isBlank(attachment.kind) || isBlank(attachment.createdAt)) {
+                throw new JSONException("Invalid attachment at index " + i);
+            }
+            if (!blobAttachmentIds.contains(attachment.id)) {
+                throw new JSONException("Missing attachment blob for " + attachment.id);
+            }
+        }
+    }
+
+    private static void validateSyncChanges(JSONArray changes) throws JSONException {
+        if (changes == null) {
+            return;
+        }
+        for (int i = 0; i < changes.length(); i++) {
+            JSONObject json = changes.optJSONObject(i);
+            BabyLogDomain.SyncChange change = BabyLogDomain.SyncChange.fromJson(json);
+            if (change == null || isBlank(change.id) || isBlank(change.entityType) || isBlank(change.entityId)) {
+                throw new JSONException("Invalid sync change at index " + i);
+            }
+        }
     }
 
     private static boolean isBlank(String value) {

@@ -229,7 +229,7 @@ public final class BabyLogRepository {
         return readArray(SYNC_CHANGES_KEY);
     }
 
-    public void importData(
+    public boolean importData(
             JSONArray familyProfiles,
             JSONArray childProfiles,
             JSONArray familyMembers,
@@ -244,7 +244,7 @@ public final class BabyLogRepository {
         putFirstObjectOrRemove(editor, FAMILY_PROFILE_KEY, familyProfiles);
         putFirstObjectOrRemove(editor, CHILD_PROFILE_KEY, childProfiles);
         putFirstObjectOrRemove(editor, CURRENT_MEMBER_KEY, familyMembers);
-        editor.commit();
+        return editor.commit();
     }
 
     public void clearLocalData() {

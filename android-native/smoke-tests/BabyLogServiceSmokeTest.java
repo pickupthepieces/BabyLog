@@ -1,6 +1,7 @@
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogService;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -207,6 +208,39 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(105, sortedEvents.size());
         assertEquals("evt_104", sortedEvents.get(0).id);
         assertEquals("evt_0", sortedEvents.get(sortedEvents.size() - 1).id);
+
+        JSONObject validImportData = new JSONObject();
+        validImportData.put("events", new JSONArray().put(original.toJson()));
+        validImportData.put("attachments", new JSONArray());
+        validImportData.put("attachmentBlobs", new JSONArray());
+        validImportData.put("syncChanges", new JSONArray().put(BabyLogDomain.createSyncChange("event", original.id, "upsert").toJson()));
+        BabyLogService.validateBackupDataForImport(validImportData);
+
+        JSONObject missingEventIdData = new JSONObject(validImportData.toString());
+        missingEventIdData.getJSONArray("events").getJSONObject(0).remove("id");
+        assertThrows(() -> BabyLogService.validateBackupDataForImport(missingEventIdData));
+
+        JSONObject missingAttachmentBlobData = new JSONObject(validImportData.toString());
+        JSONObject attachment = new JSONObject();
+        attachment.put("id", "att_missing_blob");
+        attachment.put("familyId", BabyLogDomain.FAMILY_ID);
+        attachment.put("childId", BabyLogDomain.CHILD_ID);
+        attachment.put("kind", "ultrasound");
+        attachment.put("originalName", "scan.jpg");
+        attachment.put("mimeType", "image/jpeg");
+        attachment.put("byteSize", 3);
+        attachment.put("localPath", "/tmp/scan.jpg");
+        attachment.put("createdAt", "2026-05-02T12:00:00.000+0800");
+        attachment.put("updatedAt", "2026-05-02T12:00:00.000+0800");
+        attachment.put("updatedBy", BabyLogDomain.UPDATED_BY_LOCAL);
+        attachment.put("schemaVersion", BabyLogDomain.SCHEMA_VERSION);
+        missingAttachmentBlobData.put("attachments", new JSONArray().put(attachment));
+        missingAttachmentBlobData.put("attachmentBlobs", new JSONArray());
+        assertThrows(() -> BabyLogService.validateBackupDataForImport(missingAttachmentBlobData));
+
+        JSONObject badSyncData = new JSONObject(validImportData.toString());
+        badSyncData.getJSONArray("syncChanges").getJSONObject(0).remove("entityId");
+        assertThrows(() -> BabyLogService.validateBackupDataForImport(badSyncData));
     }
 
     private static void assertEquals(Object expected, Object actual) {
@@ -225,6 +259,19 @@ public final class BabyLogServiceSmokeTest {
         if (actual) {
             throw new AssertionError("expected false but got true");
         }
+    }
+
+    private static void assertThrows(ThrowingRunnable action) throws Exception {
+        try {
+            action.run();
+        } catch (Exception expected) {
+            return;
+        }
+        throw new AssertionError("expected exception");
+    }
+
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     private static BabyLogService.UltrasoundInput ultrasound(

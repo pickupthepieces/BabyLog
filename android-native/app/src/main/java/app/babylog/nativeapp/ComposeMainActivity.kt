@@ -167,6 +167,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var ultrasoundOcrCandidate by mutableStateOf<BabyLogSmartInput.UltrasoundOcrCandidate?>(null)
     private var checkupOcrCandidate by mutableStateOf<BabyLogSmartTextClient.SmartFillCandidate?>(null)
     private var showClearLocalConfirm by mutableStateOf(false)
+    private var undoImportConfirm by mutableStateOf(false)
     private var profilePageState by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
     private var syncConfirmUrl by mutableStateOf<String?>(null)
@@ -246,6 +247,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onSyncNow = ::syncNow,
                     onExportBackup = ::exportBackup,
                     onImportBackup = ::importBackup,
+                    onUndoImport = { undoImportConfirm = true },
                     onOpenSyncSettings = { pendingNavRoute = BabyLogRoutes.SettingsSync },
                     onOpenSmartSettings = ::openSmartSettings,
                     onOpenSpeechSettings = ::openSpeechSettings,
@@ -408,6 +410,20 @@ public final class ComposeMainActivity : ComponentActivity() {
                     )
                 }
 
+                if (undoImportConfirm) {
+                    ConfirmDialog(
+                        title = "撤销上次导入",
+                        message = "会恢复到上一次导入前的本机快照，并覆盖当前本机记录、附件索引、待同步队列和宝宝档案。",
+                        confirmText = "撤销导入",
+                        destructive = true,
+                        onDismiss = { undoImportConfirm = false },
+                        onConfirm = {
+                            undoImportConfirm = false
+                            undoLastImport()
+                        }
+                    )
+                }
+
                 deleteEventConfirm?.let { event ->
                     ConfirmDialog(
                         title = "移入回收站",
@@ -510,6 +526,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 childProfile = repository.loadChildProfile(),
                 setupCompleted = repository.hasCompletedSetup(),
                 disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion(),
+                hasImportUndoSnapshot = service.hasImportUndoSnapshot(),
                 lastBackupExportMs = getSharedPreferences(META_PREFS_NAME, MODE_PRIVATE)
                     .getLong(LAST_BACKUP_EXPORT_MS, 0L)
             )
@@ -1157,6 +1174,20 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun undoLastImport() {
+        runInBackground {
+            try {
+                val count = service.undoLastImport()
+                runOnUiThread { pendingNavRoute = BabyLogRoutes.Home }
+                showToast("已撤销导入，恢复 $count 条记录")
+                reloadData()
+            } catch (error: Exception) {
+                showInfo("撤销失败", error.message ?: "没有可恢复的导入快照")
+                reloadData()
+            }
+        }
+    }
+
     private fun syncNow() {
         runInBackground {
             try {
@@ -1470,6 +1501,7 @@ internal data class BabyLogUiState(
     val childProfile: BabyLogDomain.ChildProfile = BabyLogDomain.ChildProfile.empty(),
     val setupCompleted: Boolean = false,
     val disclaimerAccepted: Boolean = false,
+    val hasImportUndoSnapshot: Boolean = false,
     val lastBackupExportMs: Long = 0L
 )
 
@@ -1553,6 +1585,7 @@ private fun BabyLogApp(
     onSyncNow: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
+    onUndoImport: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenSmartSettings: () -> Unit,
     onOpenSpeechSettings: () -> Unit,
@@ -1765,6 +1798,7 @@ private fun BabyLogApp(
                         }
                     )
                 }
+
             }
             composable(BabyLogRoutes.Timeline) {
                 TimelineScreen(
@@ -1806,6 +1840,7 @@ private fun BabyLogApp(
                     onSyncNow = onSyncNow,
                     onExportBackup = onExportBackup,
                     onImportBackup = onImportBackup,
+                    onUndoImport = onUndoImport,
                     onOpenSyncSettings = onOpenSyncSettings,
                     onOpenSmartSettings = onOpenSmartSettings,
                     onOpenSpeechSettings = onOpenSpeechSettings,
@@ -2474,6 +2509,7 @@ internal fun SettingsScreen(
     onSyncNow: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
+    onUndoImport: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenSmartSettings: () -> Unit,
     onOpenSpeechSettings: () -> Unit,
@@ -2557,6 +2593,14 @@ internal fun SettingsScreen(
                 subtitle = "会覆盖当前本机事件、附件和同步队列",
                 action = "导入",
                 onClick = onImportBackup
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
+                title = "撤销上次导入",
+                subtitle = if (state.hasImportUndoSnapshot) "恢复到最近一次导入前的本机快照" else "暂无可撤销的导入快照",
+                action = "撤销",
+                actionColor = ChestnutPalette.Danger,
+                onClick = if (state.hasImportUndoSnapshot) onUndoImport else null
             )
         }
         SettingsPanel("本机") {
