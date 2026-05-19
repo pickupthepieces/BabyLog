@@ -28,6 +28,7 @@ object ChestnutPalette {
     val BgArgb = 0xFFFBF3E9.toInt()
     val SurfaceArgb = 0xFFFFFFFF.toInt()
     val RoseArgb = 0xFFE79399.toInt()
+    val PrimaryArgb = 0xFFE8896B.toInt()
     val BlueArgb = 0xFF8AA9CF.toInt()
     val VioletArgb = 0xFFB99BC5.toInt()
     val GreenArgb = 0xFF88B47D.toInt()

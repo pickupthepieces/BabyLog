@@ -11,7 +11,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.BottomNavigation
 import androidx.compose.material.BottomNavigationItem
@@ -45,6 +45,7 @@ import androidx.compose.material.Card
 import androidx.compose.material.Checkbox
 import androidx.compose.material.Divider
 import androidx.compose.material.FloatingActionButton
+import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Scaffold
@@ -53,6 +54,25 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Article
+import androidx.compose.material.icons.rounded.Assessment
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FormatListBulleted
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.LocalDrink
+import androidx.compose.material.icons.rounded.MedicalInformation
+import androidx.compose.material.icons.rounded.MonitorHeart
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SsidChart
+import androidx.compose.material.icons.rounded.Timelapse
+import androidx.compose.material.icons.rounded.Vaccines
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,11 +86,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -78,6 +96,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import org.json.JSONException
@@ -93,6 +112,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var service: BabyLogService
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
     private val smartVisionClient = BabyLogSmartVisionClient()
+    private val smartTextClient = BabyLogSmartTextClient()
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraLauncher: ActivityResultLauncher<Uri>
     private lateinit var pickImageLauncher: ActivityResultLauncher<String>
@@ -113,6 +133,12 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var smartSettingsConfig by mutableStateOf<BabyLogSmartConfigStore.Config?>(null)
     private var smartConfigSummary by mutableStateOf("智能识别未配置")
     private var ultrasoundOcrRunning by mutableStateOf(false)
+    private var showSmartEntryDialog by mutableStateOf(false)
+    private var smartEntryRunning by mutableStateOf(false)
+    private var babyCareDraft by mutableStateOf<SmartEntryDraft?>(null)
+    private var pregnancyDraft by mutableStateOf<SmartEntryDraft?>(null)
+    private var maternalMetricDraft by mutableStateOf<SmartEntryDraft?>(null)
+    private var ultrasoundDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var ultrasoundOcrCandidate by mutableStateOf<BabyLogSmartInput.UltrasoundOcrCandidate?>(null)
     private var showClearLocalConfirm by mutableStateOf(false)
     private var showTrashDialog by mutableStateOf(false)
@@ -130,8 +156,8 @@ public final class ComposeMainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
-        window.statusBarColor = ChestnutPalette.BgArgb
-        window.navigationBarColor = ChestnutPalette.SurfaceArgb
+        window.statusBarColor = ChestnutPalette.PrimaryArgb
+        window.navigationBarColor = ChestnutPalette.PrimaryArgb
 
         repository = BabyLogRepository(this)
         service = BabyLogService(this, repository)
@@ -173,6 +199,14 @@ public final class ComposeMainActivity : ComponentActivity() {
                     QuickActionDialog(
                         actions = quickActions(),
                         onDismiss = { showQuickSheet = false },
+                        onSmartEntry = {
+                            showQuickSheet = false
+                            window.decorView.postDelayed({
+                                if (!isFinishing && !isDestroyed) {
+                                    showSmartEntryDialog = true
+                                }
+                            }, 120L)
+                        },
                         onAction = { action ->
                             showQuickSheet = false
                             handleQuickActionAfterQuickSheetDismiss(action)
@@ -180,12 +214,29 @@ public final class ComposeMainActivity : ComponentActivity() {
                     )
                 }
 
+                if (showSmartEntryDialog) {
+                    SmartEntryDialog(
+                        running = smartEntryRunning,
+                        onDismiss = {
+                            if (!smartEntryRunning) {
+                                showSmartEntryDialog = false
+                            }
+                        },
+                        onSubmit = ::requestSmartEntry
+                    )
+                }
+
                 babyCareAction?.let { action ->
                     BabyCareDialog(
                         action = action,
-                        onDismiss = { babyCareAction = null },
+                        draft = babyCareDraft,
+                        onDismiss = {
+                            babyCareAction = null
+                            babyCareDraft = null
+                        },
                         onSave = { input ->
                             babyCareAction = null
+                            babyCareDraft = null
                             recordBabyCare(input)
                         }
                     )
@@ -194,9 +245,14 @@ public final class ComposeMainActivity : ComponentActivity() {
                 pregnancyAction?.let { action ->
                     PregnancyEventDialog(
                         action = action,
-                        onDismiss = { pregnancyAction = null },
+                        draft = pregnancyDraft,
+                        onDismiss = {
+                            pregnancyAction = null
+                            pregnancyDraft = null
+                        },
                         onSave = { input ->
                             pregnancyAction = null
+                            pregnancyDraft = null
                             recordPregnancy(input)
                         }
                     )
@@ -214,9 +270,14 @@ public final class ComposeMainActivity : ComponentActivity() {
 
                 if (showMaternalMetricForm) {
                     MaternalMetricDialog(
-                        onDismiss = { showMaternalMetricForm = false },
+                        draft = maternalMetricDraft,
+                        onDismiss = {
+                            showMaternalMetricForm = false
+                            maternalMetricDraft = null
+                        },
                         onSave = { input ->
                             showMaternalMetricForm = false
+                            maternalMetricDraft = null
                             recordMaternalMetric(input)
                         }
                     )
@@ -225,6 +286,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 if (showUltrasoundForm) {
                     UltrasoundDialog(
                         defaultGestationalAge = currentGestationalAgeInput(uiState.childProfile),
+                        expectedDueDate = uiState.childProfile.expectedDueDate,
+                        draft = ultrasoundDraft,
                         photoPath = pendingUltrasoundPhotoPath,
                         photoName = pendingUltrasoundPhotoName,
                         ocrRunning = ultrasoundOcrRunning,
@@ -239,11 +302,13 @@ public final class ComposeMainActivity : ComponentActivity() {
                         },
                         onDismiss = {
                             showUltrasoundForm = false
+                            ultrasoundDraft = null
                             ultrasoundOcrCandidate = null
                             ultrasoundOcrRunning = false
                         },
                         onSave = { input ->
                             showUltrasoundForm = false
+                            ultrasoundDraft = null
                             ultrasoundOcrCandidate = null
                             recordUltrasound(input)
                         }
@@ -452,7 +517,7 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun refreshSmartConfigSummary() {
         smartConfigSummary = if (smartConfigStore.isConfigured()) {
-            "已配置；B 超表单可主动识别图片字段"
+            "已配置；可用于 B 超 OCR 和全局智能录入"
         } else {
             "未配置；Key 仅保存在本机，不同步不备份"
         }
@@ -485,7 +550,8 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun openUltrasoundForm() {
+    private fun openUltrasoundForm(draft: SmartEntryDraft? = null) {
+        ultrasoundDraft = draft
         pendingUltrasoundPhotoPath = null
         pendingUltrasoundPhotoName = null
         ultrasoundOcrCandidate = null
@@ -507,12 +573,15 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun handleQuickAction(action: BabyLogService.QuickAction) {
         if (isBabyCareAction(action.eventType)) {
+            babyCareDraft = null
             babyCareAction = action
         } else if (action.eventType == "fetal_movement") {
             showFetalMovementSession = true
         } else if (isPregnancyFormAction(action.eventType)) {
+            pregnancyDraft = null
             pregnancyAction = action
         } else if (action.eventType == "maternal_metric") {
+            maternalMetricDraft = null
             showMaternalMetricForm = true
         } else if (action.eventType == "ultrasound") {
             openUltrasoundForm()
@@ -687,6 +756,91 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun requestSmartEntry(rawText: String) {
+        if (rawText.isBlank()) {
+            showInfo("先输入内容", "可以先用系统键盘语音输入一段话，再点智能录入。")
+            return
+        }
+        if (smartEntryRunning) {
+            return
+        }
+        val stage = currentCareStage(uiState.childProfile)
+        val forms = smartEntryForms(stage)
+        if (forms.isEmpty()) {
+            showInfo("暂无可识别表单", "当前阶段还没有可用于智能录入的表单，请先用快捷记录手动选择。")
+            return
+        }
+        smartEntryRunning = true
+        runInBackground {
+            try {
+                val config = smartConfigStore.load()
+                if (!config.isConfigured()) {
+                    showInfo("智能识别未配置", "请先在设置页填写模型 Base URL、模型和 API Key。Key 只保存在本机。")
+                    return@runInBackground
+                }
+                val candidate = smartTextClient.classifyEntry(
+                    stage,
+                    forms,
+                    rawText,
+                    config
+                )
+                runOnUiThread {
+                    openSmartEntryCandidate(candidate)
+                }
+            } catch (error: Exception) {
+                showInfo("智能录入失败", smartVisionErrorMessage(error))
+            } finally {
+                runOnUiThread { smartEntryRunning = false }
+            }
+        }
+    }
+
+    private fun openSmartEntryCandidate(candidate: BabyLogSmartTextClient.SmartEntryCandidate) {
+        val values = candidate.values.toMap()
+        if (candidate.eventType.isBlank()) {
+            showInfo("无法判断记录类型", candidate.warnings.joinToString("\n").ifBlank { "请改写得更具体一点，或从快捷记录手动选择表单。" })
+            return
+        }
+        val draft = SmartEntryDraft(values = values)
+        when (candidate.eventType) {
+            "ultrasound" -> {
+                showSmartEntryDialog = false
+                openUltrasoundForm(draft)
+            }
+            "pregnancy_checkup", "contraction" -> {
+                val action = quickActionByEventType(candidate.eventType)
+                if (action == null) {
+                    showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
+                    return
+                }
+                showSmartEntryDialog = false
+                pregnancyDraft = draft
+                pregnancyAction = action
+            }
+            "maternal_metric" -> {
+                showSmartEntryDialog = false
+                maternalMetricDraft = draft
+                showMaternalMetricForm = true
+            }
+            "feed", "sleep", "diaper", "temperature", "medication" -> {
+                val action = quickActionByEventType(candidate.eventType)
+                if (action == null) {
+                    showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
+                    return
+                }
+                showSmartEntryDialog = false
+                babyCareDraft = draft
+                babyCareAction = action
+            }
+            else -> {
+                showInfo("暂不支持", "已识别为 ${candidate.eventType}，但还没有对应的确认表单。")
+                return
+            }
+        }
+        val warning = candidate.warnings.firstOrNull()
+        showToast(if (warning.isNullOrBlank()) "已打开候选表单，请核对后保存" else "已打开候选表单：$warning")
+    }
+
     private fun smartVisionErrorMessage(error: Exception): String {
         val message = error.message?.takeIf { it.isNotBlank() } ?: "模型未返回可用字段"
         return when {
@@ -802,6 +956,71 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun quickActions(): List<BabyLogService.QuickAction> {
         if (!uiState.setupCompleted) return emptyList()
         return quickActionsForStage(currentCareStage(uiState.childProfile))
+    }
+
+    private fun quickActionByEventType(eventType: String): BabyLogService.QuickAction? {
+        return quickActions().firstOrNull { it.eventType == eventType }
+    }
+
+    private fun smartEntryForms(stage: String): Map<String, Map<String, String>> {
+        val forms = linkedMapOf<String, Map<String, String>>()
+        if (stage == BabyLogDomain.STAGE_PREGNANCY) {
+            forms["ultrasound"] = smartFormFields(
+                "examDate" to "检查日期 yyyy-MM-dd",
+                "gestationalAge" to "孕周，例如 20+3；只在原文明确写出时填写",
+                "hospital" to "医院 / 机构",
+                "reportTime" to "报告时间",
+                "diagnosisText" to "超声诊断 / 提示",
+                "bpdMm" to "BPD 双顶径 mm",
+                "hcMm" to "HC 头围 mm",
+                "acMm" to "AC 腹围 mm",
+                "flMm" to "FL 股骨长 mm",
+                "efwGram" to "EFW 估重 g",
+                "afiCm" to "AFI 羊水指数 cm",
+                "deepestPocketCm" to "最大羊水池 cm",
+                "placentaLocation" to "胎盘位置",
+                "placentaGrade" to "胎盘成熟度",
+                "fetalPresentation" to "胎位",
+                "fetalHeartRateBpm" to "胎心率 bpm",
+                "fetalCount" to "胎儿个数",
+                "fetalMovement" to "胎动",
+                "umbilicalInsertion" to "脐带插入处",
+                "cervicalLengthMm" to "宫颈管长度 mm",
+                "crlMm" to "CRL 顶臀径 mm",
+                "ntMm" to "NT mm",
+                "umbilicalSd" to "脐动脉 S/D",
+                "umbilicalPi" to "脐动脉 PI",
+                "umbilicalRi" to "脐动脉 RI"
+            )
+            forms["pregnancy_checkup"] = smartFormFields(
+                "primary" to "检查日期 yyyy-MM-dd",
+                "secondary" to "医院 / 机构",
+                "tertiary" to "结论 / 医嘱摘要",
+                "note" to "下次复诊 / 备注"
+            )
+            forms["contraction"] = smartFormFields(
+                "primary" to "开始时间",
+                "secondary" to "间隔",
+                "tertiary" to "持续时间",
+                "note" to "备注"
+            )
+            forms["maternal_metric"] = smartFormFields(
+                "weightKg" to "体重 kg",
+                "systolicBp" to "收缩压 mmHg",
+                "diastolicBp" to "舒张压 mmHg",
+                "glucoseMmolL" to "血糖 mmol/L",
+                "glucoseContext" to "血糖情境：fasting / after_1h / after_2h / random",
+                "note" to "备注"
+            )
+        } else if (stage == BabyLogDomain.STAGE_BABY) {
+            forms["sleep"] = smartFormFields(
+                "primary" to "开始时间",
+                "secondary" to "结束时间",
+                "tertiary" to "时长",
+                "note" to "备注"
+            )
+        }
+        return forms
     }
 
     private fun openNewFamilyForm(stage: String) {
@@ -985,6 +1204,11 @@ private data class InfoDialogState(
     val message: String
 )
 
+private data class SmartEntryDraft(
+    val nonce: Long = System.nanoTime(),
+    val values: Map<String, String> = emptyMap()
+)
+
 @Composable
 private fun BabyLogApp(
     state: BabyLogUiState,
@@ -1013,6 +1237,9 @@ private fun BabyLogApp(
 ) {
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
+        topBar = {
+            TopBrandBand(activeTab = activeTab, state = state)
+        },
         floatingActionButton = {
             if (state.setupCompleted && quickActions.isNotEmpty()) {
                 FloatingActionButton(
@@ -1020,11 +1247,10 @@ private fun BabyLogApp(
                     backgroundColor = ChestnutPalette.Surface,
                     contentColor = ChestnutPalette.Primary
                 ) {
-                    BabyLogLineIcon(
+                    BabyLogMaterialIcon(
                         icon = LineIcon.Plus,
                         tint = ChestnutPalette.Primary,
-                        modifier = Modifier.size(34.dp),
-                        strokeWidth = 2.4.dp
+                        modifier = Modifier.size(34.dp)
                     )
                 }
             }
@@ -1050,13 +1276,12 @@ private fun BabyLogApp(
                 ),
             contentPadding = PaddingValues(
                 start = 18.dp,
-                top = inner.calculateTopPadding() + 14.dp,
+                top = inner.calculateTopPadding() + 16.dp,
                 end = 18.dp,
                 bottom = inner.calculateBottomPadding() + 22.dp
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { Header(activeTab, state) }
             if (!state.setupCompleted) {
                 item {
                     FirstRunScreen(
@@ -1183,7 +1408,7 @@ private fun BabyLogApp(
 }
 
 @Composable
-private fun Header(activeTab: String, state: BabyLogUiState) {
+private fun TopBrandBand(activeTab: String, state: BabyLogUiState) {
     val stage = currentCareStage(state.childProfile)
     val title = if (state.setupCompleted && activeTab != "home") tabTitle(activeTab) else "BabyLog"
     val subtitle = if (!state.setupCompleted) {
@@ -1193,21 +1418,24 @@ private fun Header(activeTab: String, state: BabyLogUiState) {
         "$nickname · ${stageLabel(stage)}"
     }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ChestnutPalette.Primary)
+            .padding(horizontal = 22.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = ChestnutPalette.Ink,
-                fontSize = if (activeTab == "home") 34.sp else 26.sp,
+                color = Color.White,
+                fontSize = if (activeTab == "home") 32.sp else 24.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.sp
             )
             if (activeTab == "home" || !state.setupCompleted) {
                 Text(
                     text = subtitle,
-                    color = ChestnutPalette.Muted,
+                    color = Color.White.copy(alpha = 0.82f),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -1817,10 +2045,12 @@ private fun BabyQuickRail(
                     .padding(vertical = 11.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                BabyLogLineIcon(
+                BabyLogIconTile(
                     icon = quickActionIcon(action.eventType),
                     tint = Color(action.toneColor),
-                    modifier = Modifier.size(34.dp)
+                    tileColor = Color(action.toneColor).copy(alpha = 0.18f),
+                    modifier = Modifier.size(44.dp),
+                    iconSize = 28.dp
                 )
                 Spacer(Modifier.height(5.dp))
                 Text(
@@ -1839,6 +2069,7 @@ private fun BabyQuickRail(
 private fun QuickActionDialog(
     actions: List<BabyLogService.QuickAction>,
     onDismiss: () -> Unit,
+    onSmartEntry: () -> Unit,
     onAction: (BabyLogService.QuickAction) -> Unit
 ) {
     AlertDialog(
@@ -1846,6 +2077,30 @@ private fun QuickActionDialog(
         title = { Text("快捷记录", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(ChestnutPalette.Primary.copy(alpha = 0.10f))
+                        .border(1.dp, ChestnutPalette.Primary.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        .clickable { onSmartEntry() }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BabyLogIconTile(
+                        icon = LineIcon.Smart,
+                        tint = ChestnutPalette.Primary,
+                        tileColor = ChestnutPalette.Primary.copy(alpha = 0.16f),
+                        modifier = Modifier.size(48.dp),
+                        iconSize = 28.dp
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("智能录入", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                        Text("一句话判断类型，打开表单后再确认保存", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                    }
+                    Text("识别", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
+                }
                 actions.forEach { action ->
                     Row(
                         modifier = Modifier
@@ -1857,10 +2112,12 @@ private fun QuickActionDialog(
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        BabyLogLineIcon(
+                        BabyLogIconTile(
                             icon = quickActionIcon(action.eventType),
                             tint = Color(action.toneColor),
-                            modifier = Modifier.size(42.dp)
+                            tileColor = Color(action.toneColor).copy(alpha = 0.16f),
+                            modifier = Modifier.size(48.dp),
+                            iconSize = 29.dp
                         )
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
@@ -1883,22 +2140,74 @@ private fun QuickActionDialog(
 }
 
 @Composable
+private fun SmartEntryDialog(
+    running: Boolean,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var text by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = { if (!running) onDismiss() },
+        title = { Text("智能录入", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "用系统键盘语音或直接输入一句话。模型只会生成候选字段，仍需你在表单里手动保存。",
+                    color = ChestnutPalette.Muted,
+                    fontSize = 13.sp
+                )
+                ChestnutLongTextField(
+                    label = "例如：今天产检在奉化妇幼，血糖餐后一小时 8.8",
+                    value = text,
+                    onValueChange = { text = it },
+                    minLines = 4,
+                    maxLines = 6
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(text) },
+                enabled = text.isNotBlank() && !running,
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = ChestnutPalette.Primary,
+                    disabledBackgroundColor = ChestnutPalette.Surface2
+                )
+            ) {
+                Text(if (running) "识别中..." else "识别并打开表单", color = if (running) ChestnutPalette.Text3 else Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !running, onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
+        },
+        backgroundColor = ChestnutPalette.Bg
+    )
+}
+
+@Composable
 private fun BabyCareDialog(
     action: BabyLogService.QuickAction,
+    draft: SmartEntryDraft?,
     onDismiss: () -> Unit,
     onSave: (BabyLogService.BabyCareInput) -> Unit
 ) {
-    var primary by rememberSaveable(action.eventType) { mutableStateOf("") }
-    var secondary by rememberSaveable(action.eventType) { mutableStateOf("") }
-    var tertiary by rememberSaveable(action.eventType) { mutableStateOf("") }
-    var note by rememberSaveable(action.eventType) { mutableStateOf("") }
+    val values = draft?.values.orEmpty()
+    var primary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["primary"].orEmpty()) }
+    var secondary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["secondary"].orEmpty()) }
+    var tertiary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["tertiary"].orEmpty()) }
+    var note by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
     val labels = babyCareLabels(action.eventType)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(action.label, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .height(460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 ChestnutTextField(labels.primary, primary, { primary = it }, labels.primaryKeyboard)
                 ChestnutTextField(labels.secondary, secondary, { secondary = it }, labels.secondaryKeyboard)
                 if (labels.tertiary != null) {
@@ -1933,20 +2242,29 @@ private fun BabyCareDialog(
 @Composable
 private fun PregnancyEventDialog(
     action: BabyLogService.QuickAction,
+    draft: SmartEntryDraft?,
     onDismiss: () -> Unit,
     onSave: (BabyLogService.PregnancyInput) -> Unit
 ) {
-    var primary by rememberSaveable(action.eventType) { mutableStateOf(defaultPregnancyPrimary(action.eventType)) }
-    var secondary by rememberSaveable(action.eventType) { mutableStateOf("") }
-    var tertiary by rememberSaveable(action.eventType) { mutableStateOf("") }
-    var note by rememberSaveable(action.eventType) { mutableStateOf("") }
+    val values = draft?.values.orEmpty()
+    var primary by rememberSaveable(action.eventType, draft?.nonce) {
+        mutableStateOf(values["primary"] ?: defaultPregnancyPrimary(action.eventType))
+    }
+    var secondary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["secondary"].orEmpty()) }
+    var tertiary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["tertiary"].orEmpty()) }
+    var note by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
     val labels = pregnancyLabels(action.eventType)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(action.label, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .height(460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 if (action.eventType == "pregnancy_checkup") {
                     DateInputRow("检查日期", primary, { primary = it }, allowClear = false)
                 } else {
@@ -1984,15 +2302,19 @@ private fun PregnancyEventDialog(
 
 @Composable
 private fun MaternalMetricDialog(
+    draft: SmartEntryDraft?,
     onDismiss: () -> Unit,
     onSave: (BabyLogService.MaternalMetricInput) -> Unit
 ) {
-    var weight by rememberSaveable { mutableStateOf("") }
-    var systolic by rememberSaveable { mutableStateOf("") }
-    var diastolic by rememberSaveable { mutableStateOf("") }
-    var glucose by rememberSaveable { mutableStateOf("") }
-    var glucoseContext by rememberSaveable { mutableStateOf("fasting") }
-    var note by rememberSaveable { mutableStateOf("") }
+    val values = draft?.values.orEmpty()
+    var weight by rememberSaveable(draft?.nonce) { mutableStateOf(values["weightKg"].orEmpty()) }
+    var systolic by rememberSaveable(draft?.nonce) { mutableStateOf(values["systolicBp"].orEmpty()) }
+    var diastolic by rememberSaveable(draft?.nonce) { mutableStateOf(values["diastolicBp"].orEmpty()) }
+    var glucose by rememberSaveable(draft?.nonce) { mutableStateOf(values["glucoseMmolL"].orEmpty()) }
+    var glucoseContext by rememberSaveable(draft?.nonce) {
+        mutableStateOf(values["glucoseContext"]?.let { normalizeGlucoseContext(it) } ?: "fasting")
+    }
+    var note by rememberSaveable(draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
     val glucoseWarning = BabyLogFormatters.formatMaternalGlucoseWarning(
         BabyLogFormatters.parseOptionalNumber(glucose),
         glucoseContext
@@ -2002,7 +2324,12 @@ private fun MaternalMetricDialog(
         onDismissRequest = onDismiss,
         title = { Text("孕妈指标", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .height(460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 UnitInputRow("体重", weight, { weight = it }, "kg")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     UnitInputRow("收缩压", systolic, { systolic = it }, "mmHg", Modifier.weight(1f))
@@ -2055,6 +2382,8 @@ private fun MaternalMetricDialog(
 @Composable
 private fun UltrasoundDialog(
     defaultGestationalAge: String,
+    expectedDueDate: String,
+    draft: SmartEntryDraft?,
     photoPath: String?,
     photoName: String?,
     ocrRunning: Boolean,
@@ -2067,31 +2396,42 @@ private fun UltrasoundDialog(
     onDismiss: () -> Unit,
     onSave: (BabyLogService.UltrasoundInput) -> Unit
 ) {
-    var examDate by rememberSaveable { mutableStateOf(BabyLogFormatters.todayDateInput()) }
-    var gestationalAge by rememberSaveable(defaultGestationalAge) {
-        mutableStateOf(defaultGestationalAge)
+    val values = draft?.values.orEmpty()
+    var examDate by rememberSaveable(draft?.nonce) {
+        mutableStateOf(values["examDate"]?.takeIf { BabyLogFormatters.isValidDateInput(it) } ?: BabyLogFormatters.todayDateInput())
     }
-    var bpd by rememberSaveable { mutableStateOf("") }
-    var hc by rememberSaveable { mutableStateOf("") }
-    var ac by rememberSaveable { mutableStateOf("") }
-    var fl by rememberSaveable { mutableStateOf("") }
-    var efw by rememberSaveable { mutableStateOf("") }
-    var afi by rememberSaveable { mutableStateOf("") }
-    var deepestPocket by rememberSaveable { mutableStateOf("") }
-    var placentaLocation by rememberSaveable { mutableStateOf("") }
-    var placentaGrade by rememberSaveable { mutableStateOf("") }
-    var fetalPresentation by rememberSaveable { mutableStateOf("") }
-    var fetalHeartRate by rememberSaveable { mutableStateOf("") }
-    var fetalCount by rememberSaveable { mutableStateOf("") }
-    var fetalMovement by rememberSaveable { mutableStateOf("") }
-    var umbilicalInsertion by rememberSaveable { mutableStateOf("") }
-    var cervicalLength by rememberSaveable { mutableStateOf("") }
-    var crl by rememberSaveable { mutableStateOf("") }
-    var nt by rememberSaveable { mutableStateOf("") }
-    var umbilicalSd by rememberSaveable { mutableStateOf("") }
-    var umbilicalPi by rememberSaveable { mutableStateOf("") }
-    var umbilicalRi by rememberSaveable { mutableStateOf("") }
-    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    var gestationalAge by rememberSaveable(defaultGestationalAge, draft?.nonce) {
+        mutableStateOf(values["gestationalAge"] ?: defaultGestationalAge)
+    }
+    var gestationalAgeEdited by rememberSaveable(draft?.nonce) {
+        mutableStateOf(!values["gestationalAge"].isNullOrBlank())
+    }
+    var hospital by rememberSaveable(draft?.nonce) { mutableStateOf(values["hospital"].orEmpty()) }
+    var reportTime by rememberSaveable(draft?.nonce) { mutableStateOf(values["reportTime"].orEmpty()) }
+    var diagnosisText by rememberSaveable(draft?.nonce) { mutableStateOf(values["diagnosisText"].orEmpty()) }
+    var bpd by rememberSaveable(draft?.nonce) { mutableStateOf(values["bpdMm"].orEmpty()) }
+    var hc by rememberSaveable(draft?.nonce) { mutableStateOf(values["hcMm"].orEmpty()) }
+    var ac by rememberSaveable(draft?.nonce) { mutableStateOf(values["acMm"].orEmpty()) }
+    var fl by rememberSaveable(draft?.nonce) { mutableStateOf(values["flMm"].orEmpty()) }
+    var efw by rememberSaveable(draft?.nonce) { mutableStateOf(values["efwGram"].orEmpty()) }
+    var afi by rememberSaveable(draft?.nonce) { mutableStateOf(values["afiCm"].orEmpty()) }
+    var deepestPocket by rememberSaveable(draft?.nonce) { mutableStateOf(values["deepestPocketCm"].orEmpty()) }
+    var placentaLocation by rememberSaveable(draft?.nonce) { mutableStateOf(values["placentaLocation"].orEmpty()) }
+    var placentaGrade by rememberSaveable(draft?.nonce) { mutableStateOf(values["placentaGrade"].orEmpty()) }
+    var fetalPresentation by rememberSaveable(draft?.nonce) { mutableStateOf(values["fetalPresentation"].orEmpty()) }
+    var fetalHeartRate by rememberSaveable(draft?.nonce) { mutableStateOf(values["fetalHeartRateBpm"].orEmpty()) }
+    var fetalCount by rememberSaveable(draft?.nonce) { mutableStateOf(values["fetalCount"].orEmpty()) }
+    var fetalMovement by rememberSaveable(draft?.nonce) { mutableStateOf(values["fetalMovement"].orEmpty()) }
+    var umbilicalInsertion by rememberSaveable(draft?.nonce) { mutableStateOf(values["umbilicalInsertion"].orEmpty()) }
+    var cervicalLength by rememberSaveable(draft?.nonce) { mutableStateOf(values["cervicalLengthMm"].orEmpty()) }
+    var crl by rememberSaveable(draft?.nonce) { mutableStateOf(values["crlMm"].orEmpty()) }
+    var nt by rememberSaveable(draft?.nonce) { mutableStateOf(values["ntMm"].orEmpty()) }
+    var umbilicalSd by rememberSaveable(draft?.nonce) { mutableStateOf(values["umbilicalSd"].orEmpty()) }
+    var umbilicalPi by rememberSaveable(draft?.nonce) { mutableStateOf(values["umbilicalPi"].orEmpty()) }
+    var umbilicalRi by rememberSaveable(draft?.nonce) { mutableStateOf(values["umbilicalRi"].orEmpty()) }
+    var showAdvanced by rememberSaveable(draft?.nonce) {
+        mutableStateOf(hasAdvancedUltrasoundDraft(values))
+    }
     var saveError by rememberSaveable { mutableStateOf("") }
 
     val warnings = remember(gestationalAge, bpd, hc, ac, fl, efw) {
@@ -2115,6 +2455,14 @@ private fun UltrasoundDialog(
                 BabyLogFetalGrowthReference.estimateEfwHadlock3Gram(parsedBpd, parsedAc, parsedFl)
             } else {
                 null
+            }
+        }
+    }
+    LaunchedEffect(examDate, expectedDueDate) {
+        if (!gestationalAgeEdited) {
+            val inferred = gestationalAgeInputForDate(expectedDueDate, examDate)
+            if (inferred.isNotBlank()) {
+                gestationalAge = inferred
             }
         }
     }
@@ -2189,7 +2537,17 @@ private fun UltrasoundDialog(
                         UltrasoundOcrCandidatePanel(
                             candidate = ocrCandidate,
                             onApply = {
-                                ocrCandidate.examDate.value?.takeIf { BabyLogFormatters.isValidDateInput(it) }?.let { examDate = it }
+                                ocrCandidate.examDate.value?.takeIf { BabyLogFormatters.isValidDateInput(it) }?.let {
+                                    examDate = it
+                                    if (!gestationalAgeEdited) {
+                                        gestationalAgeInputForDate(expectedDueDate, it).takeIf { value -> value.isNotBlank() }?.let { value ->
+                                            gestationalAge = value
+                                        }
+                                    }
+                                }
+                                ocrCandidate.hospital.value?.let { hospital = it; showAdvanced = true }
+                                ocrCandidate.reportTime.value?.let { reportTime = it; showAdvanced = true }
+                                ocrCandidate.diagnosisText.value?.let { diagnosisText = it; showAdvanced = true }
                                 ocrCandidate.bpdMm.value?.let { bpd = BabyLogFormatters.formatNumber(it) }
                                 ocrCandidate.hcMm.value?.let { hc = BabyLogFormatters.formatNumber(it) }
                                 ocrCandidate.acMm.value?.let { ac = BabyLogFormatters.formatNumber(it) }
@@ -2217,7 +2575,17 @@ private fun UltrasoundDialog(
                     }
                 }
                 item { DateInputRow("检查日期", examDate, { examDate = it }, allowClear = false) }
-                item { ChestnutTextField("孕周，例如 28+3", gestationalAge, { gestationalAge = it }, KeyboardType.Text) }
+                item {
+                    ChestnutTextField(
+                        "孕周，例如 28+3",
+                        gestationalAge,
+                        {
+                            gestationalAgeEdited = true
+                            gestationalAge = it
+                        },
+                        KeyboardType.Text
+                    )
+                }
                 item { Text("胎儿生长指标", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2255,6 +2623,9 @@ private fun UltrasoundDialog(
                 }
                 if (showAdvanced) {
                     item { Text("公共信息", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item { ChestnutTextField("医院 / 机构", hospital, { hospital = it }, KeyboardType.Text) }
+                    item { ChestnutTextField("报告时间", reportTime, { reportTime = it }, KeyboardType.Text) }
+                    item { ChestnutLongTextField("超声诊断 / 提示", diagnosisText, { diagnosisText = it }, minLines = 2, maxLines = 4) }
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             UnitInputRow("胎心率", fetalHeartRate, { fetalHeartRate = it }, "bpm", Modifier.weight(1f))
@@ -2372,6 +2743,9 @@ private fun UltrasoundDialog(
                     val input = BabyLogService.UltrasoundInput(
                         examDate,
                         gestationalAge,
+                        hospital,
+                        reportTime,
+                        diagnosisText,
                         bpd,
                         hc,
                         ac,
@@ -2619,7 +2993,7 @@ private fun SmartModelSettingsDialog(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = enabled, onCheckedChange = { enabled = it })
-                        Text("启用 B 超单多模态识别", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                        Text("启用智能识别", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
                     }
                 }
                 item {
@@ -2676,7 +3050,7 @@ private fun SmartModelSettingsDialog(
                 }
                 item {
                     Text(
-                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。识别图片只会在你点击 B 超表单里的“识别字段”时发送给该模型服务商。",
+                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片或文字只会在你主动点击识别/智能录入时发送给该模型服务商。",
                         color = Color(0xFF7C4A21),
                         fontSize = 13.sp,
                         modifier = Modifier
@@ -2790,10 +3164,12 @@ private fun AttachmentListDialog(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            BabyLogLineIcon(
+                            BabyLogIconTile(
                                 icon = LineIcon.File,
                                 tint = ChestnutPalette.Primary,
-                                modifier = Modifier.size(42.dp)
+                                tileColor = ChestnutPalette.Primary.copy(alpha = 0.14f),
+                                modifier = Modifier.size(44.dp),
+                                iconSize = 26.dp
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
@@ -2981,10 +3357,12 @@ private fun LibraryItem(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BabyLogLineIcon(
+            BabyLogIconTile(
                 icon = icon,
                 tint = ChestnutPalette.Primary,
-                modifier = Modifier.size(40.dp)
+                tileColor = ChestnutPalette.Primary.copy(alpha = 0.14f),
+                modifier = Modifier.size(46.dp),
+                iconSize = 28.dp
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -3035,139 +3413,39 @@ private fun ActionRow(
 }
 
 @Composable
-private fun BabyLogLineIcon(
+private fun BabyLogIconTile(
     icon: LineIcon,
     tint: Color,
-    modifier: Modifier = Modifier.size(24.dp),
-    strokeWidth: androidx.compose.ui.unit.Dp = 2.dp
+    tileColor: Color,
+    modifier: Modifier = Modifier.size(44.dp),
+    iconSize: Dp = 26.dp
 ) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
-        fun p(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(w * x, h * y)
-        fun path(vararg points: Pair<Float, Float>) = Path().apply {
-            if (points.isNotEmpty()) {
-                moveTo(w * points[0].first, h * points[0].second)
-                points.drop(1).forEach { lineTo(w * it.first, h * it.second) }
-            }
-        }
-        fun line(x1: Float, y1: Float, x2: Float, y2: Float) {
-            drawLine(tint, p(x1, y1), p(x2, y2), stroke.width, StrokeCap.Round)
-        }
-        fun circle(x: Float, y: Float, r: Float) {
-            drawCircle(tint, radius = minOf(w, h) * r, center = p(x, y), style = stroke)
-        }
-        fun rect(left: Float, top: Float, right: Float, bottom: Float) {
-            drawRoundRect(
-                color = tint,
-                topLeft = p(left, top),
-                size = androidx.compose.ui.geometry.Size(w * (right - left), h * (bottom - top)),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.06f, h * 0.06f),
-                style = stroke
-            )
-        }
-
-        when (icon) {
-            LineIcon.Home -> {
-                drawPath(path(0.16f to 0.48f, 0.50f to 0.20f, 0.84f to 0.48f), tint, style = stroke)
-                rect(0.26f, 0.46f, 0.74f, 0.82f)
-                line(0.50f, 0.82f, 0.50f, 0.62f)
-            }
-            LineIcon.Timeline -> {
-                line(0.28f, 0.18f, 0.28f, 0.82f)
-                circle(0.28f, 0.26f, 0.07f)
-                circle(0.28f, 0.50f, 0.07f)
-                circle(0.28f, 0.74f, 0.07f)
-                line(0.44f, 0.26f, 0.80f, 0.26f)
-                line(0.44f, 0.50f, 0.70f, 0.50f)
-                line(0.44f, 0.74f, 0.82f, 0.74f)
-            }
-            LineIcon.Library -> {
-                rect(0.18f, 0.22f, 0.78f, 0.82f)
-                line(0.32f, 0.22f, 0.32f, 0.82f)
-                line(0.44f, 0.34f, 0.68f, 0.34f)
-                line(0.44f, 0.50f, 0.68f, 0.50f)
-            }
-            LineIcon.Settings -> {
-                circle(0.50f, 0.50f, 0.18f)
-                listOf(0.18f to 0.50f, 0.82f to 0.50f, 0.50f to 0.18f, 0.50f to 0.82f, 0.28f to 0.28f, 0.72f to 0.72f).forEach { (x, y) ->
-                    line(0.50f + (x - 0.50f) * 0.72f, 0.50f + (y - 0.50f) * 0.72f, x, y)
-                }
-            }
-            LineIcon.Plus -> {
-                line(0.50f, 0.22f, 0.50f, 0.78f)
-                line(0.22f, 0.50f, 0.78f, 0.50f)
-            }
-            LineIcon.Ultrasound -> {
-                rect(0.16f, 0.22f, 0.84f, 0.76f)
-                drawPath(path(0.26f to 0.60f, 0.38f to 0.48f, 0.50f to 0.60f, 0.62f to 0.42f, 0.74f to 0.54f), tint, style = stroke)
-                line(0.28f, 0.84f, 0.72f, 0.84f)
-            }
-            LineIcon.Checkup -> {
-                rect(0.24f, 0.18f, 0.76f, 0.84f)
-                line(0.38f, 0.34f, 0.62f, 0.34f)
-                drawPath(path(0.34f to 0.58f, 0.46f to 0.70f, 0.68f to 0.48f), tint, style = stroke)
-            }
-            LineIcon.Movement -> {
-                drawPath(path(0.14f to 0.54f, 0.28f to 0.54f, 0.36f to 0.34f, 0.48f to 0.72f, 0.58f to 0.44f, 0.72f to 0.44f, 0.86f to 0.44f), tint, style = stroke)
-            }
-            LineIcon.Contraction -> {
-                circle(0.50f, 0.54f, 0.28f)
-                line(0.50f, 0.54f, 0.50f, 0.36f)
-                line(0.50f, 0.54f, 0.64f, 0.62f)
-                line(0.40f, 0.16f, 0.60f, 0.16f)
-            }
-            LineIcon.Metric -> {
-                line(0.20f, 0.80f, 0.82f, 0.80f)
-                line(0.20f, 0.80f, 0.20f, 0.22f)
-                drawPath(path(0.26f to 0.68f, 0.40f to 0.58f, 0.52f to 0.62f, 0.70f to 0.34f, 0.82f to 0.42f), tint, style = stroke)
-            }
-            LineIcon.Breastfeed -> {
-                drawPath(path(0.50f to 0.78f, 0.24f to 0.52f, 0.24f to 0.34f, 0.40f to 0.28f, 0.50f to 0.42f, 0.60f to 0.28f, 0.76f to 0.34f, 0.76f to 0.52f, 0.50f to 0.78f), tint, style = stroke)
-            }
-            LineIcon.Bottle -> {
-                rect(0.36f, 0.30f, 0.64f, 0.84f)
-                rect(0.40f, 0.16f, 0.60f, 0.30f)
-                line(0.42f, 0.48f, 0.58f, 0.48f)
-                line(0.42f, 0.62f, 0.58f, 0.62f)
-            }
-            LineIcon.Sleep -> {
-                drawArc(tint, startAngle = 112f, sweepAngle = 250f, useCenter = false, topLeft = p(0.22f, 0.20f), size = androidx.compose.ui.geometry.Size(w * 0.52f, h * 0.62f), style = stroke)
-                drawArc(tint, startAngle = 112f, sweepAngle = 250f, useCenter = false, topLeft = p(0.40f, 0.20f), size = androidx.compose.ui.geometry.Size(w * 0.42f, h * 0.62f), style = stroke)
-            }
-            LineIcon.Wake -> {
-                circle(0.50f, 0.50f, 0.18f)
-                line(0.50f, 0.12f, 0.50f, 0.24f)
-                line(0.50f, 0.76f, 0.50f, 0.88f)
-                line(0.12f, 0.50f, 0.24f, 0.50f)
-                line(0.76f, 0.50f, 0.88f, 0.50f)
-                line(0.24f, 0.24f, 0.32f, 0.32f)
-                line(0.76f, 0.24f, 0.68f, 0.32f)
-                line(0.24f, 0.76f, 0.32f, 0.68f)
-                line(0.76f, 0.76f, 0.68f, 0.68f)
-            }
-            LineIcon.Diaper -> {
-                drawPath(path(0.18f to 0.34f, 0.34f to 0.74f, 0.50f to 0.82f, 0.66f to 0.74f, 0.82f to 0.34f), tint, style = stroke)
-                line(0.18f, 0.34f, 0.38f, 0.44f)
-                line(0.82f, 0.34f, 0.62f, 0.44f)
-            }
-            LineIcon.File -> {
-                drawPath(path(0.24f to 0.16f, 0.62f to 0.16f, 0.78f to 0.32f, 0.78f to 0.84f, 0.24f to 0.84f, 0.24f to 0.16f), tint, style = stroke)
-                line(0.62f, 0.16f, 0.62f, 0.32f)
-                line(0.62f, 0.32f, 0.78f, 0.32f)
-                line(0.36f, 0.50f, 0.66f, 0.50f)
-                line(0.36f, 0.64f, 0.66f, 0.64f)
-            }
-            LineIcon.Vaccine -> {
-                line(0.28f, 0.72f, 0.72f, 0.28f)
-                line(0.58f, 0.18f, 0.82f, 0.42f)
-                line(0.20f, 0.80f, 0.34f, 0.66f)
-                line(0.34f, 0.54f, 0.46f, 0.66f)
-                line(0.46f, 0.42f, 0.58f, 0.54f)
-            }
-        }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(tileColor),
+        contentAlignment = Alignment.Center
+    ) {
+        BabyLogMaterialIcon(
+            icon = icon,
+            tint = tint,
+            modifier = Modifier.size(iconSize)
+        )
     }
+}
+
+@Composable
+private fun BabyLogMaterialIcon(
+    icon: LineIcon,
+    tint: Color,
+    modifier: Modifier = Modifier.size(24.dp)
+) {
+    Icon(
+        imageVector = icon.imageVector,
+        contentDescription = null,
+        tint = tint,
+        modifier = modifier
+    )
 }
 
 private fun quickActionIcon(eventType: String): LineIcon {
@@ -3195,32 +3473,35 @@ private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
         NavItem("settings", "设置", LineIcon.Settings)
     )
     BottomNavigation(
-        backgroundColor = ChestnutPalette.Surface,
-        contentColor = ChestnutPalette.Primary,
+        backgroundColor = ChestnutPalette.Primary,
+        contentColor = Color.White,
         elevation = 0.dp
     ) {
         items.forEach { item ->
             val selected = activeTab == item.key
+            val itemColor = if (selected) Color.White else Color.White.copy(alpha = 0.68f)
             BottomNavigationItem(
                 selected = selected,
                 onClick = { onTabSelected(item.key) },
                 icon = {
-                    BabyLogLineIcon(
+                    BabyLogIconTile(
                         icon = item.icon,
-                        tint = if (selected) ChestnutPalette.Primary else ChestnutPalette.Muted,
-                        modifier = Modifier.size(24.dp)
+                        tint = itemColor,
+                        tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
+                        modifier = Modifier.size(40.dp),
+                        iconSize = 24.dp
                     )
                 },
                 label = {
                     Text(
                         item.label,
-                        color = if (selected) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                        color = itemColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                 },
-                selectedContentColor = ChestnutPalette.Primary,
-                unselectedContentColor = ChestnutPalette.Muted
+                selectedContentColor = Color.White,
+                unselectedContentColor = Color.White.copy(alpha = 0.68f)
             )
         }
     }
@@ -3228,24 +3509,25 @@ private fun BottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
 
 private data class NavItem(val key: String, val label: String, val icon: LineIcon)
 
-private enum class LineIcon {
-    Home,
-    Timeline,
-    Library,
-    Settings,
-    Plus,
-    Ultrasound,
-    Checkup,
-    Movement,
-    Contraction,
-    Metric,
-    Breastfeed,
-    Bottle,
-    Sleep,
-    Wake,
-    Diaper,
-    File,
-    Vaccine
+private enum class LineIcon(val imageVector: ImageVector) {
+    Home(Icons.Rounded.Home),
+    Timeline(Icons.Rounded.FormatListBulleted),
+    Library(Icons.Rounded.Article),
+    Settings(Icons.Rounded.Settings),
+    Plus(Icons.Rounded.Add),
+    Smart(Icons.Rounded.Assessment),
+    Ultrasound(Icons.Rounded.MonitorHeart),
+    Checkup(Icons.Rounded.Checklist),
+    Movement(Icons.Rounded.Favorite),
+    Contraction(Icons.Rounded.Timelapse),
+    Metric(Icons.Rounded.SsidChart),
+    Breastfeed(Icons.Rounded.Favorite),
+    Bottle(Icons.Rounded.LocalDrink),
+    Sleep(Icons.Rounded.Bedtime),
+    Wake(Icons.Rounded.WbSunny),
+    Diaper(Icons.Rounded.WaterDrop),
+    File(Icons.Rounded.Description),
+    Vaccine(Icons.Rounded.Vaccines)
 }
 
 private data class BabyCareLabels(
@@ -3351,14 +3633,46 @@ private fun currentGestationalAgeInput(profile: BabyLogDomain.ChildProfile): Str
     if (!BabyLogFormatters.isValidDateInput(profile.expectedDueDate)) {
         return ""
     }
-    val daysToDue = daysBetween(BabyLogFormatters.todayDateInput(), profile.expectedDueDate)
+    return gestationalAgeInputForDate(profile.expectedDueDate, BabyLogFormatters.todayDateInput())
+}
+
+private fun gestationalAgeInputForDate(expectedDueDate: String, examDate: String): String {
+    if (!BabyLogFormatters.isValidDateInput(expectedDueDate) || !BabyLogFormatters.isValidDateInput(examDate)) {
+        return ""
+    }
+    val daysToDue = daysBetween(examDate, expectedDueDate)
     val gestationalDays = (280 - daysToDue).coerceIn(0, 280)
     return BabyLogFormatters.formatGestationalAge(gestationalDays).removeSuffix(" 周")
+}
+
+private fun smartFormFields(vararg values: Pair<String, String?>): Map<String, String> {
+    return linkedMapOf(*values.filter { !it.second.isNullOrBlank() }
+        .map { it.first to it.second.orEmpty() }
+        .toTypedArray())
+}
+
+private fun hasAdvancedUltrasoundDraft(values: Map<String, String>): Boolean {
+    val basicKeys = setOf("examDate", "gestationalAge", "bpdMm", "hcMm", "acMm", "flMm", "efwGram")
+    return values.any { (key, value) -> key !in basicKeys && value.isNotBlank() }
+}
+
+private fun normalizeGlucoseContext(value: String): String {
+    val normalized = value.trim().lowercase(Locale.US)
+    return when {
+        normalized == "fasting" || value.contains("空腹") -> "fasting"
+        normalized == "after_1h" || value.contains("1h") || value.contains("1小时") || value.contains("一小时") -> "after_1h"
+        normalized == "after_2h" || value.contains("2h") || value.contains("2小时") || value.contains("两小时") -> "after_2h"
+        normalized == "random" || value.contains("随机") -> "random"
+        else -> "random"
+    }
 }
 
 private fun ultrasoundCandidateRows(candidate: BabyLogSmartInput.UltrasoundOcrCandidate): List<Pair<String, String>> {
     val rows = mutableListOf<Pair<String, String>>()
     addCandidateRow(rows, "检查日期", candidate.examDate.value)
+    addCandidateRow(rows, "医院", candidate.hospital.value)
+    addCandidateRow(rows, "报告时间", candidate.reportTime.value)
+    addCandidateRow(rows, "诊断提示", candidate.diagnosisText.value)
     addCandidateRow(rows, "BPD", formatCandidateNumber(candidate.bpdMm.value, "mm"))
     addCandidateRow(rows, "HC", formatCandidateNumber(candidate.hcMm.value, "mm"))
     addCandidateRow(rows, "AC", formatCandidateNumber(candidate.acMm.value, "mm"))

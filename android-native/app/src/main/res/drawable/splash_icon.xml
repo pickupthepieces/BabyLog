@@ -6,7 +6,7 @@
         android:height="76dp"
         android:gravity="center">
         <bitmap
-            android:src="@drawable/chestnut_mascot"
+            android:src="@drawable/chestnut_mascot_splash"
             android:gravity="center" />
     </item>
 </layer-list>
