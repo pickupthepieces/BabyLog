@@ -284,3 +284,18 @@
 3. 同型重表单（MaternalMetric/PregnancyEvent）若同样卡，按同法（item key 优先）；轻表单可不动。
 
 **约束/验收**：独立 `perf:` 提交，不混 Q2b/perf-C/冻结 UI、不并 main；**不改字段集/校验/人工确认链/保存逻辑/编辑(Q2)行为/数据**，仅改组合结构与 key；assemble+lint+smoke 绿；装机 gfxinfo 编辑 B 超页打字+滚动 50/90 ≤ ~16ms、无明显掉帧。Claude perf 关口用一次真机 gfxinfo 验收。
+
+#### perf-D 根因升级（Claude 深挖；加 key 不够，需三步）
+
+Codex 反馈定位不到/加 key 未解。Claude 二次核查确诊：
+
+- **真因**：`UltrasoundFormScreen` 单巨型 composable 持 ~28 字段 state；每次按键→整屏重组→传给 `RecordFormScaffold` 的 `content: LazyListScope.()->Unit` 为**新 lambda 实例**，且每个 `item{ UnitInputRow(label, value, { x = it }, unit) }` 的 **onValueChange 内联新 lambda 每帧新建** → LazyColumn 重组、**可见的每个 Material TextField 全部重组**（Material TextField 重组贵；`showAdvanced` 展开后可见 6–10 个）。字段最多故最卡。
+- **排除项（别再追）**：`SmartEntryDraft.nonce = System.nanoTime()` 是 `rememberSaveable` 的合法重置 key，编辑态只设一次、稳定，**非卡因**。Hadlock/warnings 已 remember，非卡因。
+- **加 item key 是必要但不充分**：有 key 后 LazyColumn 复用槽位，但 item 的 content/onValueChange 仍是新 lambda + 读屏作用域 state → 该 item 仍重组。这就是 Codex 加 key 后没改善的原因。
+
+**根治三步（缺一不可）**：
+1. 每 `item` 稳定 `key`（`item(key="bpd")`…）。
+2. **回调 stable 化**：onValueChange 不内联 `{x=it}`；改用状态持有者方法引用或 `remember` 的稳定 lambda，使每帧同一实例。
+3. **`remember` 的表单状态持有者**（如 `class UltrasoundFormState` 持各字段 `mutableStateOf`），每字段行拆**独立小 composable 只读自身 state**；改 A 字段时 Compose 跳过 B 行，**只重组被编辑那一行**。
+
+三者一起才根治。约束/验收同 perf-D：独立 `perf:`，不改字段集/校验/人工确认链/保存/Q2 编辑行为/数据；assemble+lint+smoke 绿；装机 gfxinfo 编辑 B 超页打字+滚动 50/90 ≤~16ms。MaternalMetric/PregnancyEvent 重表单同法。
