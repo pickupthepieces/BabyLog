@@ -7,6 +7,15 @@
 | 目标 | 重表单/设置子页/浏览类升级为带返回栈+AppBar+转场+状态保持的真实页面；弹框只留真确认 |
 | 纪律 | **架构轮,分阶段,每阶段独立 commit,不与功能混提交,不并 main** |
 
+## 〇、核心认知（先读，别误解）
+
+**"单 Activity" 不是病灶；"巨石 + 全弹框 + 零页面化" 才是。**
+
+- ❌ 不要拆成很多 Activity。Piyo 实证也只有 2 个 Activity（Initial + Main），现代 Android 正解就是 single-Activity + Navigation。
+- ✅ 目标 = 让 `ComposeMainActivity` 变成**薄壳 host**（只托管 NavHost），把 4331 行内容拆成**一堆各自独立、各有返回栈/状态的真实页面**（`ui/screens/*.kt` 一屏一文件）。
+- 对照：Piyo = 单 Activity · 多页面 · 薄壳；我们现在 = 单 Activity · 零页面 · 巨石。差距在**有没有内部页面化**，不在 Activity 数量。
+- 重构后 MainActivity 应显著变薄；若它仍是几千行 = 没做对。
+
 ## 一、弹框去留判定
 
 **保留为弹框（短确认/瞬时）**：`ConfirmDialog`（破坏性确认）、`showInfo`/InfoDialog（瞬时提示）。
