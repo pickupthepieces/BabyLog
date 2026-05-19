@@ -13,6 +13,7 @@ import androidx.compose.ui.text.input.KeyboardType
 internal fun BabyCareFormScreen(
     action: BabyLogService.QuickAction?,
     draft: SmartEntryDraft?,
+    isEditing: Boolean = false,
     onBack: () -> Unit,
     onSave: (BabyLogService.BabyCareInput) -> Unit
 ) {
@@ -28,9 +29,9 @@ internal fun BabyCareFormScreen(
     val labels = babyCareLabels(action.eventType)
 
     RecordFormScaffold(
-        title = action.label,
+        title = if (isEditing) "编辑${action.label}" else action.label,
         subtitle = "核对字段后手动保存",
-        saveText = "保存记录",
+        saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
         onSave = { onSave(buildBabyCareInput(action.eventType, primary, secondary, tertiary, note)) }
     ) {

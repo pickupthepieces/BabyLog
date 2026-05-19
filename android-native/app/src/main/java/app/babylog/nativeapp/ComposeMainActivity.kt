@@ -143,6 +143,7 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private var uiState by mutableStateOf(BabyLogUiState())
     private var pendingNavRoute by mutableStateOf<String?>(null)
+    private var pendingNavNonce by mutableStateOf(0L)
     private var recordReturnRoute by mutableStateOf(BabyLogRoutes.Home)
     private var highlightedEventId by mutableStateOf<String?>(null)
     private var timelineFilter by mutableStateOf("all")
@@ -169,6 +170,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var syncConfirmUrl by mutableStateOf<String?>(null)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
+    private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
     private var deleteEventConfirm by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
     private var infoDialog by mutableStateOf<InfoDialogState?>(null)
     private var voiceRecorder: BabyLogPcmVoiceRecorder? = null
@@ -195,6 +197,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 BabyLogApp(
                     state = uiState,
                     pendingNavRoute = pendingNavRoute,
+                    pendingNavNonce = pendingNavNonce,
                     onNavRouteConsumed = { pendingNavRoute = null },
                     recordReturnRoute = recordReturnRoute,
                     highlightedEventId = highlightedEventId,
@@ -265,6 +268,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onCreatePregnancyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_PREGNANCY) },
                     onCreateBabyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_BABY) },
                     onEditProfile = { openProfileEditDialog() },
+                    onEditEvent = { event, sourceRoute -> openEventForEdit(event, sourceRoute) },
                     onDeleteEvent = { deleteEventConfirm = it },
                     babyCareAction = babyCareAction,
                     babyCareDraft = babyCareDraft,
@@ -272,23 +276,30 @@ public final class ComposeMainActivity : ComponentActivity() {
                     pregnancyDraft = pregnancyDraft,
                     maternalMetricDraft = maternalMetricDraft,
                     ultrasoundDraft = ultrasoundDraft,
+                    editingEventType = editingEvent?.eventType,
                     pendingUltrasoundPhotoPath = pendingUltrasoundPhotoPath,
                     pendingUltrasoundPhotoName = pendingUltrasoundPhotoName,
                     ultrasoundOcrRunning = ultrasoundOcrRunning,
                     ultrasoundOcrCandidate = ultrasoundOcrCandidate,
                     onBabyCareCancel = {
+                        editingEvent = null
                         babyCareAction = null
                         babyCareDraft = null
                     },
                     onPregnancyCancel = {
+                        editingEvent = null
                         pregnancyAction = null
                         pregnancyDraft = null
                     },
                     onMaternalMetricCancel = {
+                        editingEvent = null
                         maternalMetricDraft = null
                     },
                     onUltrasoundCancel = {
+                        editingEvent = null
                         ultrasoundDraft = null
+                        pendingUltrasoundPhotoPath = null
+                        pendingUltrasoundPhotoName = null
                         ultrasoundOcrCandidate = null
                         ultrasoundOcrRunning = false
                     },
@@ -578,12 +589,41 @@ public final class ComposeMainActivity : ComponentActivity() {
     }
 
     private fun openUltrasoundForm(draft: SmartEntryDraft? = null) {
+        editingEvent = null
         ultrasoundDraft = draft
         pendingUltrasoundPhotoPath = null
         pendingUltrasoundPhotoName = null
         ultrasoundOcrCandidate = null
         ultrasoundOcrRunning = false
         pendingNavRoute = BabyLogRoutes.RecordUltrasound
+    }
+
+    private fun openEventForEdit(event: BabyLogDomain.BabyLogEvent, sourceRoute: String) {
+        if (!isEditablePregnancyRecord(event.eventType)) {
+            showInfo("暂不支持编辑", "${BabyLogFormatters.eventLabel(event.eventType)} 记录暂时只支持删除后重录。")
+            return
+        }
+        editingEvent = event
+        recordReturnRoute = if (BabyLogRoutes.isTopLevel(sourceRoute)) sourceRoute else BabyLogRoutes.Timeline
+        when (event.eventType) {
+            "ultrasound" -> {
+                ultrasoundDraft = draftFromUltrasoundEvent(event)
+                pendingUltrasoundPhotoPath = null
+                pendingUltrasoundPhotoName = null
+                ultrasoundOcrCandidate = null
+                ultrasoundOcrRunning = false
+                pendingNavRoute = BabyLogRoutes.RecordUltrasound
+            }
+            "pregnancy_checkup" -> {
+                pregnancyAction = editQuickActionByEventType(event.eventType)
+                pregnancyDraft = draftFromPregnancyEvent(event)
+                pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
+            }
+            "maternal_metric" -> {
+                maternalMetricDraft = draftFromMaternalMetricEvent(event)
+                pendingNavRoute = BabyLogRoutes.RecordMaternalMetric
+            }
+        }
     }
 
     private fun recordQuickAction(action: BabyLogService.QuickAction) {
@@ -599,6 +639,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     }
 
     private fun handleQuickAction(action: BabyLogService.QuickAction) {
+        editingEvent = null
         if (isBabyCareAction(action.eventType)) {
             babyCareDraft = null
             babyCareAction = action
@@ -639,13 +680,19 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun recordPregnancy(input: BabyLogService.PregnancyInput) {
         runInBackground {
             try {
-                val event = service.recordPregnancyEvent(input)
+                val editing = editingEvent?.takeIf { it.eventType == input.eventType }
+                val event = if (editing != null) {
+                    service.updatePregnancyEvent(editing.id, input)
+                } else {
+                    service.recordPregnancyEvent(input)
+                }
                 runOnUiThread {
+                    editingEvent = null
                     pregnancyAction = null
                     pregnancyDraft = null
                     markRecordSaved(event)
                 }
-                showToast("已保存记录")
+                showToast(if (editing != null) "已更新记录" else "已保存记录")
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存记录")
@@ -668,12 +715,18 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun recordMaternalMetric(input: BabyLogService.MaternalMetricInput) {
         runInBackground {
             try {
-                val event = service.recordMaternalMetric(input)
+                val editing = editingEvent?.takeIf { it.eventType == "maternal_metric" }
+                val event = if (editing != null) {
+                    service.updateMaternalMetric(editing.id, input)
+                } else {
+                    service.recordMaternalMetric(input)
+                }
                 runOnUiThread {
+                    editingEvent = null
                     maternalMetricDraft = null
                     markRecordSaved(event)
                 }
-                showToast("已保存孕妈指标")
+                showToast(if (editing != null) "已更新孕妈指标" else "已保存孕妈指标")
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存孕妈指标")
@@ -684,15 +737,21 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun recordUltrasound(input: BabyLogService.UltrasoundInput) {
         runInBackground {
             try {
-                val event = service.recordUltrasound(input)
+                val editing = editingEvent?.takeIf { it.eventType == "ultrasound" }
+                val event = if (editing != null) {
+                    service.updateUltrasound(editing.id, input)
+                } else {
+                    service.recordUltrasound(input)
+                }
                 runOnUiThread {
+                    editingEvent = null
                     ultrasoundDraft = null
                     pendingUltrasoundPhotoPath = null
                     pendingUltrasoundPhotoName = null
                     ultrasoundOcrCandidate = null
                     markRecordSaved(event)
                 }
-                showToast("已保存 B 超记录")
+                showToast(if (editing != null) "已更新 B 超记录" else "已保存 B 超记录")
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存 B 超记录")
@@ -703,6 +762,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun markRecordSaved(event: BabyLogDomain.BabyLogEvent) {
         highlightedEventId = event.id
         pendingNavRoute = if (BabyLogRoutes.isTopLevel(recordReturnRoute)) recordReturnRoute else BabyLogRoutes.Home
+        pendingNavNonce = System.nanoTime()
         recordReturnRoute = BabyLogRoutes.Home
     }
 
@@ -1099,6 +1159,13 @@ public final class ComposeMainActivity : ComponentActivity() {
         return quickActions().firstOrNull { it.eventType == eventType }
     }
 
+    private fun editQuickActionByEventType(eventType: String): BabyLogService.QuickAction? {
+        return quickActionByEventType(eventType) ?: when (eventType) {
+            "pregnancy_checkup" -> BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", ChestnutPalette.VioletArgb, "pregnancy_checkup")
+            else -> null
+        }
+    }
+
     private fun smartEntryForms(stage: String): Map<String, Map<String, String>> {
         val forms = linkedMapOf<String, Map<String, String>>()
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
@@ -1361,6 +1428,7 @@ internal data class SmartVoiceUiState(
 private fun BabyLogApp(
     state: BabyLogUiState,
     pendingNavRoute: String?,
+    pendingNavNonce: Long,
     onNavRouteConsumed: () -> Unit,
     recordReturnRoute: String,
     highlightedEventId: String?,
@@ -1403,6 +1471,7 @@ private fun BabyLogApp(
     onCreatePregnancyProfile: () -> Unit,
     onCreateBabyProfile: () -> Unit,
     onEditProfile: () -> Unit,
+    onEditEvent: (BabyLogDomain.BabyLogEvent, String) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     babyCareAction: BabyLogService.QuickAction?,
     babyCareDraft: SmartEntryDraft?,
@@ -1410,6 +1479,7 @@ private fun BabyLogApp(
     pregnancyDraft: SmartEntryDraft?,
     maternalMetricDraft: SmartEntryDraft?,
     ultrasoundDraft: SmartEntryDraft?,
+    editingEventType: String?,
     pendingUltrasoundPhotoPath: String?,
     pendingUltrasoundPhotoName: String?,
     ultrasoundOcrRunning: Boolean,
@@ -1452,13 +1522,15 @@ private fun BabyLogApp(
             }
         }
     }
-    LaunchedEffect(pendingNavRoute) {
+    LaunchedEffect(pendingNavRoute, pendingNavNonce) {
         val route = pendingNavRoute ?: return@LaunchedEffect
         if (BabyLogRoutes.isTopLevel(route)) {
-            navController.navigate(route) {
-                popUpTo(BabyLogRoutes.Home) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+            if (!navController.popBackStack(route, false)) {
+                navController.navigate(route) {
+                    popUpTo(BabyLogRoutes.Home) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
         } else {
             navController.navigate(route) {
@@ -1572,6 +1644,7 @@ private fun BabyLogApp(
                         highlightedEventId = highlightedEventId,
                         onBabyDaySelected = onBabyDaySelected,
                         onShowTimeline = { selectTopLevelTab(BabyLogRoutes.Timeline) },
+                        onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Home) },
                         onDeleteEvent = onDeleteEvent,
                         onQuickRailVisibilityChange = { visible ->
                             if (quickRailVisible != visible) {
@@ -1588,6 +1661,7 @@ private fun BabyLogApp(
                     selectedFilter = timelineFilter,
                     highlightedEventId = highlightedEventId,
                     onFilterSelected = onTimelineFilterSelected,
+                    onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Timeline) },
                     onDeleteEvent = onDeleteEvent
                 )
             }
@@ -1683,6 +1757,7 @@ private fun BabyLogApp(
                 BabyCareFormScreen(
                     action = babyCareAction,
                     draft = babyCareDraft,
+                    isEditing = editingEventType == babyCareAction?.eventType,
                     onBack = { closeRecord(onBabyCareCancel) },
                     onSave = onBabyCareSave
                 )
@@ -1691,6 +1766,7 @@ private fun BabyLogApp(
                 PregnancyEventFormScreen(
                     action = pregnancyAction,
                     draft = pregnancyDraft,
+                    isEditing = editingEventType == pregnancyAction?.eventType,
                     onBack = { closeRecord(onPregnancyCancel) },
                     onSave = onPregnancySave
                 )
@@ -1698,6 +1774,7 @@ private fun BabyLogApp(
             composable(BabyLogRoutes.RecordMaternalMetric) {
                 MaternalMetricFormScreen(
                     draft = maternalMetricDraft,
+                    isEditing = editingEventType == "maternal_metric",
                     onBack = { closeRecord(onMaternalMetricCancel) },
                     onSave = onMaternalMetricSave
                 )
@@ -1707,6 +1784,7 @@ private fun BabyLogApp(
                     defaultGestationalAge = currentGestationalAgeInput(state.childProfile),
                     expectedDueDate = state.childProfile.expectedDueDate,
                     draft = ultrasoundDraft,
+                    isEditing = editingEventType == "ultrasound",
                     photoPath = pendingUltrasoundPhotoPath,
                     photoName = pendingUltrasoundPhotoName,
                     ocrRunning = ultrasoundOcrRunning,
@@ -2150,6 +2228,7 @@ internal fun TimelineFilters(selected: String, onSelect: (String) -> Unit) {
 internal fun TimelineRow(
     event: BabyLogDomain.BabyLogEvent,
     highlighted: Boolean = false,
+    onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     val tone = eventTone(event.eventType)
@@ -2195,6 +2274,15 @@ internal fun TimelineRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    if (onEdit != null) {
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            onClick = onEdit,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("编辑", color = ChestnutPalette.Primary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     if (onDelete != null) {
                         Spacer(Modifier.width(8.dp))
                         TextButton(
@@ -2863,6 +2951,85 @@ private fun smartFormFields(vararg values: Pair<String, String?>): Map<String, S
     return linkedMapOf(*values.filter { !it.second.isNullOrBlank() }
         .map { it.first to it.second.orEmpty() }
         .toTypedArray())
+}
+
+internal fun isEditablePregnancyRecord(eventType: String): Boolean {
+    return eventType == "ultrasound" ||
+        eventType == "pregnancy_checkup" ||
+        eventType == "maternal_metric"
+}
+
+private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
+    val payload = event.payload
+    return SmartEntryDraft(
+        values = smartFormFields(
+            "primary" to payload.optString("checkupDate").ifBlank { BabyLogFormatters.recordDay(event.occurredAt) },
+            "secondary" to payload.optString("provider"),
+            "tertiary" to payload.optString("finding"),
+            "note" to payload.optString("nextVisitNote")
+        )
+    )
+}
+
+private fun draftFromMaternalMetricEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
+    val payload = event.payload
+    return SmartEntryDraft(
+        values = smartFormFields(
+            "weightKg" to payloadNumberText(payload, "weightKg"),
+            "systolicBp" to payloadNumberText(payload, "systolicBp"),
+            "diastolicBp" to payloadNumberText(payload, "diastolicBp"),
+            "glucoseMmolL" to payloadNumberText(payload, "glucoseMmolL"),
+            "glucoseContext" to payload.optString("glucoseContext"),
+            "note" to payload.optString("note")
+        )
+    )
+}
+
+private fun draftFromUltrasoundEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
+    val payload = event.payload
+    return SmartEntryDraft(
+        values = smartFormFields(
+            "examDate" to payload.optString("examDate").ifBlank { BabyLogFormatters.recordDay(event.occurredAt) },
+            "gestationalAge" to gestationalAgeDraftValue(payload),
+            "hospital" to payload.optString("hospital"),
+            "reportTime" to payload.optString("reportTime"),
+            "diagnosisText" to payload.optString("diagnosisText"),
+            "bpdMm" to payloadNumberText(payload, "bpdMm"),
+            "hcMm" to payloadNumberText(payload, "hcMm"),
+            "acMm" to payloadNumberText(payload, "acMm"),
+            "flMm" to payloadNumberText(payload, "flMm"),
+            "efwGram" to payloadNumberText(payload, "efwGram"),
+            "afiCm" to payloadNumberText(payload, "afiCm"),
+            "deepestPocketCm" to payloadNumberText(payload, "deepestPocketCm"),
+            "placentaLocation" to payload.optString("placentaLocation"),
+            "placentaGrade" to payload.optString("placentaGrade"),
+            "fetalPresentation" to payload.optString("fetalPresentation"),
+            "fetalHeartRateBpm" to payloadNumberText(payload, "fetalHeartRateBpm"),
+            "fetalCount" to payload.optString("fetalCount"),
+            "fetalMovement" to payload.optString("fetalMovement"),
+            "umbilicalInsertion" to payload.optString("umbilicalInsertion"),
+            "cervicalLengthMm" to payloadNumberText(payload, "cervicalLengthMm"),
+            "crlMm" to payloadNumberText(payload, "crlMm"),
+            "ntMm" to payloadNumberText(payload, "ntMm"),
+            "umbilicalSd" to payloadNumberText(payload, "umbilicalSd"),
+            "umbilicalPi" to payloadNumberText(payload, "umbilicalPi"),
+            "umbilicalRi" to payloadNumberText(payload, "umbilicalRi")
+        )
+    )
+}
+
+private fun payloadNumberText(payload: JSONObject, key: String): String {
+    if (!payload.has(key) || payload.isNull(key)) {
+        return ""
+    }
+    return BabyLogFormatters.formatNumber(payload.optDouble(key))
+}
+
+private fun gestationalAgeDraftValue(payload: JSONObject): String {
+    if (!payload.has("gestationalAgeDays") || payload.isNull("gestationalAgeDays")) {
+        return ""
+    }
+    return BabyLogFormatters.formatGestationalAge(payload.optInt("gestationalAgeDays")).removeSuffix(" 周")
 }
 
 internal fun hasAdvancedUltrasoundDraft(values: Map<String, String>): Boolean {

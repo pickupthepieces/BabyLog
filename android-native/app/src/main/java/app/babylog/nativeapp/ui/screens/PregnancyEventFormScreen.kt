@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 internal fun PregnancyEventFormScreen(
     action: BabyLogService.QuickAction?,
     draft: SmartEntryDraft?,
+    isEditing: Boolean = false,
     onBack: () -> Unit,
     onSave: (BabyLogService.PregnancyInput) -> Unit
 ) {
@@ -27,9 +28,9 @@ internal fun PregnancyEventFormScreen(
     val labels = pregnancyLabels(action.eventType)
 
     RecordFormScaffold(
-        title = action.label,
+        title = if (isEditing) "编辑${action.label}" else action.label,
         subtitle = "常用字段优先，备注可后补",
-        saveText = "保存记录",
+        saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
         onSave = { onSave(buildPregnancyInput(action.eventType, primary, secondary, tertiary, note)) }
     ) {

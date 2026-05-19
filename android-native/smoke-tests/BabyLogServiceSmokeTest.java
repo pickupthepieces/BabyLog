@@ -3,6 +3,7 @@ import app.babylog.nativeapp.BabyLogService;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Arrays;
 
 public final class BabyLogServiceSmokeTest {
     public static void main(String[] args) throws Exception {
@@ -107,6 +108,34 @@ public final class BabyLogServiceSmokeTest {
                 "2026-09-17T08:30:00.000+0800"
         );
         assertEquals("2026-09-17", birthProfile.birthDate);
+
+        BabyLogDomain.BabyLogEvent original = new BabyLogDomain.BabyLogEvent(
+                "evt_edit",
+                BabyLogDomain.FAMILY_ID,
+                BabyLogDomain.CHILD_ID,
+                "ultrasound",
+                "2026-05-02T12:00:00.000+0800",
+                null,
+                Arrays.asList("att_existing"),
+                "manual",
+                "2026-05-02T12:00:00.000+0800",
+                "2026-05-02T12:00:00.000+0800",
+                BabyLogDomain.UPDATED_BY_LOCAL,
+                BabyLogDomain.SCHEMA_VERSION,
+                null
+        );
+        BabyLogDomain.BabyLogEvent edited = BabyLogService.createEditedEvent(
+                original,
+                "ultrasound",
+                null,
+                Arrays.asList("att_existing", "att_new")
+        );
+        assertEquals(original.id, edited.id);
+        assertEquals(original.createdAt, edited.createdAt);
+        assertEquals(original.occurredAt, edited.occurredAt);
+        assertEquals(BabyLogDomain.UPDATED_BY_LOCAL, edited.updatedBy);
+        assertTrue(!original.updatedAt.equals(edited.updatedAt));
+        assertEquals(2, edited.attachmentIds.size());
     }
 
     private static void assertEquals(Object expected, Object actual) {

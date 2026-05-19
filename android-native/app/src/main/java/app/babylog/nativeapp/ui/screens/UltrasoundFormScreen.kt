@@ -36,6 +36,7 @@ internal fun UltrasoundFormScreen(
     defaultGestationalAge: String,
     expectedDueDate: String,
     draft: SmartEntryDraft?,
+    isEditing: Boolean = false,
     photoPath: String?,
     photoName: String?,
     ocrRunning: Boolean,
@@ -120,9 +121,9 @@ internal fun UltrasoundFormScreen(
     }
 
     RecordFormScaffold(
-        title = "B 超记录",
+        title = if (isEditing) "编辑 B 超记录" else "B 超记录",
         subtitle = "先录生长指标，其他医学信息可展开补充",
-        saveText = "保存生长指标",
+        saveText = if (isEditing) "保存修改" else "保存生长指标",
         onBack = onBack,
         onSave = {
             val input = BabyLogService.UltrasoundInput(

@@ -96,6 +96,19 @@ public final class BabyLogService {
         return event;
     }
 
+    public BabyLogDomain.BabyLogEvent updatePregnancyEvent(String eventId, PregnancyInput input) throws JSONException {
+        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
+        BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                existing,
+                input.eventType,
+                buildPregnancyPayload(input),
+                existing.attachmentIds
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
     public BabyLogDomain.BabyLogEvent recordFetalMovementSession(FetalMovementSessionInput input) throws JSONException {
         JSONObject payload = buildFetalMovementSessionPayload(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
@@ -118,6 +131,19 @@ public final class BabyLogService {
                 payload,
                 Collections.emptyList(),
                 "manual"
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
+    public BabyLogDomain.BabyLogEvent updateMaternalMetric(String eventId, MaternalMetricInput input) throws JSONException {
+        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, "maternal_metric");
+        BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                existing,
+                "maternal_metric",
+                buildMaternalMetricPayload(input),
+                existing.attachmentIds
         );
         repository.putEvent(event);
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
@@ -475,6 +501,78 @@ public final class BabyLogService {
         if (!hasUltrasoundMinimumContent(input)) {
             throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
+        List<String> attachmentIds = createUltrasoundAttachmentIds(input);
+        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                "ultrasound",
+                BabyLogFormatters.createOccurredAtFromDate(input.examDate),
+                buildUltrasoundPayload(input),
+                attachmentIds,
+                "manual"
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
+    public BabyLogDomain.BabyLogEvent updateUltrasound(String eventId, UltrasoundInput input) throws JSONException {
+        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, "ultrasound");
+        if (!hasUltrasoundMinimumContent(input) && existing.attachmentIds.isEmpty()) {
+            throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
+        }
+        List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
+        attachmentIds.addAll(createUltrasoundAttachmentIds(input));
+        BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                existing,
+                "ultrasound",
+                buildUltrasoundPayload(input),
+                attachmentIds
+        );
+        repository.putEvent(event);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        return event;
+    }
+
+    public static BabyLogDomain.BabyLogEvent createEditedEvent(
+            BabyLogDomain.BabyLogEvent existing,
+            String expectedEventType,
+            JSONObject payload,
+            List<String> attachmentIds
+    ) throws JSONException {
+        if (existing == null || existing.deletedAt != null) {
+            throw new JSONException("记录不存在或已删除");
+        }
+        if (!existing.eventType.equals(expectedEventType)) {
+            throw new JSONException("记录类型不匹配");
+        }
+        return new BabyLogDomain.BabyLogEvent(
+                existing.id,
+                existing.familyId,
+                existing.childId,
+                existing.eventType,
+                existing.occurredAt,
+                payload == null ? existing.payload : payload,
+                attachmentIds == null ? new ArrayList<>() : new ArrayList<>(attachmentIds),
+                existing.source,
+                existing.createdAt,
+                BabyLogFormatters.nowIso(),
+                BabyLogDomain.UPDATED_BY_LOCAL,
+                existing.schemaVersion,
+                existing.deletedAt
+        );
+    }
+
+    private BabyLogDomain.BabyLogEvent requireEditableEvent(String eventId, String expectedEventType) throws JSONException {
+        BabyLogDomain.BabyLogEvent existing = repository.findEventById(eventId);
+        if (existing == null || existing.deletedAt != null) {
+            throw new JSONException("记录不存在或已删除");
+        }
+        if (!expectedEventType.equals(existing.eventType)) {
+            throw new JSONException("记录类型不匹配");
+        }
+        return existing;
+    }
+
+    private List<String> createUltrasoundAttachmentIds(UltrasoundInput input) throws JSONException {
         List<String> attachmentIds = new ArrayList<>();
         if (input.photoPath != null && !input.photoPath.isEmpty()) {
             File image = new File(input.photoPath);
@@ -491,7 +589,10 @@ public final class BabyLogService {
                 attachmentIds.add(attachment.id);
             }
         }
+        return attachmentIds;
+    }
 
+    private static JSONObject buildUltrasoundPayload(UltrasoundInput input) throws JSONException {
         JSONObject payload = new JSONObject();
         payload.put("examDate", input.examDate);
         Double bpd = BabyLogFormatters.parseOptionalNumber(input.bpdMm);
@@ -532,17 +633,7 @@ public final class BabyLogService {
         String summary = BabyLogFormatters.formatUltrasoundSummary(payload);
         payload.put("summary", summary);
         putStringIfNotBlank(payload, "clinicalDetails", formatUltrasoundClinicalDetails(input));
-
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                "ultrasound",
-                BabyLogFormatters.createOccurredAtFromDate(input.examDate),
-                payload,
-                attachmentIds,
-                "manual"
-        );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
-        return event;
+        return payload;
     }
 
     public DashboardSnapshot loadDashboard() {
@@ -825,7 +916,7 @@ public final class BabyLogService {
         }
     }
 
-    private void putIfNotNull(JSONObject payload, String key, Object value) throws JSONException {
+    private static void putIfNotNull(JSONObject payload, String key, Object value) throws JSONException {
         if (value != null) {
             payload.put(key, value);
         }

@@ -24,6 +24,7 @@ internal fun HomeScreen(
     highlightedEventId: String?,
     onBabyDaySelected: (String) -> Unit,
     onShowTimeline: () -> Unit,
+    onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onQuickRailVisibilityChange: (Boolean) -> Unit
 ) {
@@ -90,6 +91,7 @@ internal fun HomeScreen(
                     TimelineRow(
                         event,
                         highlighted = event.id == highlightedEventId,
+                        onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
                         onDelete = { onDeleteEvent(event) }
                     )
                 }
@@ -116,6 +118,7 @@ internal fun HomeScreen(
                     TimelineRow(
                         event,
                         highlighted = event.id == highlightedEventId,
+                        onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
                         onDelete = { onDeleteEvent(event) }
                     )
                 }

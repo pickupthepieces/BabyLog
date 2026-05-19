@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun MaternalMetricFormScreen(
     draft: SmartEntryDraft?,
+    isEditing: Boolean = false,
     onBack: () -> Unit,
     onSave: (BabyLogService.MaternalMetricInput) -> Unit
 ) {
@@ -35,9 +36,9 @@ internal fun MaternalMetricFormScreen(
     )
 
     RecordFormScaffold(
-        title = "孕妈指标",
+        title = if (isEditing) "编辑孕妈指标" else "孕妈指标",
         subtitle = "体重、血压、血糖用于家庭趋势记录",
-        saveText = "保存孕妈指标",
+        saveText = if (isEditing) "保存修改" else "保存孕妈指标",
         onBack = onBack,
         onSave = {
             onSave(
