@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/platform-Android-3DDC84.svg)](android-native/)
 [![Stage](https://img.shields.io/badge/scope-孕期主线-E8896B.svg)](#路线图)
 
-BabyLog 服务于一个真实家庭（父母、祖辈，必要时月嫂），连续记录从备孕、孕期到宝宝成长的过程。
+BabyLog 服务于一个真实家庭（爸爸妈妈、爷爷奶奶、外公外婆，必要时还有月嫂），连续记录从备孕、孕期到宝宝成长的过程。
 设计取舍始终一致：**离线可用优先、数据留在本机、隐私边界清晰，不追求公开商业化**。
 
 ---
