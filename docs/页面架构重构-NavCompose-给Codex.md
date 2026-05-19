@@ -121,3 +121,8 @@
 **核实**：① `AttachmentListDialog`/`AttachmentPreviewDialog`/`TrashDialog` 删除 → `AttachmentListScreen`/`AttachmentPreviewScreen`/`TrashScreen` 全屏页。② 仅 CMA+ui/screens 改动,回收站7天保留/清理/附件读取/FileProvider 逻辑层零动。③ 破坏性删除仍走 `ConfirmDialog`(CMA:391 "移入回收站"全文确认保留);TrashScreen 仅恢复,无新增未确认永久删除。④ CMA 3312→3140。⑤ 单 commit 干净。编译/smoke 由 CI 兜底。
 
 **进度**：CMA 4331→3140;P0–P4 全通过。
+
+### 用户决策（2026-05-19）
+
+1. **baby 快捷"奶瓶"等一拍即记 = 保持原样**（Piyo 风,按设计如此,不改走表单确认）。该决策项关闭,不单开轮次,P5 及后续不要动 baby 快捷入库行为。
+2. **当前焦点 = 孕期**；出生后档保留但非重点。**P5 quick rail 重心放孕期常驻 rail**;baby 侧维持现状,不过度投入。P2 遗留"BabyCare 真机字段全等性走查"**降级**为低优先（baby 非焦点,逻辑已保留即可,不阻塞）。
