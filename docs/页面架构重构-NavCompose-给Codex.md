@@ -249,3 +249,13 @@
 **核实**：值全部按 spec（width 76→58、tile 34→28、icon 22→18、去 border、item pad 7→5、row pad 6→4、spacing 8→6、label 11→10sp）；仅 `QuickRail.kt` 单 commit、树干净、逻辑/滚动显隐/底栏/配色 token 未动。真机截图 `diagnostics/p5-quickrail-iv/home.png` 对比 Piyo：rail 明显变轻、无边框盒、5 项全可见可点、贴近 Piyo 紧凑小图标；语音仍仅底栏正中。assemble+lint+smoke 绿 + Codex 装机回归。
 
 **收口确认**：NavCompose 架构线 + P5 全部收尾（I~IV + perf-A/B）通过，首页底部终态固定，不再迭代。后续严格走 `docs/P5后工作队列-给Codex.md`：Q1 → Q2 → Q2b → Q4 → Q6（Q3 已完成，Q5 待设备）。
+
+### P5 收尾修正 V：quick rail 去双层背景盒，改 Piyo 圆形图标+文字（用户反馈仍重）
+
+根因：当前每格有**两层 tint 背景方块**——外层 `Column .clip(RoundedCornerShape(15)).background(toneColor α0.16)` + 内层 `BabyLogIconTile` 自身 `Box .clip(RoundedCornerShape(16)).background(tileColor)`。Piyo 为「一个圆形图标 + 下方文字」，零背景方块。一笔 `ui:` 提交（QuickRail.kt 一处；**禁止改共享 `BabyLogIconTile`**，其被底栏等复用，改之会连累别处）：
+
+1. 去掉外层 `Column` 的 `.clip(...).background(...)`（那张卡片方块）；Column 仅保留 `.clickable` + `.padding(vertical=4.dp)` + 居中，背景透明。
+2. 该格内**不再调用 `BabyLogIconTile`**；内联一个圆形：`Box(Modifier.size(≈40.dp).clip(CircleShape).background(Color(action.toneColor).copy(alpha=0.16f)), contentAlignment=Center){ BabyLogMaterialIcon(icon = quickActionIcon(action.eventType), tint = Color(action.toneColor), modifier = Modifier.size(≈20.dp)) }`。
+3. `Spacer(3–4.dp)` + 标签 `fontSize = 10.sp` 不变；每格宽可保持 ~56–58dp 或随内容。
+
+要求：仅 `QuickRail.kt`；不动共享组件/动作集/逻辑/滚动显隐/底栏/配色 token；结果为单层柔色圆形图标+文字、无任何方块、贴 Piyo；5 项全可见可点（圆 40 + padding 达可点）。一笔 `ui:` 不混不并 main；assemble+lint+smoke 绿；装机对比 Piyo。Claude 用一次真机截图与 Piyo 比对验收。
