@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -108,9 +109,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import org.json.JSONObject
+import app.babylog.nativeapp.ui.screens.BabyLogRoutes
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -132,7 +138,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var importBackupLauncher: ActivityResultLauncher<Array<String>>
 
     private var uiState by mutableStateOf(BabyLogUiState())
-    private var activeTab by mutableStateOf("home")
+    private var activeTab by mutableStateOf(BabyLogRoutes.Home)
     private var timelineFilter by mutableStateOf("all")
     private var selectedBabyDay by mutableStateOf(BabyLogFormatters.todayDateInput())
     private var showQuickSheet by mutableStateOf(false)
@@ -1082,7 +1088,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 val count = service.importBackupJson(raw)
-                runOnUiThread { activeTab = "home" }
+                runOnUiThread { activeTab = BabyLogRoutes.Home }
                 showToast("导入完成：$count 条记录")
                 reloadData()
             } catch (error: Exception) {
@@ -1127,7 +1133,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun clearLocalData() {
         runInBackground {
             service.clearLocalData()
-            runOnUiThread { activeTab = "home" }
+            runOnUiThread { activeTab = BabyLogRoutes.Home }
             showToast("本机数据已清空")
             reloadData()
         }
@@ -1250,7 +1256,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 } else {
                     repository.saveChildProfile(child)
                 }
-                runOnUiThread { activeTab = "home" }
+                runOnUiThread { activeTab = BabyLogRoutes.Home }
                 showToast("档案已保存")
                 reloadData()
             } catch (error: JSONException) {
@@ -1428,6 +1434,29 @@ private fun BabyLogApp(
     onEditProfile: () -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit
 ) {
+    val navController = rememberNavController()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+    val selectTopLevelTab: (String) -> Unit = { route ->
+        if (BabyLogRoutes.isTopLevel(route)) {
+            onTabSelected(route)
+        }
+    }
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != null && BabyLogRoutes.isTopLevel(currentRoute) && currentRoute != activeTab) {
+            onTabSelected(currentRoute)
+        }
+    }
+    LaunchedEffect(state.setupCompleted, activeTab) {
+        if (state.setupCompleted && BabyLogRoutes.isTopLevel(activeTab)) {
+            navController.navigate(activeTab) {
+                popUpTo(BabyLogRoutes.Home) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
         topBar = {
@@ -1451,12 +1480,12 @@ private fun BabyLogApp(
         bottomBar = {
             if (state.setupCompleted) {
                 Column {
-                    if (activeTab == "home" && currentCareStage(state.childProfile) == BabyLogDomain.STAGE_BABY) {
+                    if (activeTab == BabyLogRoutes.Home && currentCareStage(state.childProfile) == BabyLogDomain.STAGE_BABY) {
                         BabyQuickRail(actions = quickActions, onAction = onQuickAction)
                     }
                     BottomNav(
                         activeTab = activeTab,
-                        onTabSelected = onTabSelected,
+                        onTabSelected = selectTopLevelTab,
                         onSmartEntryClick = onSmartEntryClick,
                         onSmartVoiceHoldStart = onSmartVoiceHoldStart,
                         onSmartVoiceHoldEnd = onSmartVoiceHoldEnd
@@ -1465,23 +1494,8 @@ private fun BabyLogApp(
             }
         }
     ) { inner ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(ChestnutPalette.Bg, Color(0xFFFFFBF4), ChestnutPalette.Bg)
-                    )
-                ),
-            contentPadding = PaddingValues(
-                start = 18.dp,
-                top = inner.calculateTopPadding() + 16.dp,
-                end = 18.dp,
-                bottom = inner.calculateBottomPadding() + 22.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            if (!state.setupCompleted) {
+        if (!state.setupCompleted) {
+            BabyLogScreenColumn(inner) {
                 item {
                     FirstRunScreen(
                         onCreatePregnancyProfile = onCreatePregnancyProfile,
@@ -1489,119 +1503,130 @@ private fun BabyLogApp(
                         onImportBackup = onImportBackup
                     )
                 }
-            } else {
-                val stage = currentCareStage(state.childProfile)
-                when (activeTab) {
-                "home" -> {
-                    item {
+            }
+        } else {
+            val stage = currentCareStage(state.childProfile)
+            NavHost(
+                navController = navController,
+                startDestination = BabyLogRoutes.Home
+            ) {
+                composable(BabyLogRoutes.Home) {
+                    BabyLogScreenColumn(inner) {
+                        item {
+                            if (stage == BabyLogDomain.STAGE_BABY) {
+                                BabyDayCard(
+                                    profile = state.childProfile,
+                                    selectedDay = selectedBabyDay,
+                                    onPreviousDay = {
+                                        onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, -1))
+                                    },
+                                    onToday = { onBabyDaySelected(BabyLogFormatters.todayDateInput()) },
+                                    onNextDay = {
+                                        onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, 1))
+                                    }
+                                )
+                            } else {
+                                WeekCard(state.childProfile)
+                            }
+                        }
                         if (stage == BabyLogDomain.STAGE_BABY) {
-                            BabyDayCard(
-                                profile = state.childProfile,
-                                selectedDay = selectedBabyDay,
-                                onPreviousDay = {
-                                    onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, -1))
-                                },
-                                onToday = { onBabyDaySelected(BabyLogFormatters.todayDateInput()) },
-                                onNextDay = {
-                                    onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, 1))
+                            val dayEvents = state.timeline.filter {
+                                BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
+                            }
+                            item { BabyDaySummary(dayEvents, selectedBabyDay) }
+                            item {
+                                SectionHeader(
+                                    title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录"
+                                )
+                            }
+                            if (dayEvents.isEmpty()) {
+                                item { EmptyPanel("这一天还没有记录") }
+                            } else {
+                                items(dayEvents, key = { it.id }) { event ->
+                                    TimelineRow(event, onDelete = { onDeleteEvent(event) })
                                 }
-                            )
+                            }
+                        }
+                        if (stage == BabyLogDomain.STAGE_PREGNANCY) {
+                            item { PregnancySummaryPanel(state.timeline) }
+                        }
+                        if (stage != BabyLogDomain.STAGE_BABY) {
+                            item {
+                                SectionHeader(
+                                    title = "最近记录",
+                                    action = "全部记录",
+                                    onAction = { selectTopLevelTab(BabyLogRoutes.Timeline) }
+                                )
+                            }
+                            val recent = state.dashboard?.recentEvents.orEmpty()
+                                .filter { isEventVisibleInHome(it, stage) }
+                                .take(4)
+                            if (recent.isEmpty()) {
+                                item { EmptyPanel("还没有记录") }
+                            } else {
+                                items(recent, key = { it.id }) { event ->
+                                    TimelineRow(event, onDelete = { onDeleteEvent(event) })
+                                }
+                            }
+                        }
+                        if (stage == BabyLogDomain.STAGE_PREGNANCY) {
+                            item { FetalGrowthPanel(state.timeline) }
                         } else {
-                            WeekCard(state.childProfile)
+                            item { SectionHeader(title = "趋势") }
+                            item { TrendPanel(state.timeline, stage) }
                         }
                     }
-                    if (stage == BabyLogDomain.STAGE_BABY) {
-                        val dayEvents = state.timeline.filter {
-                            BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
-                        }
-                        item { BabyDaySummary(dayEvents, selectedBabyDay) }
+                }
+                composable(BabyLogRoutes.Timeline) {
+                    BabyLogScreenColumn(inner) {
                         item {
-                            SectionHeader(
-                                title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录"
+                            TimelineFilters(
+                                selected = timelineFilter,
+                                onSelect = onTimelineFilterSelected
                             )
                         }
-                        if (dayEvents.isEmpty()) {
-                            item { EmptyPanel("这一天还没有记录") }
+                        val events = state.timeline.filter {
+                            BabyLogFormatters.matchesTimelineFilter(it.eventType, timelineFilter)
+                        }
+                        if (events.isEmpty()) {
+                            item { EmptyPanel("这个分类暂时没有记录。") }
                         } else {
-                            items(dayEvents, key = { it.id }) { event ->
+                            items(events, key = { it.id }) { event ->
                                 TimelineRow(event, onDelete = { onDeleteEvent(event) })
                             }
                         }
                     }
-                    if (stage == BabyLogDomain.STAGE_PREGNANCY) {
-                        item { PregnancySummaryPanel(state.timeline) }
-                    }
-                    if (stage != BabyLogDomain.STAGE_BABY) {
+                }
+                composable(BabyLogRoutes.Library) {
+                    BabyLogScreenColumn(inner) {
                         item {
-                            SectionHeader(
-                                title = "最近记录",
-                                action = "全部记录",
-                                onAction = { onTabSelected("timeline") }
+                            LibraryScreen(
+                                attachments = state.attachments,
+                                stage = stage,
+                                onShowAttachments = onShowAttachments
                             )
                         }
-                        val recent = state.dashboard?.recentEvents.orEmpty()
-                            .filter { isEventVisibleInHome(it, stage) }
-                            .take(4)
-                        if (recent.isEmpty()) {
-                            item { EmptyPanel("还没有记录") }
-                        } else {
-                            items(recent, key = { it.id }) { event ->
-                                TimelineRow(event, onDelete = { onDeleteEvent(event) })
-                            }
+                    }
+                }
+                composable(BabyLogRoutes.Settings) {
+                    BabyLogScreenColumn(inner) {
+                        item {
+                            SettingsScreen(
+                                state = state,
+                                onSyncNow = onSyncNow,
+                                onExportBackup = onExportBackup,
+                                onImportBackup = onImportBackup,
+                                onOpenSyncSettings = onOpenSyncSettings,
+                                onOpenSmartSettings = onOpenSmartSettings,
+                                onOpenSpeechSettings = onOpenSpeechSettings,
+                                smartConfigSummary = smartConfigSummary,
+                                speechConfigSummary = speechConfigSummary,
+                                onClearLocalData = onClearLocalData,
+                                onOpenTrash = onOpenTrash,
+                                onEditProfile = onEditProfile
+                            )
                         }
                     }
-                    if (stage == BabyLogDomain.STAGE_PREGNANCY) {
-                        item { FetalGrowthPanel(state.timeline) }
-                    } else {
-                        item { SectionHeader(title = "趋势") }
-                        item { TrendPanel(state.timeline, stage) }
-                    }
-                }
-                "timeline" -> {
-                    item {
-                        TimelineFilters(
-                            selected = timelineFilter,
-                            onSelect = onTimelineFilterSelected
-                        )
-                    }
-                    val events = state.timeline.filter {
-                        BabyLogFormatters.matchesTimelineFilter(it.eventType, timelineFilter)
-                    }
-                    if (events.isEmpty()) {
-                        item { EmptyPanel("这个分类暂时没有记录。") }
-                    } else {
-                        items(events, key = { it.id }) { event ->
-                            TimelineRow(event, onDelete = { onDeleteEvent(event) })
-                        }
-                    }
-                }
-                "library" -> {
-                    item {
-                        LibraryScreen(
-                            attachments = state.attachments,
-                            stage = stage,
-                            onShowAttachments = onShowAttachments
-                        )
-                    }
-                }
-                "settings" -> {
-                    item {
-                        SettingsScreen(
-                            state = state,
-                            onSyncNow = onSyncNow,
-                            onExportBackup = onExportBackup,
-                            onImportBackup = onImportBackup,
-                            onOpenSyncSettings = onOpenSyncSettings,
-                            onOpenSmartSettings = onOpenSmartSettings,
-                            onOpenSpeechSettings = onOpenSpeechSettings,
-                            smartConfigSummary = smartConfigSummary,
-                            speechConfigSummary = speechConfigSummary,
-                            onClearLocalData = onClearLocalData,
-                            onOpenTrash = onOpenTrash,
-                            onEditProfile = onEditProfile
-                        )
-                    }
-                }
                 }
             }
         }
@@ -1609,9 +1634,33 @@ private fun BabyLogApp(
 }
 
 @Composable
+private fun BabyLogScreenColumn(
+    inner: PaddingValues,
+    content: LazyListScope.() -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(ChestnutPalette.Bg, Color(0xFFFFFBF4), ChestnutPalette.Bg)
+                )
+            ),
+        contentPadding = PaddingValues(
+            start = 18.dp,
+            top = inner.calculateTopPadding() + 16.dp,
+            end = 18.dp,
+            bottom = inner.calculateBottomPadding() + 22.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        content = content
+    )
+}
+
+@Composable
 private fun TopBrandBand(activeTab: String, state: BabyLogUiState) {
     val stage = currentCareStage(state.childProfile)
-    val title = if (state.setupCompleted && activeTab != "home") tabTitle(activeTab) else "BabyLog"
+    val title = if (state.setupCompleted && activeTab != BabyLogRoutes.Home) tabTitle(activeTab) else "BabyLog"
     val subtitle = if (!state.setupCompleted) {
         "先建档，再进入家庭记录"
     } else {
@@ -1629,11 +1678,11 @@ private fun TopBrandBand(activeTab: String, state: BabyLogUiState) {
             Text(
                 text = title,
                 color = Color.White,
-                fontSize = if (activeTab == "home") 32.sp else 24.sp,
+                fontSize = if (activeTab == BabyLogRoutes.Home) 32.sp else 24.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.sp
             )
-            if (activeTab == "home" || !state.setupCompleted) {
+            if (activeTab == BabyLogRoutes.Home || !state.setupCompleted) {
                 Text(
                     text = subtitle,
                     color = Color.White.copy(alpha = 0.82f),
@@ -3891,11 +3940,11 @@ private fun BottomNav(
 ) {
     val viewConfiguration = LocalViewConfiguration.current
     val items = listOf(
-        NavItem("home", "首页", LineIcon.Home),
-        NavItem("timeline", "时间线", LineIcon.Timeline),
+        NavItem(BabyLogRoutes.Home, "首页", LineIcon.Home),
+        NavItem(BabyLogRoutes.Timeline, "时间线", LineIcon.Timeline),
         NavItem("smart", "语音", LineIcon.Voice, isAction = true),
-        NavItem("library", "资料", LineIcon.Library),
-        NavItem("settings", "设置", LineIcon.Settings)
+        NavItem(BabyLogRoutes.Library, "资料", LineIcon.Library),
+        NavItem(BabyLogRoutes.Settings, "设置", LineIcon.Settings)
     )
     BottomNavigation(
         backgroundColor = ChestnutPalette.Primary,
@@ -4323,9 +4372,9 @@ private fun payloadNumber(payload: JSONObject, key: String): Double? {
 
 private fun tabTitle(activeTab: String): String {
     return when (activeTab) {
-        "timeline" -> "时间线"
-        "library" -> "资料"
-        "settings" -> "设置"
+        BabyLogRoutes.Timeline -> "时间线"
+        BabyLogRoutes.Library -> "资料"
+        BabyLogRoutes.Settings -> "设置"
         else -> "首页"
     }
 }
