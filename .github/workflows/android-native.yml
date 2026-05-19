@@ -40,8 +40,14 @@ jobs:
         run: |
           cd android-native
           mkdir -p smoke-tests/out
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-36/android.jar"
+          JSON_JAR="$RUNNER_TEMP/org-json-20240303.jar"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            "https://repo1.maven.org/maven2/org/json/json/20240303/json-20240303.jar" \
+            -o "$JSON_JAR"
+          SMOKE_CP="$JSON_JAR:$ANDROID_JAR"
           javac -encoding UTF-8 \
-            -cp "$ANDROID_HOME/platforms/android-36/android.jar" \
+            -cp "$SMOKE_CP" \
             -d smoke-tests/out \
             app/src/main/java/app/babylog/nativeapp/BabyLogDomain.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogFormatters.java \
@@ -66,17 +72,17 @@ jobs:
             smoke-tests/BabyLogSmartTextClientSmokeTest.java \
             smoke-tests/BabyLogSpeechToTextProtocolSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogDisclaimerPolicySmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartConfigStoreSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogDomainSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogFormattersSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogImageUtilsSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogFetalGrowthReferenceSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartInputSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartVisionClientSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartTextClientSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSpeechToTextProtocolSmokeTest
-          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogServiceSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDisclaimerPolicySmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartConfigStoreSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDomainSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFormattersSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogImageUtilsSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFetalGrowthReferenceSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartInputSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartVisionClientSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartTextClientSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSpeechToTextProtocolSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogServiceSmokeTest
 
       - name: Assemble debug
         run: cd android-native && ./gradlew :app:assembleDebug --console=plain
