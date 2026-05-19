@@ -259,3 +259,15 @@
 3. `Spacer(3–4.dp)` + 标签 `fontSize = 10.sp` 不变；每格宽可保持 ~56–58dp 或随内容。
 
 要求：仅 `QuickRail.kt`；不动共享组件/动作集/逻辑/滚动显隐/底栏/配色 token；结果为单层柔色圆形图标+文字、无任何方块、贴 Piyo；5 项全可见可点（圆 40 + padding 达可点）。一笔 `ui:` 不混不并 main；assemble+lint+smoke 绿；装机对比 Piyo。Claude 用一次真机截图与 Piyo 比对验收。
+
+### perf-C：广泛滑动卡顿（用户报，Claude 代码定位，一笔独立 perf: 不混 Q2b）
+
+用户反馈"各种界面滑动都卡卡顿顿"。代码定位两系统性源：
+
+**F1（P5 引入回归 · 首页）**：`ui/screens/HomeScreen.kt` `railNestedScroll.onPreScroll` 每个滚动增量即调 `onQuickRailVisibilityChange(false/true)`；`quickRailVisible` 为 `BabyLogApp`/Scaffold 作用域 `rememberSaveable`（CMA ~1514，bottomBar 读取）。滚动中（±6f 抖动）反复翻转 → 整个 Scaffold 子树（含当前 NavHost 页）每帧重组。
+- 修：rail 显隐用 `snapshotFlow{ 方向/累积阈值 }.distinctUntilChanged()`，**只在真正 show↔hide 跳变时发一次**；`onPreScroll` 不再每帧直接 set state；滚动过程中 `quickRailVisible` 不被每帧写。
+
+**F2（系统性 · 所有列表页：时间线/首页最近/回收站）**：`ComposeMainActivity.TimelineRow`（~2228）每次重组跑 `BabyLogFormatters.formatEventDay/formatEventTime/eventLabel/eventSummary`（SimpleDateFormat + payload JSON 解析），且行 `Card elevation = 2.dp + border`（逐行阴影）。快滑时 N 行组合 + N 阴影绘制 → fling 卡。
+- 修：① `TimelineRow` 派生串提到 `remember(event.id, event.occurredAt, event.updatedAt){ … }` 只算一次；② 行 `Card` `elevation 2.dp → 0`（与 Panel/TrendCard 一致，靠 border/高亮分隔）。
+
+**约束/验收**：一笔 `perf:` 提交，不混 Q2b/冻结 UI、不并 main；不改数据/逻辑/确认链/阶段投影/已锁配色 token（仅 elevation 与计算时机）；assemble+lint+smoke 绿；装机 gfxinfo 首页与时间线 fling 50/90 分位 ≤ ~16ms、无明显掉帧。Claude 用一次真机 gfxinfo/截图验收（perf 关口）。
