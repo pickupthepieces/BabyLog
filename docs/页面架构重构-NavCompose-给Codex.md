@@ -113,3 +113,11 @@
 **核实**：① 4 设置 AlertDialog(Profile/Sync/Model/Speech)删除 → NavCompose 全屏子页 + 共享 `SettingsPageScaffold`,逐级下钻。② 密钥逻辑仅迁载体——新屏幕为 `onSave:(Config)->Unit` 纯 UI 回调,真实 `smartConfigStore.saveSpeechConfig`(Keystore 加密)仍在 CMA:580,未重写;隐私文案逐字保留。③ 仅 CMA+ui/screens 改动,数据/STT/FGR 接线零动。④ CMA 3628→3312 继续瘦。⑤ 单 commit 干净。编译/smoke 由 CI 兜底。
 
 **产品决策项（非 bug，非 P3 阻塞，待用户拍板）**：Codex 装机发现 baby 快捷"奶瓶"直接入库、不过 BabyCare 表单。经评估此非安全违规——非 AI 候选、非医疗测量、属琐碎自记录,且 Piyo 本身即"一拍即记"、记录可在时间线删改。"人工确认绝不自动入库"铁律针对 AI 候选 + 医疗数据,不含一拍即记琐碎事件。**默认建议保持一拍即记**;是否改走表单确认由用户决定,不作为缺陷修复强推。
+
+### P4 浏览类上页 — 通过（commit `8b59bcc`）
+
+**结论**：通过,放行 P5（末轮）。
+
+**核实**：① `AttachmentListDialog`/`AttachmentPreviewDialog`/`TrashDialog` 删除 → `AttachmentListScreen`/`AttachmentPreviewScreen`/`TrashScreen` 全屏页。② 仅 CMA+ui/screens 改动,回收站7天保留/清理/附件读取/FileProvider 逻辑层零动。③ 破坏性删除仍走 `ConfirmDialog`(CMA:391 "移入回收站"全文确认保留);TrashScreen 仅恢复,无新增未确认永久删除。④ CMA 3312→3140。⑤ 单 commit 干净。编译/smoke 由 CI 兜底。
+
+**进度**：CMA 4331→3140;P0–P4 全通过。
