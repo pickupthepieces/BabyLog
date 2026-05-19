@@ -3,7 +3,9 @@ package app.babylog.nativeapp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -27,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -72,7 +75,7 @@ internal fun UltrasoundFormScreen(
 
     RecordFormScaffold(
         title = if (isEditing) "编辑 B 超记录" else "B 超记录",
-        subtitle = "先录生长指标，其他医学信息可展开补充",
+        subtitle = "拍照识别优先，手填只保留核心生长指标",
         saveText = if (isEditing) "保存修改" else "保存生长指标",
         onBack = onBack,
         onSave = {
@@ -87,8 +90,8 @@ internal fun UltrasoundFormScreen(
     ) {
         item(key = "photo_header") {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("B 超单照片", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                Text("可拍照/选图识别，或手动填写下方指标", color = ChestnutPalette.Muted, fontSize = 12.sp)
+                Text("拍 B 超单识别", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                Text("先拍照或选图，识别候选后再由你核对保存；手填只是兜底。", color = ChestnutPalette.Muted, fontSize = 12.sp)
             }
         }
         item(key = "photo_actions") {
@@ -132,6 +135,7 @@ internal fun UltrasoundFormScreen(
                 UltrasoundOcrCandidateCard(
                     candidate = ocrCandidate,
                     onApply = {
+                        val candidateAdvancedSection = advancedSectionForCandidate(ocrCandidate)
                         ocrCandidate.examDate.value?.takeIf { BabyLogFormatters.isValidDateInput(it) }?.let {
                             formState.examDate = it
                             if (!formState.gestationalAgeEdited) {
@@ -142,7 +146,7 @@ internal fun UltrasoundFormScreen(
                         }
                         ocrCandidate.hospital.value?.let { formState.hospital = it; formState.showAdvanced = true }
                         ocrCandidate.reportTime.value?.let { formState.reportTime = it; formState.showAdvanced = true }
-                        ocrCandidate.diagnosisText.value?.let { formState.diagnosisText = it; formState.showAdvanced = true }
+                        ocrCandidate.diagnosisText.value?.let { formState.diagnosisText = it }
                         ocrCandidate.bpdMm.value?.let { formState.bpd = BabyLogFormatters.formatNumber(it) }
                         ocrCandidate.hcMm.value?.let { formState.hc = BabyLogFormatters.formatNumber(it) }
                         ocrCandidate.acMm.value?.let { formState.ac = BabyLogFormatters.formatNumber(it) }
@@ -163,129 +167,112 @@ internal fun UltrasoundFormScreen(
                         ocrCandidate.umbilicalSd.value?.let { formState.umbilicalSd = BabyLogFormatters.formatNumber(it); formState.showAdvanced = true }
                         ocrCandidate.umbilicalPi.value?.let { formState.umbilicalPi = BabyLogFormatters.formatNumber(it); formState.showAdvanced = true }
                         ocrCandidate.umbilicalRi.value?.let { formState.umbilicalRi = BabyLogFormatters.formatNumber(it); formState.showAdvanced = true }
+                        if (candidateAdvancedSection.isNotBlank()) {
+                            formState.showAdvanced = true
+                            formState.advancedSection = candidateAdvancedSection
+                        }
                         onCandidateApplied()
                     },
                     onDismiss = onCandidateDismiss
                 )
             }
         }
-        item(key = "exam_date") {
-            DateInputRow("检查日期", formState.examDate, { formState.examDate = it }, allowClear = false)
-        }
-        item(key = "gestational_age") {
-            ChestnutTextField(
-                "孕周，例如 28+3",
-                formState.gestationalAge,
-                {
-                    formState.gestationalAgeEdited = true
-                    formState.gestationalAge = it
-                },
-                KeyboardType.Text
-            )
-        }
+        item(key = "exam_date") { UltrasoundExamDateInput(formState) }
+        item(key = "gestational_age") { UltrasoundGestationalAgeInput(formState) }
         item(key = "growth_header") { Text("胎儿生长指标", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
-        item(key = "bpd_hc") {
+        item(key = "growth_bpd_hc") {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 UltrasoundBpdInput(formState)
                 UltrasoundHcInput(formState)
             }
         }
-        item(key = "ac_fl") {
+        item(key = "growth_ac_fl") {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 UltrasoundAcInput(formState)
                 UltrasoundFlInput(formState)
             }
         }
         item(key = "efw") { UltrasoundEfwInput(formState) }
+        item(key = "diagnosis_text_core") { UltrasoundDiagnosisInput(formState) }
+        item(key = "soft_warnings") { UltrasoundSoftWarnings(formState) }
         item(key = "advanced_toggle") {
             OutlinedButton(
-                onClick = { formState.showAdvanced = !formState.showAdvanced },
+                onClick = {
+                    formState.showAdvanced = !formState.showAdvanced
+                    if (formState.showAdvanced && formState.advancedSection.isBlank()) {
+                        formState.advancedSection = "report"
+                    }
+                },
                 border = BorderStroke(1.dp, ChestnutPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (formState.showAdvanced) "收起羊水 / 胎盘 / 脐血流" else "填写更多医学信息（可选）",
+                    if (formState.showAdvanced) "收起更多医学指标" else "更多医学指标 ▾",
                     color = ChestnutPalette.Muted
                 )
             }
         }
         if (formState.showAdvanced) {
-            item(key = "common_header") { Text("公共信息", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
-            item(key = "hospital") { ChestnutTextField("医院 / 机构", formState.hospital, { formState.hospital = it }, KeyboardType.Text) }
-            item(key = "report_time") { ChestnutTextField("报告时间", formState.reportTime, { formState.reportTime = it }, KeyboardType.Text) }
-            item(key = "diagnosis_text") { ChestnutLongTextField("超声诊断 / 提示", formState.diagnosisText, { formState.diagnosisText = it }, minLines = 2, maxLines = 4) }
-            item(key = "fetal_heart_crl") {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    UltrasoundFetalHeartRateInput(formState)
-                    UltrasoundCrlInput(formState)
+            item(key = "advanced_tabs") {
+                UltrasoundAdvancedSectionTabs(formState.advancedSection, formState.updateAdvancedSection)
+            }
+            when (formState.advancedSection) {
+                "report" -> {
+                    item(key = "report_header") { Text("报告信息", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item(key = "hospital") { UltrasoundHospitalInput(formState) }
+                    item(key = "report_time") { UltrasoundReportTimeInput(formState) }
+                }
+                "fetal" -> {
+                    item(key = "fetal_header") { Text("胎儿附加信息", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item(key = "fetal_heart_crl") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UltrasoundFetalHeartRateInput(formState)
+                            UltrasoundCrlInput(formState)
+                        }
+                    }
+                    item(key = "nt_cervical_length") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UltrasoundNtInput(formState)
+                            UltrasoundCervicalLengthInput(formState)
+                        }
+                    }
+                    item(key = "fetal_count") { UltrasoundFetalCountInput(formState) }
+                    item(key = "fetal_movement") { UltrasoundFetalMovementInput(formState) }
+                    item(key = "umbilical_insertion") { UltrasoundUmbilicalInsertionInput(formState) }
+                }
+                "amniotic" -> {
+                    item(key = "amniotic_header") { Text("羊水 / 胎盘 / 胎位", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item(key = "afi_deepest_pocket") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UltrasoundAfiInput(formState)
+                            UltrasoundDeepestPocketInput(formState)
+                        }
+                    }
+                    item(key = "placenta_location") { UltrasoundPlacentaLocationInput(formState) }
+                    item(key = "placenta_grade") { UltrasoundPlacentaGradeInput(formState) }
+                    item(key = "fetal_presentation") { UltrasoundFetalPresentationInput(formState) }
+                }
+                "flow" -> {
+                    item(key = "flow_header") { Text("脐动脉血流", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
+                    item(key = "sd_pi") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            UltrasoundSdInput(formState)
+                            UltrasoundPiInput(formState)
+                        }
+                    }
+                    item(key = "ri") { UltrasoundRiInput(formState) }
+                }
+                else -> {
+                    item(key = "advanced_hint") {
+                        Text(
+                            "按报告内容选择一组填写；未填写的项目保存时会自动留空。",
+                            color = ChestnutPalette.Muted,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
-            item(key = "nt_cervical_length") {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    UltrasoundNtInput(formState)
-                    UltrasoundCervicalLengthInput(formState)
-                }
-            }
-            item(key = "fetal_count") {
-                ChoiceChipRow(
-                    label = "胎儿个数",
-                    selected = formState.fetalCount,
-                    options = listOf("单胎" to "单胎", "双胎" to "双胎", "多胎" to "多胎", "未写" to "未写"),
-                    onSelect = { formState.fetalCount = it }
-                )
-            }
-            item(key = "fetal_movement") {
-                ChoiceChipRow(
-                    label = "胎动",
-                    selected = formState.fetalMovement,
-                    options = listOf("有" to "有", "可见" to "可见", "无" to "无", "未写" to "未写"),
-                    onSelect = { formState.fetalMovement = it }
-                )
-            }
-            item(key = "umbilical_insertion") {
-                ChestnutTextField("脐带插入处", formState.umbilicalInsertion, { formState.umbilicalInsertion = it }, KeyboardType.Text)
-            }
-            item(key = "amniotic_placenta_header") { Text("羊水 / 胎盘 / 胎位", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
-            item(key = "afi_deepest_pocket") {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    UltrasoundAfiInput(formState)
-                    UltrasoundDeepestPocketInput(formState)
-                }
-            }
-            item(key = "placenta_location") {
-                ChoiceChipRow(
-                    label = "胎盘位置",
-                    selected = formState.placentaLocation,
-                    options = listOf("前壁" to "前壁", "后壁" to "后壁", "侧壁" to "侧壁", "低置" to "低置", "前置" to "前置", "其他" to "其他"),
-                    onSelect = { formState.placentaLocation = it }
-                )
-            }
-            item(key = "placenta_grade") {
-                ChoiceChipRow(
-                    label = "胎盘成熟度",
-                    selected = formState.placentaGrade,
-                    options = listOf("0级" to "0 级", "I 级" to "I 级", "II 级" to "II 级", "III 级" to "III 级", "未写" to "未写"),
-                    onSelect = { formState.placentaGrade = it }
-                )
-            }
-            item(key = "fetal_presentation") {
-                ChoiceChipRow(
-                    label = "胎位",
-                    selected = formState.fetalPresentation,
-                    options = listOf("头位" to "头位", "臀位" to "臀位", "横位" to "横位", "不详" to "不详"),
-                    onSelect = { formState.fetalPresentation = it }
-                )
-            }
-            item(key = "umbilical_flow_header") { Text("脐动脉血流", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) }
-            item(key = "umbilical_sd_pi") {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    UltrasoundSdInput(formState)
-                    UltrasoundPiInput(formState)
-                }
-            }
-            item(key = "umbilical_ri") { UnitInputRow("RI", formState.umbilicalRi, { formState.umbilicalRi = it }, "") }
         }
-        item(key = "soft_warnings") { UltrasoundSoftWarnings(formState) }
     }
 }
 
@@ -318,6 +305,7 @@ private class UltrasoundFormState(
     umbilicalPi: String,
     umbilicalRi: String,
     showAdvanced: Boolean,
+    advancedSection: String,
     saveError: String
 ) {
     var examDate by mutableStateOf(examDate)
@@ -347,7 +335,38 @@ private class UltrasoundFormState(
     var umbilicalPi by mutableStateOf(umbilicalPi)
     var umbilicalRi by mutableStateOf(umbilicalRi)
     var showAdvanced by mutableStateOf(showAdvanced)
+    var advancedSection by mutableStateOf(advancedSection)
     var saveError by mutableStateOf(saveError)
+
+    val updateExamDate: (String) -> Unit = { this.examDate = it }
+    val updateGestationalAge: (String) -> Unit = {
+        this.gestationalAgeEdited = true
+        this.gestationalAge = it
+    }
+    val updateHospital: (String) -> Unit = { this.hospital = it }
+    val updateReportTime: (String) -> Unit = { this.reportTime = it }
+    val updateDiagnosisText: (String) -> Unit = { this.diagnosisText = it }
+    val updateBpd: (String) -> Unit = { this.bpd = it }
+    val updateHc: (String) -> Unit = { this.hc = it }
+    val updateAc: (String) -> Unit = { this.ac = it }
+    val updateFl: (String) -> Unit = { this.fl = it }
+    val updateEfw: (String) -> Unit = { this.efw = it }
+    val updateAfi: (String) -> Unit = { this.afi = it }
+    val updateDeepestPocket: (String) -> Unit = { this.deepestPocket = it }
+    val updatePlacentaLocation: (String) -> Unit = { this.placentaLocation = it }
+    val updatePlacentaGrade: (String) -> Unit = { this.placentaGrade = it }
+    val updateFetalPresentation: (String) -> Unit = { this.fetalPresentation = it }
+    val updateFetalHeartRate: (String) -> Unit = { this.fetalHeartRate = it }
+    val updateFetalCount: (String) -> Unit = { this.fetalCount = it }
+    val updateFetalMovement: (String) -> Unit = { this.fetalMovement = it }
+    val updateUmbilicalInsertion: (String) -> Unit = { this.umbilicalInsertion = it }
+    val updateCervicalLength: (String) -> Unit = { this.cervicalLength = it }
+    val updateCrl: (String) -> Unit = { this.crl = it }
+    val updateNt: (String) -> Unit = { this.nt = it }
+    val updateUmbilicalSd: (String) -> Unit = { this.umbilicalSd = it }
+    val updateUmbilicalPi: (String) -> Unit = { this.umbilicalPi = it }
+    val updateUmbilicalRi: (String) -> Unit = { this.umbilicalRi = it }
+    val updateAdvancedSection: (String) -> Unit = { this.advancedSection = it }
 
     fun toInput(photoPath: String?, photoName: String?): BabyLogService.UltrasoundInput {
         return BabyLogService.UltrasoundInput(
@@ -435,6 +454,7 @@ private class UltrasoundFormState(
                     "umbilicalPi" to state.umbilicalPi,
                     "umbilicalRi" to state.umbilicalRi,
                     "showAdvanced" to state.showAdvanced,
+                    "advancedSection" to state.advancedSection,
                     "saveError" to state.saveError
                 )
             },
@@ -467,12 +487,14 @@ private class UltrasoundFormState(
                     restored.stringValue("umbilicalPi"),
                     restored.stringValue("umbilicalRi"),
                     restored.booleanValue("showAdvanced"),
+                    restored.stringValue("advancedSection"),
                     restored.stringValue("saveError")
                 )
             }
         )
 
         fun fromValues(values: Map<String, String>, defaultGestationalAge: String): UltrasoundFormState {
+            val advancedSection = advancedUltrasoundDraftSection(values)
             return UltrasoundFormState(
                 values["examDate"]?.takeIf { BabyLogFormatters.isValidDateInput(it) } ?: BabyLogFormatters.todayDateInput(),
                 values["gestationalAge"] ?: defaultGestationalAge,
@@ -500,7 +522,8 @@ private class UltrasoundFormState(
                 values["umbilicalSd"].orEmpty(),
                 values["umbilicalPi"].orEmpty(),
                 values["umbilicalRi"].orEmpty(),
-                hasAdvancedUltrasoundDraft(values),
+                advancedSection.isNotBlank(),
+                advancedSection,
                 ""
             )
         }
@@ -515,64 +538,238 @@ private fun Map<String, Any?>.booleanValue(key: String): Boolean {
     return this[key] as? Boolean ?: false
 }
 
+private fun advancedUltrasoundDraftSection(values: Map<String, String>): String {
+    return when {
+        hasAnyDraftValue(values, "afiCm", "deepestPocketCm", "placentaLocation", "placentaGrade", "fetalPresentation") -> "amniotic"
+        hasAnyDraftValue(
+            values,
+            "fetalHeartRateBpm",
+            "fetalCount",
+            "fetalMovement",
+            "umbilicalInsertion",
+            "cervicalLengthMm",
+            "crlMm",
+            "ntMm"
+        ) -> "fetal"
+        hasAnyDraftValue(values, "umbilicalSd", "umbilicalPi", "umbilicalRi") -> "flow"
+        hasAnyDraftValue(values, "hospital", "reportTime") -> "report"
+        else -> ""
+    }
+}
+
+private fun hasAnyDraftValue(values: Map<String, String>, vararg keys: String): Boolean {
+    return keys.any { key -> !values[key].isNullOrBlank() }
+}
+
+private fun advancedSectionForCandidate(candidate: BabyLogSmartInput.UltrasoundOcrCandidate): String {
+    return when {
+        candidate.afiCm.value != null ||
+            candidate.deepestPocketCm.value != null ||
+            !candidate.placentaLocation.value.isNullOrBlank() ||
+            !candidate.placentaGrade.value.isNullOrBlank() ||
+            !candidate.fetalPresentation.value.isNullOrBlank() -> "amniotic"
+        candidate.fetalHeartRateBpm.value != null ||
+            !candidate.fetalCount.value.isNullOrBlank() ||
+            !candidate.fetalMovement.value.isNullOrBlank() ||
+            !candidate.umbilicalInsertion.value.isNullOrBlank() ||
+            candidate.cervicalLengthMm.value != null ||
+            candidate.crlMm.value != null ||
+            candidate.ntMm.value != null -> "fetal"
+        candidate.umbilicalSd.value != null ||
+            candidate.umbilicalPi.value != null ||
+            candidate.umbilicalRi.value != null -> "flow"
+        !candidate.hospital.value.isNullOrBlank() || !candidate.reportTime.value.isNullOrBlank() -> "report"
+        else -> ""
+    }
+}
+
+@Composable
+private fun UltrasoundExamDateInput(state: UltrasoundFormState) {
+    DateInputRow("检查日期", state.examDate, state.updateExamDate, allowClear = false)
+}
+
+@Composable
+private fun UltrasoundGestationalAgeInput(state: UltrasoundFormState) {
+    ChestnutTextField(
+        "孕周，例如 28+3",
+        state.gestationalAge,
+        state.updateGestationalAge,
+        KeyboardType.Text
+    )
+}
+
+@Composable
+private fun UltrasoundHospitalInput(state: UltrasoundFormState) {
+    ChestnutTextField("医院 / 机构", state.hospital, state.updateHospital, KeyboardType.Text)
+}
+
+@Composable
+private fun UltrasoundReportTimeInput(state: UltrasoundFormState) {
+    ChestnutTextField("报告时间", state.reportTime, state.updateReportTime, KeyboardType.Text)
+}
+
+@Composable
+private fun UltrasoundDiagnosisInput(state: UltrasoundFormState) {
+    ChestnutLongTextField("医生结论 / 提示", state.diagnosisText, state.updateDiagnosisText, minLines = 2, maxLines = 4)
+}
+
 @Composable
 private fun RowScope.UltrasoundBpdInput(state: UltrasoundFormState) {
-    UnitInputRow("BPD", state.bpd, { state.bpd = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("BPD", state.bpd, state.updateBpd, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundHcInput(state: UltrasoundFormState) {
-    UnitInputRow("HC", state.hc, { state.hc = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("HC", state.hc, state.updateHc, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundAcInput(state: UltrasoundFormState) {
-    UnitInputRow("AC", state.ac, { state.ac = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("AC", state.ac, state.updateAc, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundFlInput(state: UltrasoundFormState) {
-    UnitInputRow("FL", state.fl, { state.fl = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("FL", state.fl, state.updateFl, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundFetalHeartRateInput(state: UltrasoundFormState) {
-    UnitInputRow("胎心率", state.fetalHeartRate, { state.fetalHeartRate = it }, "bpm", Modifier.weight(1f))
+    UnitInputRow("胎心率", state.fetalHeartRate, state.updateFetalHeartRate, "bpm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundCrlInput(state: UltrasoundFormState) {
-    UnitInputRow("CRL", state.crl, { state.crl = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("CRL", state.crl, state.updateCrl, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundNtInput(state: UltrasoundFormState) {
-    UnitInputRow("NT", state.nt, { state.nt = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("NT", state.nt, state.updateNt, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundCervicalLengthInput(state: UltrasoundFormState) {
-    UnitInputRow("宫颈管", state.cervicalLength, { state.cervicalLength = it }, "mm", Modifier.weight(1f))
+    UnitInputRow("宫颈管", state.cervicalLength, state.updateCervicalLength, "mm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundAfiInput(state: UltrasoundFormState) {
-    UnitInputRow("AFI", state.afi, { state.afi = it }, "cm", Modifier.weight(1f))
+    UnitInputRow("AFI", state.afi, state.updateAfi, "cm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundDeepestPocketInput(state: UltrasoundFormState) {
-    UnitInputRow("最大羊水池", state.deepestPocket, { state.deepestPocket = it }, "cm", Modifier.weight(1f))
+    UnitInputRow("最大羊水池", state.deepestPocket, state.updateDeepestPocket, "cm", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundSdInput(state: UltrasoundFormState) {
-    UnitInputRow("S/D", state.umbilicalSd, { state.umbilicalSd = it }, "", Modifier.weight(1f))
+    UnitInputRow("S/D", state.umbilicalSd, state.updateUmbilicalSd, "", Modifier.weight(1f))
 }
 
 @Composable
 private fun RowScope.UltrasoundPiInput(state: UltrasoundFormState) {
-    UnitInputRow("PI", state.umbilicalPi, { state.umbilicalPi = it }, "", Modifier.weight(1f))
+    UnitInputRow("PI", state.umbilicalPi, state.updateUmbilicalPi, "", Modifier.weight(1f))
+}
+
+@Composable
+private fun UltrasoundRiInput(state: UltrasoundFormState) {
+    UnitInputRow("RI", state.umbilicalRi, state.updateUmbilicalRi, "")
+}
+
+@Composable
+private fun UltrasoundFetalCountInput(state: UltrasoundFormState) {
+    ChoiceChipRow(
+        label = "胎儿个数",
+        selected = state.fetalCount,
+        options = listOf("单胎" to "单胎", "双胎" to "双胎", "多胎" to "多胎", "未写" to "未写"),
+        onSelect = state.updateFetalCount
+    )
+}
+
+@Composable
+private fun UltrasoundFetalMovementInput(state: UltrasoundFormState) {
+    ChoiceChipRow(
+        label = "胎动",
+        selected = state.fetalMovement,
+        options = listOf("有" to "有", "可见" to "可见", "无" to "无", "未写" to "未写"),
+        onSelect = state.updateFetalMovement
+    )
+}
+
+@Composable
+private fun UltrasoundUmbilicalInsertionInput(state: UltrasoundFormState) {
+    ChestnutTextField("脐带插入处", state.umbilicalInsertion, state.updateUmbilicalInsertion, KeyboardType.Text)
+}
+
+@Composable
+private fun UltrasoundPlacentaLocationInput(state: UltrasoundFormState) {
+    ChoiceChipRow(
+        label = "胎盘位置",
+        selected = state.placentaLocation,
+        options = listOf("前壁" to "前壁", "后壁" to "后壁", "侧壁" to "侧壁", "低置" to "低置", "前置" to "前置", "其他" to "其他"),
+        onSelect = state.updatePlacentaLocation
+    )
+}
+
+@Composable
+private fun UltrasoundPlacentaGradeInput(state: UltrasoundFormState) {
+    ChoiceChipRow(
+        label = "胎盘成熟度",
+        selected = state.placentaGrade,
+        options = listOf("0级" to "0 级", "I 级" to "I 级", "II 级" to "II 级", "III 级" to "III 级", "未写" to "未写"),
+        onSelect = state.updatePlacentaGrade
+    )
+}
+
+@Composable
+private fun UltrasoundFetalPresentationInput(state: UltrasoundFormState) {
+    ChoiceChipRow(
+        label = "胎位",
+        selected = state.fetalPresentation,
+        options = listOf("头位" to "头位", "臀位" to "臀位", "横位" to "横位", "不详" to "不详"),
+        onSelect = state.updateFetalPresentation
+    )
+}
+
+@Composable
+private fun UltrasoundAdvancedSectionTabs(
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            "report" to "报告",
+            "fetal" to "胎儿",
+            "amniotic" to "羊水胎盘",
+            "flow" to "脐血流"
+        ).forEach { (key, label) ->
+            val active = selected == key
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (active) ChestnutPalette.Primary else ChestnutPalette.Surface)
+                    .border(
+                        1.dp,
+                        if (active) ChestnutPalette.Primary else ChestnutPalette.Border,
+                        RoundedCornerShape(12.dp)
+                    )
+                    .clickable { onSelect(key) }
+                    .padding(horizontal = 6.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label,
+                    color = if (active) Color.White else ChestnutPalette.Ink,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -581,7 +778,7 @@ private fun UltrasoundEfwInput(state: UltrasoundFormState) {
         derivedStateOf { state.estimatedEfwGram() }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        UnitInputRow("EFW", state.efw, { state.efw = it }, "g")
+        UnitInputRow("EFW", state.efw, state.updateEfw, "g")
         val estimate = estimatedEfw
         if (estimate != null) {
             Text(
