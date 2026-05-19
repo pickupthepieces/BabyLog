@@ -17,8 +17,10 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class BabyLogSmartVisionClient {
@@ -42,36 +44,36 @@ public final class BabyLogSmartVisionClient {
             File image,
             BabyLogSmartConfigStore.Config config
     ) throws IOException, JSONException {
-        if (image == null || !image.exists() || image.length() <= 0) {
-            throw new IOException("请先拍照或选择 B 超单图片");
+        PregnancyDocumentOcrCandidate candidate = recognizePregnancyDocumentImage(image, config);
+        if (candidate.ultrasound != null) {
+            return candidate.ultrasound;
         }
-        if (config == null || !config.isConfigured()) {
-            throw new IOException("请先配置多模态模型 API");
+        if (candidate.checkup != null && !candidate.checkup.values.isEmpty()) {
+            throw new IOException("这张图片更像产检检查单，请从产检记录入口核对候选字段。");
         }
-
-        File uploadImage = prepareImageForUpload(image);
-        try {
-            JSONObject request = buildChatCompletionsRequest(config.getModel(), imageToDataUrl(uploadImage));
-            String response = postJson(resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
-            try {
-                return BabyLogSmartInput.fromOpenAiVisionResponse(response);
-            } catch (IllegalArgumentException error) {
-                throw new IOException("模型返回内容无法解析：" + error.getMessage(), error);
-            }
-        } finally {
-            if (uploadImage != null && !image.equals(uploadImage) && uploadImage.exists()) {
-                // Best-effort cleanup; a leftover temp upload image is safe but wastes storage.
-                uploadImage.delete();
-            }
-        }
+        throw new IOException("未识别到可用的 B 超字段，请确认图片是清晰的 B 超单。");
     }
 
     public BabyLogSmartTextClient.SmartFillCandidate recognizeCheckupImage(
             File image,
             BabyLogSmartConfigStore.Config config
     ) throws IOException, JSONException {
+        PregnancyDocumentOcrCandidate candidate = recognizePregnancyDocumentImage(image, config);
+        if (candidate.checkup != null) {
+            return candidate.checkup;
+        }
+        if (candidate.ultrasound != null) {
+            throw new IOException("这张图片更像 B 超单，请从 B 超记录入口核对候选字段。");
+        }
+        throw new IOException("未识别到可用的产检字段，请确认图片是清晰的检查单或母子健康手册记录。");
+    }
+
+    public PregnancyDocumentOcrCandidate recognizePregnancyDocumentImage(
+            File image,
+            BabyLogSmartConfigStore.Config config
+    ) throws IOException, JSONException {
         if (image == null || !image.exists() || image.length() <= 0) {
-            throw new IOException("请先拍照或选择产检报告图片");
+            throw new IOException("请先拍照或选择孕期报告图片");
         }
         if (config == null || !config.isConfigured()) {
             throw new IOException("请先配置多模态模型 API");
@@ -79,14 +81,10 @@ public final class BabyLogSmartVisionClient {
 
         File uploadImage = prepareImageForUpload(image);
         try {
-            JSONObject request = buildCheckupChatCompletionsRequest(config.getModel(), imageToDataUrl(uploadImage));
+            JSONObject request = buildPregnancyDocumentChatCompletionsRequest(config.getModel(), imageToDataUrl(uploadImage));
             String response = postJson(resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
             try {
-                return BabyLogSmartTextClient.parseSmartFillResponse(
-                        response,
-                        checkupRecognitionFields().keySet(),
-                        ""
-                );
+                return parsePregnancyDocumentResponse(response);
             } catch (IllegalArgumentException error) {
                 throw new IOException("模型返回内容无法解析：" + error.getMessage(), error);
             }
@@ -125,16 +123,16 @@ public final class BabyLogSmartVisionClient {
                 .put("response_format", new JSONObject().put("type", "json_object"));
     }
 
-    public static JSONObject buildCheckupChatCompletionsRequest(String model, String imageDataUrl) throws JSONException {
+    public static JSONObject buildPregnancyDocumentChatCompletionsRequest(String model, String imageDataUrl) throws JSONException {
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject()
                 .put("role", "system")
-                .put("content", "你是家庭孕期产检记录助手，只从产检报告、检查单或母子健康手册照片中提取可见字段。不要诊断，不要推测。只返回 JSON object。"));
+                .put("content", "你是 BabyLog 孕期报告 OCR 助手。你只从用户主动上传的 B 超单、产检检查单或母子健康手册照片中提取可见字段。不要诊断，不要推测。必须只返回 JSON object。"));
 
         JSONArray userContent = new JSONArray();
         userContent.put(new JSONObject()
                 .put("type", "text")
-                .put("text", checkupRecognitionPrompt()));
+                .put("text", pregnancyDocumentRecognitionPrompt()));
         userContent.put(new JSONObject()
                 .put("type", "image_url")
                 .put("image_url", new JSONObject().put("url", imageDataUrl)));
@@ -160,19 +158,19 @@ public final class BabyLogSmartVisionClient {
                 + "数值字段只填数字，单位按字段要求换算：BPD/HC/AC/FL/CRL/NT/宫颈管长度为 mm，EFW 为 g，AFI/羊水最大深度为 cm，胎心率为 bpm；不确定就省略或放入 warnings。";
     }
 
-    public static String checkupRecognitionPrompt() {
-        return "请识别这张产检记录、检查单或母子健康手册照片，只提取报告明确写出的产检常规字段，并返回 JSON object。"
-                + "字段固定为：values, warnings, rawText；values 内只能包含这些 key："
+    public static String pregnancyDocumentRecognitionPrompt() {
+        return "请先判断图片类型，然后识别字段。只返回 JSON object："
+                + "{\"eventType\":\"ultrasound 或 pregnancy_checkup 或 空字符串\",\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"可见报告文字摘要\"}。"
+                + "eventType=ultrasound 时，values 只能包含这些 B 超字段：examDate, hospital, reportTime, diagnosisText, bpdMm, hcMm, acMm, flMm, efwGram, afiCm, deepestPocketCm, placentaLocation, placentaGrade, fetalPresentation, fetalHeartRateBpm, fetalCount, fetalMovement, umbilicalInsertion, cervicalLengthMm, crlMm, ntMm, umbilicalSd, umbilicalPi, umbilicalRi。"
+                + "eventType=pregnancy_checkup 时，values 只能包含这些产检字段："
                 + checkupRecognitionFields().keySet()
                 + "。"
-                + "字段含义：primary=检查日期 yyyy-MM-dd；gestationalAge=孕周如 22+5；secondary=医院/机构；department=科室/医生；"
-                + "systolicBp/diastolicBp=血压 mmHg；weightKg=体重 kg；fundalHeightCm=宫高 cm；abdominalCircumferenceCm=腹围 cm；"
-                + "fetalHeartRateBpm=胎心率 bpm；fetalPresentation=胎位；edema=水肿；urineRoutine=尿常规摘要；urineProtein=尿蛋白；"
-                + "hemoglobinGL=血红蛋白 Hb g/L；highRiskFactors=高危因素/特殊情况；tertiary=医生结论；treatmentAdvice=处理及建议；"
-                + "nextVisitDate=下次产检日期 yyyy-MM-dd；reportType=报告类型；attachmentNote=附件备注；note=其他备注。"
+                + "如果同时有 B 超和产检字段，优先选择图片主体对应的报告类型；无法判断时 eventType 置空。"
                 + "不要识别姓名、身份证、门诊号、住院号、床号、手机号、医生签名等个人身份信息。"
-                + "分级、阴阳性、是否异常只按报告原文抄录，不要根据数值推断，不要输出诊断或建议治疗。"
-                + "日期尽量规范为 yyyy-MM-dd；数值字段只填数字；不确定就省略或放入 warnings。";
+                + "B 超不要识别、返回或推断孕周；产检/母子健康手册只有明确写出孕周时才可填写 gestationalAge。"
+                + "所有分级、阴阳性、是否异常只按报告原文抄录，不要根据数值推断，不要输出诊断或治疗建议。"
+                + "数值字段只填数字并按字段单位换算：B 超长度为 mm，EFW 为 g，羊水为 cm；血压为 mmHg，体重 kg，Hb g/L。"
+                + "不确定的内容省略或放入 warnings，不要输出 Markdown。";
     }
 
     public static Map<String, String> checkupRecognitionFields() {
@@ -200,6 +198,126 @@ public final class BabyLogSmartVisionClient {
         fields.put("attachmentNote", "附件备注");
         fields.put("note", "备注");
         return Collections.unmodifiableMap(fields);
+    }
+
+    public static PregnancyDocumentOcrCandidate parsePregnancyDocumentResponse(String responseJson) {
+        String content = BabyLogSmartInput.extractOpenAiMessageContent(responseJson);
+        String candidateJson = BabyLogSmartInput.extractJsonFromMessageContent(content);
+        return fromPregnancyDocumentJson(candidateJson);
+    }
+
+    public static PregnancyDocumentOcrCandidate fromPregnancyDocumentJson(String json) {
+        Map<String, Object> object = unwrapCandidateObject(
+                BabyLogSmartInput.parseJsonObject(json, "pregnancy document OCR candidate"));
+        String eventType = optionalString(object, "eventType");
+        Map<String, Object> values = asObject(object.get("values"));
+        if (values == null) {
+            values = object;
+        }
+        List<String> warnings = parseWarnings(object.get("warnings"));
+        String rawText = optionalString(object, "rawText");
+
+        if ("ultrasound".equals(eventType)) {
+            JSONObject ultrasound = new JSONObject(values);
+            try {
+                ultrasound.put("warnings", new JSONArray(warnings));
+                if (rawText != null) {
+                    ultrasound.put("rawText", rawText);
+                }
+            } catch (JSONException error) {
+                throw new IllegalArgumentException("failed to build ultrasound candidate", error);
+            }
+            return new PregnancyDocumentOcrCandidate(
+                    "ultrasound",
+                    BabyLogSmartInput.fromCandidateJson(ultrasound.toString()),
+                    null,
+                    warnings,
+                    rawText
+            );
+        }
+        if ("pregnancy_checkup".equals(eventType)) {
+            Map<String, String> checkupValues = filterCheckupValues(values);
+            List<String> nextWarnings = new ArrayList<>(warnings);
+            if (checkupValues.isEmpty()) {
+                nextWarnings.add("未识别到可直接填写的产检字段，请保留原图手动核对");
+            }
+            return new PregnancyDocumentOcrCandidate(
+                    "pregnancy_checkup",
+                    null,
+                    new BabyLogSmartTextClient.SmartFillCandidate(checkupValues, nextWarnings, rawText == null ? "" : rawText),
+                    nextWarnings,
+                    rawText
+            );
+        }
+
+        List<String> nextWarnings = new ArrayList<>(warnings);
+        nextWarnings.add("未能判断报告类型，请手动选择 B 超或产检表单");
+        return new PregnancyDocumentOcrCandidate("", null, null, nextWarnings, rawText);
+    }
+
+    private static Map<String, String> filterCheckupValues(Map<String, Object> values) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String key : checkupRecognitionFields().keySet()) {
+            String value = optionalString(values, key);
+            if (value != null) {
+                result.put(key, value);
+            }
+        }
+        return result;
+    }
+
+    private static Map<String, Object> unwrapCandidateObject(Map<String, Object> object) {
+        String[] wrapperKeys = {"candidate", "result", "data"};
+        for (String key : wrapperKeys) {
+            Map<String, Object> nested = asObject(object.get(key));
+            if (nested != null) {
+                return nested;
+            }
+        }
+        return object;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asObject(Object value) {
+        return value instanceof Map ? (Map<String, Object>) value : null;
+    }
+
+    private static String optionalString(Map<String, Object> object, String key) {
+        if (object == null || !object.containsKey(key)) {
+            return null;
+        }
+        Object value = object.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty() || "/".equals(text) || "-".equals(text) || "—".equals(text)) {
+            return null;
+        }
+        return text;
+    }
+
+    private static List<String> parseWarnings(Object warningValue) {
+        List<String> warnings = new ArrayList<>();
+        if (warningValue instanceof List) {
+            List<?> warningArray = (List<?>) warningValue;
+            for (Object item : warningArray) {
+                addWarning(warnings, item);
+            }
+        } else {
+            addWarning(warnings, warningValue);
+        }
+        return warnings;
+    }
+
+    private static void addWarning(List<String> warnings, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isEmpty()) {
+            warnings.add(text);
+        }
     }
 
     public static String resolveChatCompletionsUrl(String baseUrl) {
@@ -298,5 +416,27 @@ public final class BabyLogSmartVisionClient {
 
     public interface UploadImagePreparer {
         File prepare(File source) throws IOException;
+    }
+
+    public static final class PregnancyDocumentOcrCandidate {
+        public final String eventType;
+        public final BabyLogSmartInput.UltrasoundOcrCandidate ultrasound;
+        public final BabyLogSmartTextClient.SmartFillCandidate checkup;
+        public final List<String> warnings;
+        public final String rawText;
+
+        public PregnancyDocumentOcrCandidate(
+                String eventType,
+                BabyLogSmartInput.UltrasoundOcrCandidate ultrasound,
+                BabyLogSmartTextClient.SmartFillCandidate checkup,
+                List<String> warnings,
+                String rawText
+        ) {
+            this.eventType = eventType == null ? "" : eventType;
+            this.ultrasound = ultrasound;
+            this.checkup = checkup;
+            this.warnings = Collections.unmodifiableList(new ArrayList<>(warnings == null ? Collections.emptyList() : warnings));
+            this.rawText = rawText == null ? "" : rawText;
+        }
     }
 }

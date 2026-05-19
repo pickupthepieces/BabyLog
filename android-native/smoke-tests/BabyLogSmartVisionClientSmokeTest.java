@@ -20,12 +20,38 @@ public final class BabyLogSmartVisionClientSmokeTest {
         assertTrue(prompt.contains("ntMm"));
         assertFalse(prompt.contains("gestationalAge"));
 
-        String checkupPrompt = BabyLogSmartVisionClient.checkupRecognitionPrompt();
-        assertTrue(checkupPrompt.contains("gestationalAge"));
-        assertTrue(checkupPrompt.contains("hemoglobinGL"));
-        assertTrue(checkupPrompt.contains("urineProtein"));
-        assertTrue(checkupPrompt.contains("treatmentAdvice"));
-        assertTrue(checkupPrompt.contains("不要识别姓名"));
+        String documentPrompt = BabyLogSmartVisionClient.pregnancyDocumentRecognitionPrompt();
+        assertTrue(documentPrompt.contains("eventType"));
+        assertTrue(documentPrompt.contains("ultrasound"));
+        assertTrue(documentPrompt.contains("pregnancy_checkup"));
+        assertTrue(documentPrompt.contains("bpdMm"));
+        assertTrue(documentPrompt.contains("hemoglobinGL"));
+        assertTrue(documentPrompt.contains("不要识别姓名"));
+
+        String ultrasoundResponse = "{"
+                + "\"choices\":[{\"message\":{\"content\":\"{"
+                + "\\\"eventType\\\":\\\"ultrasound\\\","
+                + "\\\"values\\\":{\\\"examDate\\\":\\\"2026-05-02\\\",\\\"bpdMm\\\":\\\"45\\\",\\\"rawText\\\":\\\"BPD 45mm\\\"},"
+                + "\\\"warnings\\\":[\\\"请核对\\\"],"
+                + "\\\"rawText\\\":\\\"BPD 45mm\\\"}\"}}]}";
+        BabyLogSmartVisionClient.PregnancyDocumentOcrCandidate ultrasound =
+                BabyLogSmartVisionClient.parsePregnancyDocumentResponse(ultrasoundResponse);
+        assertEquals("ultrasound", ultrasound.eventType);
+        assertEquals(45.0, ultrasound.ultrasound.bpdMm.value);
+        assertEquals(null, ultrasound.checkup);
+
+        String checkupResponse = "{"
+                + "\"choices\":[{\"message\":{\"content\":\"{"
+                + "\\\"eventType\\\":\\\"pregnancy_checkup\\\","
+                + "\\\"values\\\":{\\\"primary\\\":\\\"2026-05-18\\\",\\\"hemoglobinGL\\\":\\\"112\\\",\\\"extra\\\":\\\"drop\\\"},"
+                + "\\\"warnings\\\":[\\\"人工核对\\\"],"
+                + "\\\"rawText\\\":\\\"Hb 112\\\"}\"}}]}";
+        BabyLogSmartVisionClient.PregnancyDocumentOcrCandidate checkup =
+                BabyLogSmartVisionClient.parsePregnancyDocumentResponse(checkupResponse);
+        assertEquals("pregnancy_checkup", checkup.eventType);
+        assertEquals("112", checkup.checkup.values.get("hemoglobinGL"));
+        assertEquals(null, checkup.checkup.values.get("extra"));
+        assertEquals(null, checkup.ultrasound);
 
         RecordingPreparer preparer = new RecordingPreparer();
         BabyLogSmartVisionClient client = new BabyLogSmartVisionClient(preparer);
