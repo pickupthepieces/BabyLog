@@ -143,7 +143,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var showUltrasoundForm by mutableStateOf(false)
     private var showSyncSettings by mutableStateOf(false)
     private var smartSettingsConfig by mutableStateOf<BabyLogSmartConfigStore.Config?>(null)
+    private var speechSettingsConfig by mutableStateOf<BabyLogSmartConfigStore.SpeechConfig?>(null)
     private var smartConfigSummary by mutableStateOf("智能识别未配置")
+    private var speechConfigSummary by mutableStateOf("语音识别未配置")
     private var ultrasoundOcrRunning by mutableStateOf(false)
     private var showSmartEntryDialog by mutableStateOf(false)
     private var smartEntryRunning by mutableStateOf(false)
@@ -203,7 +205,9 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onImportBackup = ::importBackup,
                     onOpenSyncSettings = { showSyncSettings = true },
                     onOpenSmartSettings = ::openSmartSettings,
+                    onOpenSpeechSettings = ::openSpeechSettings,
                     smartConfigSummary = smartConfigSummary,
+                    speechConfigSummary = speechConfigSummary,
                     onClearLocalData = { showClearLocalConfirm = true },
                     onOpenTrash = { showTrashDialog = true },
                     onCreatePregnancyProfile = { openNewFamilyForm(BabyLogDomain.STAGE_PREGNANCY) },
@@ -358,6 +362,17 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onSave = { next ->
                             smartSettingsConfig = null
                             saveSmartSettings(next)
+                        }
+                    )
+                }
+
+                speechSettingsConfig?.let { config ->
+                    SpeechSettingsDialog(
+                        config = config,
+                        onDismiss = { speechSettingsConfig = null },
+                        onSave = { next ->
+                            speechSettingsConfig = null
+                            saveSpeechSettings(next)
                         }
                     )
                 }
@@ -554,9 +569,14 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun refreshSmartConfigSummary() {
         smartConfigSummary = if (smartConfigStore.isConfigured()) {
-            "已配置；可用于 B 超 OCR 和全局智能录入"
+            "已配置；用于 B 超 OCR 和文本结构化"
         } else {
             "未配置；Key 仅保存在本机，不同步不备份"
+        }
+        speechConfigSummary = if (smartConfigStore.isSpeechConfigured()) {
+            "已配置；用于按住说话转文字"
+        } else {
+            "未配置；语音会降级为手动输入"
         }
     }
 
@@ -583,6 +603,33 @@ public final class ComposeMainActivity : ComponentActivity() {
                 showToast(if (config.isConfigured()) "已保存智能识别配置" else "已关闭智能识别")
             } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存智能识别配置")
+            }
+        }
+    }
+
+    private fun openSpeechSettings() {
+        runInBackground {
+            try {
+                val config = smartConfigStore.loadSpeechConfig()
+                runOnUiThread { speechSettingsConfig = config }
+            } catch (error: Exception) {
+                showInfo("无法读取语音配置", error.message ?: "请稍后重试")
+            }
+        }
+    }
+
+    private fun saveSpeechSettings(config: BabyLogSmartConfigStore.SpeechConfig) {
+        if (config.isEnabled() && !config.isConfigured()) {
+            showInfo("配置不完整", "启用语音识别前，请填写 Paraformer 模型和 API Key。")
+            return
+        }
+        runInBackground {
+            try {
+                smartConfigStore.saveSpeechConfig(config)
+                runOnUiThread { refreshSmartConfigSummary() }
+                showToast(if (config.isConfigured()) "已保存语音识别配置" else "已关闭语音识别")
+            } catch (error: Exception) {
+                showInfo("保存失败", error.message ?: "无法保存语音配置")
             }
         }
     }
@@ -836,8 +883,8 @@ public final class ComposeMainActivity : ComponentActivity() {
         if (smartEntryRunning || smartVoiceState.isTranscribing || smartVoiceState.isRecording) {
             return
         }
-        if (!smartConfigStore.isConfigured()) {
-            smartVoiceState = smartVoiceState.copy(message = "语音识别需要先配置智能识别 API；你仍可手动输入文本")
+        if (!smartConfigStore.isSpeechConfigured()) {
+            smartVoiceState = smartVoiceState.copy(message = "语音识别需要先配置语音转文字 API；你仍可手动输入文本")
             return
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -880,10 +927,10 @@ public final class ComposeMainActivity : ComponentActivity() {
         smartVoiceState = SmartVoiceUiState(isTranscribing = true, message = "正在转文字...")
         runInBackground {
             try {
-                val config = smartConfigStore.load()
+                val config = smartConfigStore.loadSpeechConfig()
                 if (!config.isConfigured()) {
                     runOnUiThread {
-                        smartVoiceState = SmartVoiceUiState(message = "语音识别需要先配置智能识别 API；你仍可手动输入文本")
+                        smartVoiceState = SmartVoiceUiState(message = "语音识别需要先配置语音转文字 API；你仍可手动输入文本")
                     }
                     return@runInBackground
                 }
@@ -982,7 +1029,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             error is java.net.SocketTimeoutException || message.contains("timed out", ignoreCase = true) ->
                 "语音识别超时，可稍后重试或直接手动输入"
             message.contains("401") || message.contains("403") || message.contains("unauthorized", ignoreCase = true) ->
-                "语音识别认证失败。请确认智能识别配置里使用的是可调用 DashScope Paraformer 的 API Key"
+                "语音识别认证失败。请确认语音转文字配置里使用的是可调用 DashScope Paraformer 的 API Key"
             message.contains("network", ignoreCase = true) || message.contains("Unable to resolve", ignoreCase = true) ->
                 "当前网络不可用，语音作为增强功能已降级；可以直接手动输入"
             else -> message
@@ -1371,7 +1418,9 @@ private fun BabyLogApp(
     onImportBackup: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenSmartSettings: () -> Unit,
+    onOpenSpeechSettings: () -> Unit,
     smartConfigSummary: String,
+    speechConfigSummary: String,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
     onCreatePregnancyProfile: () -> Unit,
@@ -1544,7 +1593,9 @@ private fun BabyLogApp(
                             onImportBackup = onImportBackup,
                             onOpenSyncSettings = onOpenSyncSettings,
                             onOpenSmartSettings = onOpenSmartSettings,
+                            onOpenSpeechSettings = onOpenSpeechSettings,
                             smartConfigSummary = smartConfigSummary,
+                            speechConfigSummary = speechConfigSummary,
                             onClearLocalData = onClearLocalData,
                             onOpenTrash = onOpenTrash,
                             onEditProfile = onEditProfile
@@ -2060,7 +2111,9 @@ private fun SettingsScreen(
     onImportBackup: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenSmartSettings: () -> Unit,
+    onOpenSpeechSettings: () -> Unit,
     smartConfigSummary: String,
+    speechConfigSummary: String,
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
     onEditProfile: () -> Unit
@@ -2112,10 +2165,17 @@ private fun SettingsScreen(
         }
         SettingsPanel("智能识别") {
             ActionRow(
-                title = "多模态模型",
+                title = "OCR / 智能解析模型",
                 subtitle = smartConfigSummary,
                 action = "设置",
                 onClick = onOpenSmartSettings
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
+                title = "语音转文字 STT",
+                subtitle = speechConfigSummary,
+                action = "设置",
+                onClick = onOpenSpeechSettings
             )
         }
         SettingsPanel("备份") {
@@ -3249,7 +3309,7 @@ private fun SmartModelSettingsDialog(
     var apiKey by rememberSaveable(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("智能识别模型", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
+        title = { Text("OCR / 智能解析模型", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
         text = {
             LazyColumn(
                 modifier = Modifier.height(390.dp),
@@ -3258,7 +3318,7 @@ private fun SmartModelSettingsDialog(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = enabled, onCheckedChange = { enabled = it })
-                        Text("启用智能识别", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                        Text("启用 OCR / 智能解析", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
                     }
                 }
                 item {
@@ -3315,7 +3375,7 @@ private fun SmartModelSettingsDialog(
                 }
                 item {
                     Text(
-                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片、语音或文字只会在你主动点击识别/按住说话/智能录入时发送给该模型或语音识别服务商。",
+                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片和文字只会在你主动点击 B 超识别或智能录入时发送给该模型服务商。",
                         color = Color(0xFF7C4A21),
                         fontSize = 13.sp,
                         modifier = Modifier
@@ -3334,6 +3394,98 @@ private fun SmartModelSettingsDialog(
                             baseUrl.trim(),
                             model.trim(),
                             apiKey.trim(),
+                            enabled
+                        )
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
+            ) { Text("保存", color = Color.White) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
+        },
+        backgroundColor = ChestnutPalette.Bg
+    )
+}
+
+@Composable
+private fun SpeechSettingsDialog(
+    config: BabyLogSmartConfigStore.SpeechConfig,
+    onDismiss: () -> Unit,
+    onSave: (BabyLogSmartConfigStore.SpeechConfig) -> Unit
+) {
+    var enabled by rememberSaveable(config.isEnabled()) { mutableStateOf(config.isEnabled()) }
+    var model by rememberSaveable(config.getModel()) {
+        mutableStateOf(config.getModel().ifBlank { BabyLogSpeechToTextProtocol.DEFAULT_MODEL })
+    }
+    var apiKey by rememberSaveable(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("语音转文字 STT", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
+        text = {
+            LazyColumn(
+                modifier = Modifier.height(330.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = enabled, onCheckedChange = { enabled = it })
+                        Text("启用语音转文字", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                    }
+                }
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            enabled = true
+                            model = BabyLogSpeechToTextProtocol.DEFAULT_MODEL
+                        },
+                        border = BorderStroke(1.dp, ChestnutPalette.Border)
+                    ) {
+                        Text("DashScope Paraformer", color = ChestnutPalette.Ink, fontSize = 12.sp)
+                    }
+                    Text(
+                        "首版使用 DashScope Paraformer WebSocket；API Key 与 OCR/智能解析可相同，也可以单独填写。",
+                        color = ChestnutPalette.Muted,
+                        fontSize = 12.sp
+                    )
+                }
+                item {
+                    ChestnutTextField(
+                        label = "模型",
+                        value = model,
+                        onValueChange = { model = it },
+                        keyboardType = KeyboardType.Text
+                    )
+                }
+                item {
+                    ChestnutTextField(
+                        label = "API Key",
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        keyboardType = KeyboardType.Password,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                }
+                item {
+                    Text(
+                        "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。只有你主动按住说话时，本次语音才会发送给语音识别服务商。",
+                        color = Color(0xFF7C4A21),
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFFFEBCB))
+                            .padding(12.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        BabyLogSmartConfigStore.SpeechConfig(
+                            apiKey.trim(),
+                            model.trim(),
                             enabled
                         )
                     )

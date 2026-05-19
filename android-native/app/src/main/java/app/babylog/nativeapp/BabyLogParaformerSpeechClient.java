@@ -28,12 +28,12 @@ public final class BabyLogParaformerSpeechClient {
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .build();
 
-    public SpeechResult transcribePcm(File pcmFile, BabyLogSmartConfigStore.Config config) throws IOException {
+    public SpeechResult transcribePcm(File pcmFile, BabyLogSmartConfigStore.SpeechConfig config) throws IOException {
         if (pcmFile == null || !pcmFile.exists() || pcmFile.length() == 0L) {
             throw new IOException("没有可识别的录音");
         }
         if (config == null || !config.isConfigured()) {
-            throw new IOException("请先配置智能识别 API Key；语音识别首版使用 DashScope Paraformer");
+            throw new IOException("请先配置语音转文字 API Key；语音识别首版使用 DashScope Paraformer");
         }
 
         String taskId = UUID.randomUUID().toString();
@@ -80,7 +80,7 @@ public final class BabyLogParaformerSpeechClient {
     }
 
     private static String resolveParaformerModel(String configuredModel) {
-        if (configuredModel != null && configuredModel.trim().toLowerCase().contains("paraformer")) {
+        if (configuredModel != null && !configuredModel.trim().isEmpty()) {
             return configuredModel.trim();
         }
         return BabyLogSpeechToTextProtocol.DEFAULT_MODEL;

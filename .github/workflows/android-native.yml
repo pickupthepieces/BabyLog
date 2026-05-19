@@ -54,6 +54,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogSpeechToTextProtocol.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
+            smoke-tests/BabyLogSmartConfigStoreSmokeTest.java \
             smoke-tests/BabyLogDomainSmokeTest.java \
             smoke-tests/BabyLogFormattersSmokeTest.java \
             smoke-tests/BabyLogImageUtilsSmokeTest.java \
@@ -63,6 +64,7 @@ jobs:
             smoke-tests/BabyLogSmartTextClientSmokeTest.java \
             smoke-tests/BabyLogSpeechToTextProtocolSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
+          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartConfigStoreSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogDomainSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogFormattersSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogImageUtilsSmokeTest
