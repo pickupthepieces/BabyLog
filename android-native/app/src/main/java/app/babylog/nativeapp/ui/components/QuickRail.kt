@@ -1,7 +1,6 @@
 package app.babylog.nativeapp
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -39,32 +38,31 @@ internal fun PersistentQuickRail(
             .fillMaxWidth()
             .background(ChestnutPalette.Surface)
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         actions.forEach { action ->
             Column(
                 modifier = Modifier
-                    .width(76.dp)
+                    .width(58.dp)
                     .clip(RoundedCornerShape(15.dp))
                     .background(Color(action.toneColor).copy(alpha = 0.16f))
-                    .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(15.dp))
                     .clickable { currentOnAction(action) }
-                    .padding(vertical = 7.dp),
+                    .padding(vertical = 5.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 BabyLogIconTile(
                     icon = quickActionIcon(action.eventType),
                     tint = Color(action.toneColor),
                     tileColor = Color(action.toneColor).copy(alpha = 0.18f),
-                    modifier = Modifier.size(34.dp),
-                    iconSize = 22.dp
+                    modifier = Modifier.size(28.dp),
+                    iconSize = 18.dp
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
                     text = action.label,
                     color = ChestnutPalette.Ink,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
