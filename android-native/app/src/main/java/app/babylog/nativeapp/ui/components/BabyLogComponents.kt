@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,7 +76,7 @@ fun MetricCard(
             .clip(RoundedCornerShape(14.dp))
             .background(ChestnutPalette.Surface2.copy(alpha = 0.72f))
             .padding(11.dp)
-            .height(76.dp)
+            .heightIn(min = 76.dp)
     ) {
         Box(
             modifier = Modifier

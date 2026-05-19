@@ -9,10 +9,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +30,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,8 +38,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,14 +87,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -1397,6 +1416,7 @@ private fun BabyLogApp(
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     val activeTab = if (BabyLogRoutes.isTopLevel(currentRoute)) currentRoute ?: BabyLogRoutes.Home else BabyLogRoutes.Home
+    var quickRailVisible by rememberSaveable { mutableStateOf(true) }
     val showTopLevelChrome = state.setupCompleted && BabyLogRoutes.isTopLevel(currentRoute)
     val selectTopLevelTab: (String) -> Unit = { route ->
         if (BabyLogRoutes.isTopLevel(route)) {
@@ -1421,6 +1441,9 @@ private fun BabyLogApp(
             }
         }
         onNavRouteConsumed()
+    }
+    LaunchedEffect(activeTab) {
+        quickRailVisible = true
     }
     fun closeRecord(onCancel: () -> Unit) {
         onCancel()
@@ -1473,18 +1496,24 @@ private fun BabyLogApp(
             if (showTopLevelChrome) {
                 Column {
                     if (activeTab == BabyLogRoutes.Home) {
-                        PersistentQuickRail(
-                            actions = quickActions,
-                            voiceState = smartVoiceState,
-                            onVoiceTap = { onSmartEntryClick(activeTab) },
-                            onVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
-                            onVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) },
-                            onAction = { action -> onQuickAction(action, BabyLogRoutes.Home) }
-                        )
+                        AnimatedVisibility(
+                            visible = quickActions.isNotEmpty() && quickRailVisible,
+                            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                        ) {
+                            PersistentQuickRail(
+                                actions = quickActions,
+                                onAction = { action -> onQuickAction(action, BabyLogRoutes.Home) }
+                            )
+                        }
                     }
                     BottomNav(
                         activeTab = activeTab,
-                        onTabSelected = selectTopLevelTab
+                        voiceState = smartVoiceState,
+                        onTabSelected = selectTopLevelTab,
+                        onSmartEntryClick = { onSmartEntryClick(activeTab) },
+                        onVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
+                        onVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) }
                     )
                 }
             }
@@ -1513,7 +1542,12 @@ private fun BabyLogApp(
                         highlightedEventId = highlightedEventId,
                         onBabyDaySelected = onBabyDaySelected,
                         onShowTimeline = { selectTopLevelTab(BabyLogRoutes.Timeline) },
-                        onDeleteEvent = onDeleteEvent
+                        onDeleteEvent = onDeleteEvent,
+                        onQuickRailVisibilityChange = { visible ->
+                            if (quickRailVisible != visible) {
+                                quickRailVisible = visible
+                            }
+                        }
                     )
                 }
             }
@@ -1672,10 +1706,13 @@ private fun BabyLogApp(
 @Composable
 internal fun BabyLogScreenColumn(
     inner: PaddingValues,
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier
+        state = listState,
+        modifier = modifier
             .fillMaxSize()
             .background(ChestnutPalette.Bg),
         contentPadding = PaddingValues(
@@ -2506,11 +2543,17 @@ internal fun quickActionIcon(eventType: String): LineIcon {
 @Composable
 private fun BottomNav(
     activeTab: String,
-    onTabSelected: (String) -> Unit
+    voiceState: SmartVoiceUiState,
+    onTabSelected: (String) -> Unit,
+    onSmartEntryClick: () -> Unit,
+    onVoiceHoldStart: () -> Unit,
+    onVoiceHoldEnd: () -> Unit
 ) {
-    val items = listOf(
+    val leadingItems = listOf(
         NavItem(BabyLogRoutes.Home, "首页", LineIcon.Home),
-        NavItem(BabyLogRoutes.Timeline, "时间线", LineIcon.Timeline),
+        NavItem(BabyLogRoutes.Timeline, "时间线", LineIcon.Timeline)
+    )
+    val trailingItems = listOf(
         NavItem(BabyLogRoutes.Library, "资料", LineIcon.Library),
         NavItem(BabyLogRoutes.Settings, "设置", LineIcon.Settings)
     )
@@ -2519,33 +2562,121 @@ private fun BottomNav(
         contentColor = Color.White,
         elevation = 0.dp
     ) {
-        items.forEach { item ->
-            val selected = activeTab == item.key
-            val itemColor = if (selected) Color.White else Color.White.copy(alpha = 0.68f)
-            BottomNavigationItem(
-                selected = selected,
-                onClick = { onTabSelected(item.key) },
-                icon = {
-                    BabyLogIconTile(
-                        icon = item.icon,
-                        tint = itemColor,
-                        tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
-                        modifier = Modifier.size(40.dp),
-                        iconSize = 24.dp
-                    )
-                },
-                label = {
-                    Text(
-                        item.label,
-                        color = itemColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                selectedContentColor = Color.White,
-                unselectedContentColor = Color.White.copy(alpha = 0.68f)
+        leadingItems.forEach { item ->
+            BottomNavTab(item = item, selected = activeTab == item.key, onTabSelected = onTabSelected)
+        }
+        BottomNavVoiceAction(
+            voiceState = voiceState,
+            onSmartEntryClick = onSmartEntryClick,
+            onVoiceHoldStart = onVoiceHoldStart,
+            onVoiceHoldEnd = onVoiceHoldEnd
+        )
+        trailingItems.forEach { item ->
+            BottomNavTab(item = item, selected = activeTab == item.key, onTabSelected = onTabSelected)
+        }
+    }
+}
+
+@Composable
+private fun RowScope.BottomNavTab(
+    item: NavItem,
+    selected: Boolean,
+    onTabSelected: (String) -> Unit
+) {
+    val itemColor = if (selected) Color.White else Color.White.copy(alpha = 0.68f)
+    BottomNavigationItem(
+        selected = selected,
+        onClick = { onTabSelected(item.key) },
+        icon = {
+            BabyLogIconTile(
+                icon = item.icon,
+                tint = itemColor,
+                tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
+                modifier = Modifier.size(40.dp),
+                iconSize = 24.dp
+            )
+        },
+        label = {
+            Text(
+                item.label,
+                color = itemColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        selectedContentColor = Color.White,
+        unselectedContentColor = Color.White.copy(alpha = 0.68f)
+    )
+}
+
+@Composable
+private fun RowScope.BottomNavVoiceAction(
+    voiceState: SmartVoiceUiState,
+    onSmartEntryClick: () -> Unit,
+    onVoiceHoldStart: () -> Unit,
+    onVoiceHoldEnd: () -> Unit
+) {
+    val currentOnSmartEntryClick by rememberUpdatedState(onSmartEntryClick)
+    val currentOnVoiceHoldStart by rememberUpdatedState(onVoiceHoldStart)
+    val currentOnVoiceHoldEnd by rememberUpdatedState(onVoiceHoldEnd)
+    val label = when {
+        voiceState.isRecording -> "松开"
+        voiceState.isTranscribing -> "识别"
+        else -> "语音"
+    }
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .height(56.dp)
+            .pointerInput(voiceState.isTranscribing) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val longPress = awaitLongPressOrCancellation(down.id)
+                    if (longPress == null) {
+                        currentOnSmartEntryClick()
+                        return@awaitEachGesture
+                    }
+                    if (voiceState.isTranscribing) {
+                        waitForUpOrCancellation()
+                        return@awaitEachGesture
+                    }
+                    currentOnVoiceHoldStart()
+                    try {
+                        waitForUpOrCancellation()
+                    } finally {
+                        currentOnVoiceHoldEnd()
+                    }
+                }
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    if (voiceState.isRecording) {
+                        Color.White.copy(alpha = 0.34f)
+                    } else {
+                        Color.White.copy(alpha = 0.22f)
+                    }
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.52f), RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            BabyLogMaterialIcon(
+                icon = LineIcon.Voice,
+                tint = Color.White,
+                modifier = Modifier.size(26.dp)
             )
         }
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

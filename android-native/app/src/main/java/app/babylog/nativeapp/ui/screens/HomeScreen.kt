@@ -2,7 +2,18 @@ package app.babylog.nativeapp
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import app.babylog.nativeapp.ui.screens.BabyLogRoutes
 
 @Composable
@@ -13,10 +24,38 @@ internal fun HomeScreen(
     highlightedEventId: String?,
     onBabyDaySelected: (String) -> Unit,
     onShowTimeline: () -> Unit,
-    onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit
+    onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
+    onQuickRailVisibilityChange: (Boolean) -> Unit
 ) {
     val stage = currentCareStage(state.childProfile)
-    BabyLogScreenColumn(inner) {
+    val listState = rememberLazyListState()
+    val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
+    val railNestedScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                when {
+                    available.y < -6f -> currentOnQuickRailVisibilityChange(false)
+                    available.y > 6f -> currentOnQuickRailVisibilityChange(true)
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+            !listState.isScrollInProgress || atTop
+        }.collect { shouldShow ->
+            if (shouldShow) {
+                currentOnQuickRailVisibilityChange(true)
+            }
+        }
+    }
+    BabyLogScreenColumn(
+        inner = inner,
+        modifier = Modifier.nestedScroll(railNestedScroll),
+        listState = listState
+    ) {
         item {
             if (stage == BabyLogDomain.STAGE_BABY) {
                 BabyDayCard(
