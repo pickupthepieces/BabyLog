@@ -105,3 +105,11 @@
 **核实**：① `SmartEntryDialog` 删除 → `SmartEntryScreen.kt` 全屏页;smartEntry route,短按/长按释放均入同页,模态套娃消灭。② STT/RECORD_AUDIO 权限流/隐私文案/`finally{audioFile.delete()}` 在 CMA 内原样保留,仅迁移 UI 载体。③ 确认链:页内候选 → 显式「打开表单核对」→ P1 表单页 → 手动保存,无 autosave。④ CMA 3715→3628 继续瘦。⑤ `feed1a2`「长按释放结束录音」为独立 UI-only bugfix,未混入 P2、未碰逻辑层——hygiene 正确。编译/smoke 由 CI 兜底。
 
 **跟进项（非阻塞）**：BabyCare 表单因真机档案为孕期,未装机走查字段全等性;P3/后续切档抽查一次。
+
+### P3 设置层级化 — 通过（commit `9d17646`）
+
+**结论**：通过,放行 P4。
+
+**核实**：① 4 设置 AlertDialog(Profile/Sync/Model/Speech)删除 → NavCompose 全屏子页 + 共享 `SettingsPageScaffold`,逐级下钻。② 密钥逻辑仅迁载体——新屏幕为 `onSave:(Config)->Unit` 纯 UI 回调,真实 `smartConfigStore.saveSpeechConfig`(Keystore 加密)仍在 CMA:580,未重写;隐私文案逐字保留。③ 仅 CMA+ui/screens 改动,数据/STT/FGR 接线零动。④ CMA 3628→3312 继续瘦。⑤ 单 commit 干净。编译/smoke 由 CI 兜底。
+
+**产品决策项（非 bug，非 P3 阻塞，待用户拍板）**：Codex 装机发现 baby 快捷"奶瓶"直接入库、不过 BabyCare 表单。经评估此非安全违规——非 AI 候选、非医疗测量、属琐碎自记录,且 Piyo 本身即"一拍即记"、记录可在时间线删改。"人工确认绝不自动入库"铁律针对 AI 候选 + 医疗数据,不含一拍即记琐碎事件。**默认建议保持一拍即记**;是否改走表单确认由用户决定,不作为缺陷修复强推。
