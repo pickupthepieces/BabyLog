@@ -14,6 +14,8 @@ public final class BabyLogSmartVisionClientSmokeTest {
         assertTrue(prompt.contains("bpdMm"));
         assertTrue(prompt.contains("fetalHeartRateBpm"));
         assertTrue(prompt.contains("deepestPocketCm"));
+        assertTrue(prompt.contains("hospital"));
+        assertTrue(prompt.contains("diagnosisText"));
         assertTrue(prompt.contains("crlMm"));
         assertTrue(prompt.contains("ntMm"));
         assertFalse(prompt.contains("gestationalAge"));

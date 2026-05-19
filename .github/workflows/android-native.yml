@@ -50,6 +50,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartConfigStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartInput.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartVisionClient.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogSmartTextClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
             smoke-tests/BabyLogDomainSmokeTest.java \
@@ -58,6 +59,7 @@ jobs:
             smoke-tests/BabyLogFetalGrowthReferenceSmokeTest.java \
             smoke-tests/BabyLogSmartInputSmokeTest.java \
             smoke-tests/BabyLogSmartVisionClientSmokeTest.java \
+            smoke-tests/BabyLogSmartTextClientSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogDomainSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogFormattersSmokeTest
@@ -65,6 +67,7 @@ jobs:
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogFetalGrowthReferenceSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartInputSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartVisionClientSmokeTest
+          java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogSmartTextClientSmokeTest
           java -cp "smoke-tests/out:$ANDROID_HOME/platforms/android-36/android.jar" BabyLogServiceSmokeTest
 
       - name: Assemble debug

@@ -5,6 +5,9 @@ public final class BabyLogSmartInputSmokeTest {
         String response = "{"
                 + "\"choices\":[{\"message\":{\"content\":\"```json\\n"
                 + "{\\\"examDate\\\":\\\"2026-05-18\\\","
+                + "\\\"hospital\\\":\\\"奉化区妇幼\\\","
+                + "\\\"reportTime\\\":\\\"2026-05-18 10:30\\\","
+                + "\\\"diagnosisText\\\":\\\"宫内妊娠，单活胎\\\","
                 + "\\\"gestationalAge\\\":\\\"28+3\\\","
                 + "\\\"bpdMm\\\":\\\"71\\\","
                 + "\\\"hcMm\\\":\\\"260.5\\\","
@@ -28,6 +31,9 @@ public final class BabyLogSmartInputSmokeTest {
 
         assertEquals("2026-05-18", candidate.examDate.value);
         assertEquals(null, candidate.gestationalAge.value);
+        assertEquals("奉化区妇幼", candidate.hospital.value);
+        assertEquals("2026-05-18 10:30", candidate.reportTime.value);
+        assertEquals("宫内妊娠，单活胎", candidate.diagnosisText.value);
         assertEquals(71.0, candidate.bpdMm.value);
         assertEquals(260.5, candidate.hcMm.value);
         assertEquals(null, candidate.acMm.value);

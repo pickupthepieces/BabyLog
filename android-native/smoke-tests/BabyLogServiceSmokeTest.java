@@ -89,7 +89,7 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(
                 "最大羊水池 3.8 cm · 胎盘 前壁 · 胎儿个数 单胎 · 胎动 可见 · 胎心率 156 bpm · CRL 68 mm · NT 1.6 mm · 宫颈管长度 35 mm · 脐带插入处 居中",
                 BabyLogService.formatUltrasoundClinicalDetails(new BabyLogService.UltrasoundInput(
-                        "2026-03-14", "", "", "", "", "", "", "", "3.8",
+                        "2026-03-14", "", "", "", "", "", "", "", "", "", "", "3.8",
                         "前壁", "", "", "156", "单胎", "可见", "居中",
                         "35", "68", "1.6", "", "", "", "", ""
                 ))
@@ -149,6 +149,9 @@ public final class BabyLogServiceSmokeTest {
         return new BabyLogService.UltrasoundInput(
                 examDate,
                 gestationalAge,
+                "",
+                "",
+                "",
                 bpdMm,
                 hcMm,
                 acMm,
