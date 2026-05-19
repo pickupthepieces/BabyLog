@@ -9,6 +9,7 @@ internal object BabyLogRoutes {
     const val RecordPregnancyEvent = "record/pregnancy-event"
     const val RecordMaternalMetric = "record/maternal-metric"
     const val RecordBabyCare = "record/baby-care"
+    const val SmartEntry = "smartEntry"
 
     fun isTopLevel(route: String?): Boolean {
         return route == Home || route == Timeline || route == Library || route == Settings

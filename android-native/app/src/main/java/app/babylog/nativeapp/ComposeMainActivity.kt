@@ -17,7 +17,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -155,9 +154,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var smartConfigSummary by mutableStateOf("智能识别未配置")
     private var speechConfigSummary by mutableStateOf("语音识别未配置")
     private var ultrasoundOcrRunning by mutableStateOf(false)
-    private var showSmartEntryDialog by mutableStateOf(false)
     private var smartEntryRunning by mutableStateOf(false)
     private var smartVoiceState by mutableStateOf(SmartVoiceUiState())
+    private var smartEntryCandidate by mutableStateOf<BabyLogSmartTextClient.SmartEntryCandidate?>(null)
     private var babyCareDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var pregnancyDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var maternalMetricDraft by mutableStateOf<SmartEntryDraft?>(null)
@@ -207,10 +206,16 @@ public final class ComposeMainActivity : ComponentActivity() {
                     },
                     onSmartEntryClick = { sourceRoute ->
                         recordReturnRoute = sourceRoute
-                        showSmartEntryDialog = true
+                        pendingNavRoute = BabyLogRoutes.SmartEntry
                     },
-                    onSmartVoiceHoldStart = ::startNavVoiceRecording,
-                    onSmartVoiceHoldEnd = ::finishNavVoiceRecording,
+                    onSmartVoiceHoldStart = { sourceRoute ->
+                        recordReturnRoute = sourceRoute
+                        startNavVoiceRecording()
+                    },
+                    onSmartVoiceHoldEnd = { sourceRoute ->
+                        recordReturnRoute = sourceRoute
+                        finishNavVoiceRecording()
+                    },
                     quickActions = quickActions(),
                     onQuickAction = { action, sourceRoute ->
                         recordReturnRoute = sourceRoute
@@ -270,7 +275,21 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onApplyUltrasoundCandidate = {
                         ultrasoundOcrCandidate = null
                         showToast("已应用识别字段，请核对后保存")
-                    }
+                    },
+                    smartEntryRunning = smartEntryRunning,
+                    smartVoiceState = smartVoiceState,
+                    smartEntryCandidate = smartEntryCandidate,
+                    onSmartEntryBack = {
+                        if (!smartEntryRunning) {
+                            cancelSmartVoiceRecording()
+                            smartEntryCandidate = null
+                        }
+                    },
+                    onSmartEntryVoiceStart = ::startSmartVoiceRecording,
+                    onSmartEntryVoiceStop = ::finishSmartVoiceRecording,
+                    onSmartEntrySubmit = ::requestSmartEntry,
+                    onSmartEntryCandidateConfirm = ::openSmartEntryCandidate,
+                    onSmartEntryCandidateDismiss = { smartEntryCandidate = null }
                 )
 
                 if (showQuickSheet) {
@@ -281,7 +300,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                             showQuickSheet = false
                             window.decorView.postDelayed({
                                 if (!isFinishing && !isDestroyed) {
-                                    showSmartEntryDialog = true
+                                    pendingNavRoute = BabyLogRoutes.SmartEntry
                                 }
                             }, 120L)
                         },
@@ -292,23 +311,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     )
                 }
 
-                if (showSmartEntryDialog) {
-                    SmartEntryDialog(
-                        running = smartEntryRunning,
-                        voiceState = smartVoiceState,
-                        onDismiss = {
-                            if (!smartEntryRunning) {
-                                cancelSmartVoiceRecording()
-                                showSmartEntryDialog = false
-                            }
-                        },
-                        onVoiceStart = ::startSmartVoiceRecording,
-                        onVoiceStop = ::finishSmartVoiceRecording,
-                        onSubmit = ::requestSmartEntry
-                    )
-                }
-
-                if (smartVoiceState.isRecording && !showSmartEntryDialog) {
+                if (smartVoiceState.isRecording) {
                     VoiceRecordingPopup()
                 }
 
@@ -857,6 +860,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             return
         }
         smartEntryRunning = true
+        smartEntryCandidate = null
         runInBackground {
             try {
                 val config = smartConfigStore.load()
@@ -870,9 +874,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     rawText,
                     config
                 )
-                runOnUiThread {
-                    openSmartEntryCandidate(candidate)
-                }
+                runOnUiThread { smartEntryCandidate = candidate }
             } catch (error: Exception) {
                 showInfo("智能录入失败", smartVisionErrorMessage(error))
             } finally {
@@ -908,12 +910,12 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun startNavVoiceRecording() {
         startSmartVoiceRecording()
         if (!smartVoiceState.isRecording) {
-            showSmartEntryDialog = true
+            pendingNavRoute = BabyLogRoutes.SmartEntry
         }
     }
 
     private fun finishNavVoiceRecording() {
-        showSmartEntryDialog = true
+        pendingNavRoute = BabyLogRoutes.SmartEntry
         finishSmartVoiceRecording()
     }
 
@@ -973,7 +975,6 @@ public final class ComposeMainActivity : ComponentActivity() {
         val draft = SmartEntryDraft(values = values)
         when (candidate.eventType) {
             "ultrasound" -> {
-                showSmartEntryDialog = false
                 openUltrasoundForm(draft)
             }
             "pregnancy_checkup", "contraction" -> {
@@ -982,13 +983,11 @@ public final class ComposeMainActivity : ComponentActivity() {
                     showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
                     return
                 }
-                showSmartEntryDialog = false
                 pregnancyDraft = draft
                 pregnancyAction = action
                 pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
             }
             "maternal_metric" -> {
-                showSmartEntryDialog = false
                 maternalMetricDraft = draft
                 pendingNavRoute = BabyLogRoutes.RecordMaternalMetric
             }
@@ -998,7 +997,6 @@ public final class ComposeMainActivity : ComponentActivity() {
                     showInfo("暂不支持", "当前阶段没有 ${candidate.eventType} 表单。")
                     return
                 }
-                showSmartEntryDialog = false
                 babyCareDraft = draft
                 babyCareAction = action
                 pendingNavRoute = BabyLogRoutes.RecordBabyCare
@@ -1008,6 +1006,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 return
             }
         }
+        smartEntryCandidate = null
         val warning = candidate.warnings.firstOrNull()
         showToast(if (warning.isNullOrBlank()) "已打开候选表单，请核对后保存" else "已打开候选表单：$warning")
     }
@@ -1393,7 +1392,7 @@ internal data class SmartEntryDraft(
     val values: Map<String, String> = emptyMap()
 )
 
-private data class SmartVoiceUiState(
+internal data class SmartVoiceUiState(
     val isRecording: Boolean = false,
     val isTranscribing: Boolean = false,
     val transcript: String = "",
@@ -1414,8 +1413,8 @@ private fun BabyLogApp(
     onBabyDaySelected: (String) -> Unit,
     onQuickClick: (String) -> Unit,
     onSmartEntryClick: (String) -> Unit,
-    onSmartVoiceHoldStart: () -> Unit,
-    onSmartVoiceHoldEnd: () -> Unit,
+    onSmartVoiceHoldStart: (String) -> Unit,
+    onSmartVoiceHoldEnd: (String) -> Unit,
     quickActions: List<BabyLogService.QuickAction>,
     onQuickAction: (BabyLogService.QuickAction, String) -> Unit,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
@@ -1455,7 +1454,16 @@ private fun BabyLogApp(
     onCaptureUltrasoundPhoto: () -> Unit,
     onRecognizeUltrasoundPhoto: () -> Unit,
     onDismissUltrasoundCandidate: () -> Unit,
-    onApplyUltrasoundCandidate: () -> Unit
+    onApplyUltrasoundCandidate: () -> Unit,
+    smartEntryRunning: Boolean,
+    smartVoiceState: SmartVoiceUiState,
+    smartEntryCandidate: BabyLogSmartTextClient.SmartEntryCandidate?,
+    onSmartEntryBack: () -> Unit,
+    onSmartEntryVoiceStart: () -> Unit,
+    onSmartEntryVoiceStop: () -> Unit,
+    onSmartEntrySubmit: (String) -> Unit,
+    onSmartEntryCandidateConfirm: (BabyLogSmartTextClient.SmartEntryCandidate) -> Unit,
+    onSmartEntryCandidateDismiss: () -> Unit
 ) {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -1492,11 +1500,17 @@ private fun BabyLogApp(
             selectTopLevelTab(if (BabyLogRoutes.isTopLevel(recordReturnRoute)) recordReturnRoute else BabyLogRoutes.Home)
         }
     }
+    fun closeSmartEntry() {
+        onSmartEntryBack()
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(if (BabyLogRoutes.isTopLevel(recordReturnRoute)) recordReturnRoute else BabyLogRoutes.Home)
+        }
+    }
 
     Scaffold(
         backgroundColor = ChestnutPalette.Bg,
         topBar = {
-            if (!BabyLogRoutes.isRecord(currentRoute)) {
+            if (!BabyLogRoutes.isRecord(currentRoute) && currentRoute != BabyLogRoutes.SmartEntry) {
                 TopBrandBand(activeTab = activeTab, state = state)
             }
         },
@@ -1525,8 +1539,8 @@ private fun BabyLogApp(
                         activeTab = activeTab,
                         onTabSelected = selectTopLevelTab,
                         onSmartEntryClick = { onSmartEntryClick(activeTab) },
-                        onSmartVoiceHoldStart = onSmartVoiceHoldStart,
-                        onSmartVoiceHoldEnd = onSmartVoiceHoldEnd
+                        onSmartVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
+                        onSmartVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) }
                     )
                 }
             }
@@ -1631,6 +1645,19 @@ private fun BabyLogApp(
                         onCandidateApplied = onApplyUltrasoundCandidate,
                         onBack = { closeRecord(onUltrasoundCancel) },
                         onSave = onUltrasoundSave
+                    )
+                }
+                composable(BabyLogRoutes.SmartEntry) {
+                    SmartEntryScreen(
+                        running = smartEntryRunning,
+                        voiceState = smartVoiceState,
+                        candidate = smartEntryCandidate,
+                        onBack = ::closeSmartEntry,
+                        onVoiceStart = onSmartEntryVoiceStart,
+                        onVoiceStop = onSmartEntryVoiceStop,
+                        onSubmit = onSmartEntrySubmit,
+                        onOpenCandidate = onSmartEntryCandidateConfirm,
+                        onDismissCandidate = onSmartEntryCandidateDismiss
                     )
                 }
             }
@@ -2405,78 +2432,6 @@ private fun QuickActionDialog(
 }
 
 @Composable
-private fun SmartEntryDialog(
-    running: Boolean,
-    voiceState: SmartVoiceUiState,
-    onDismiss: () -> Unit,
-    onVoiceStart: () -> Unit,
-    onVoiceStop: () -> Unit,
-    onSubmit: (String) -> Unit
-) {
-    var text by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(voiceState.transcriptNonce) {
-        if (voiceState.transcriptNonce != 0L && voiceState.transcript.isNotBlank()) {
-            text = if (text.isBlank()) {
-                voiceState.transcript
-            } else {
-                text.trimEnd() + "\n" + voiceState.transcript
-            }
-        }
-    }
-    AlertDialog(
-        onDismissRequest = { if (!running) onDismiss() },
-        title = { Text("智能录入", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    "按住说话会把本次语音发给你配置的语音识别服务商转成文字；模型只生成候选字段，仍需你在表单里手动保存。",
-                    color = ChestnutPalette.Muted,
-                    fontSize = 13.sp
-                )
-                VoiceHoldButton(
-                    recording = voiceState.isRecording,
-                    transcribing = voiceState.isTranscribing,
-                    disabled = running,
-                    onVoiceStart = onVoiceStart,
-                    onVoiceStop = onVoiceStop
-                )
-                if (voiceState.message.isNotBlank()) {
-                    Text(
-                        voiceState.message,
-                        color = if (voiceState.isRecording || voiceState.isTranscribing) ChestnutPalette.Primary else ChestnutPalette.Muted,
-                        fontSize = 12.sp,
-                        fontWeight = if (voiceState.isRecording || voiceState.isTranscribing) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-                ChestnutLongTextField(
-                    label = "转写文本 / 手动输入，例如：今天产检在奉化妇幼，血糖餐后一小时 8.8",
-                    value = text,
-                    onValueChange = { text = it },
-                    minLines = 4,
-                    maxLines = 6
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSubmit(text) },
-                enabled = text.isNotBlank() && !running,
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = ChestnutPalette.Primary,
-                    disabledBackgroundColor = ChestnutPalette.Surface2
-                )
-            ) {
-                Text(if (running) "识别中..." else "识别并打开表单", color = if (running) ChestnutPalette.Text3 else Color.White)
-            }
-        },
-        dismissButton = {
-            TextButton(enabled = !running, onClick = onDismiss) { Text("取消", color = ChestnutPalette.Muted) }
-        },
-        backgroundColor = ChestnutPalette.Bg
-    )
-}
-
-@Composable
 private fun VoiceRecordingPopup() {
     Popup(
         alignment = Alignment.Center,
@@ -2507,60 +2462,6 @@ private fun VoiceRecordingPopup() {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun VoiceHoldButton(
-    recording: Boolean,
-    transcribing: Boolean,
-    disabled: Boolean,
-    onVoiceStart: () -> Unit,
-    onVoiceStop: () -> Unit
-) {
-    val enabled = !disabled && !transcribing
-    val bg = when {
-        recording -> ChestnutPalette.Primary
-        transcribing -> ChestnutPalette.Surface2
-        else -> ChestnutPalette.Primary.copy(alpha = 0.12f)
-    }
-    val borderColor = if (recording) ChestnutPalette.Primary else ChestnutPalette.Primary.copy(alpha = 0.42f)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(bg)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .then(
-                if (enabled) {
-                    Modifier.pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                onVoiceStart()
-                                try {
-                                    tryAwaitRelease()
-                                } finally {
-                                    onVoiceStop()
-                                }
-                            }
-                        )
-                    }
-                } else {
-                    Modifier
-                }
-            )
-            .padding(vertical = 14.dp, horizontal = 16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            when {
-                recording -> "松开结束录音"
-                transcribing -> "正在转文字..."
-                else -> "按住说话"
-            },
-            color = if (recording) Color.White else ChestnutPalette.Primary,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
@@ -3298,7 +3199,9 @@ private fun BottomNav(
             BottomNavigationItem(
                 selected = selected,
                 onClick = {
-                    if (!item.isAction) {
+                    if (item.isAction) {
+                        onSmartEntryClick()
+                    } else {
                         onTabSelected(item.key)
                     }
                 },
