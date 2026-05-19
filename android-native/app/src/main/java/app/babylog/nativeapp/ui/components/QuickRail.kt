@@ -8,7 +8,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,9 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
-import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -42,6 +43,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun PersistentQuickRail(
     actions: List<BabyLogService.QuickAction>,
+    voiceState: SmartVoiceUiState,
+    onVoiceTap: () -> Unit,
+    onVoiceHoldStart: () -> Unit,
+    onVoiceHoldEnd: () -> Unit,
     onAction: (BabyLogService.QuickAction) -> Unit
 ) {
     val currentOnAction by rememberUpdatedState(onAction)
@@ -53,6 +58,12 @@ internal fun PersistentQuickRail(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        VoiceQuickTile(
+            voiceState = voiceState,
+            onVoiceTap = onVoiceTap,
+            onVoiceHoldStart = onVoiceHoldStart,
+            onVoiceHoldEnd = onVoiceHoldEnd
+        )
         actions.forEach { action ->
             Column(
                 modifier = Modifier
@@ -86,16 +97,16 @@ internal fun PersistentQuickRail(
 }
 
 @Composable
-internal fun VoiceEntryRail(
+private fun VoiceQuickTile(
     voiceState: SmartVoiceUiState,
-    onTextEntry: () -> Unit,
+    onVoiceTap: () -> Unit,
     onVoiceHoldStart: () -> Unit,
     onVoiceHoldEnd: () -> Unit
 ) {
+    val currentOnVoiceTap by rememberUpdatedState(onVoiceTap)
     val currentOnVoiceHoldStart by rememberUpdatedState(onVoiceHoldStart)
     val currentOnVoiceHoldEnd by rememberUpdatedState(onVoiceHoldEnd)
-    val voiceEnabled = !voiceState.isTranscribing
-    val transition = rememberInfiniteTransition(label = "voiceRailPulse")
+    val transition = rememberInfiniteTransition(label = "voiceQuickPulse")
     val pulseAlpha by transition.animateFloat(
         initialValue = 0.40f,
         targetValue = if (voiceState.isRecording) 1.0f else 0.40f,
@@ -103,97 +114,82 @@ internal fun VoiceEntryRail(
             animation = tween(durationMillis = 520),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "voiceRailPulseAlpha"
+        label = "voiceQuickPulseAlpha"
     )
     val title = when {
-        voiceState.isRecording -> "正在录音"
-        voiceState.isTranscribing -> "正在转文字"
+        voiceState.isRecording -> "松开结束"
+        voiceState.isTranscribing -> "识别中"
         else -> "按住说话"
     }
     val subtitle = when {
-        voiceState.isRecording -> "松开后转写并进入智能解析"
-        voiceState.isTranscribing -> "识别完成后会回填到智能录入页"
-        else -> "普通话录入，AI 只生成候选，确认后才保存"
+        voiceState.isRecording -> "正在录音"
+        voiceState.isTranscribing -> "转写后进入候选"
+        else -> "点按文字录入"
     }
 
-    Surface(
-        color = ChestnutPalette.Surface,
-        elevation = 0.dp
+    Column(
+        modifier = Modifier
+            .width(104.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                if (voiceState.isRecording) {
+                    ChestnutPalette.Primary.copy(alpha = 0.22f)
+                } else {
+                    ChestnutPalette.Primary.copy(alpha = 0.12f)
+                }
+            )
+            .border(1.dp, ChestnutPalette.Primary.copy(alpha = 0.46f), RoundedCornerShape(18.dp))
+            .pointerInput(voiceState.isTranscribing) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val longPress = awaitLongPressOrCancellation(down.id)
+                    if (longPress == null) {
+                        currentOnVoiceTap()
+                        return@awaitEachGesture
+                    }
+                    if (voiceState.isTranscribing) {
+                        waitForUpOrCancellation()
+                        return@awaitEachGesture
+                    }
+                    currentOnVoiceHoldStart()
+                    try {
+                        waitForUpOrCancellation()
+                    } finally {
+                        currentOnVoiceHoldEnd()
+                    }
+                }
+            }
+            .padding(vertical = 11.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, ChestnutPalette.Border)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(ChestnutPalette.Primary.copy(alpha = if (voiceState.isRecording) pulseAlpha else 1.0f)),
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(
-                        if (voiceState.isRecording) {
-                            ChestnutPalette.Primary.copy(alpha = 0.14f)
-                        } else {
-                            ChestnutPalette.Primary.copy(alpha = 0.08f)
-                        }
-                    )
-                    .border(1.dp, ChestnutPalette.Primary.copy(alpha = 0.32f), RoundedCornerShape(18.dp))
-                    .then(
-                        if (voiceEnabled) {
-                            Modifier.pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        currentOnVoiceHoldStart()
-                                        try {
-                                            tryAwaitRelease()
-                                        } finally {
-                                            currentOnVoiceHoldEnd()
-                                        }
-                                    }
-                                )
-                            }
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(ChestnutPalette.Primary.copy(alpha = if (voiceState.isRecording) pulseAlpha else 0.16f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BabyLogMaterialIcon(
-                        icon = LineIcon.Voice,
-                        tint = if (voiceState.isRecording) Color.White else ChestnutPalette.Primary,
-                        modifier = Modifier.size(25.dp)
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        color = ChestnutPalette.Ink,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = subtitle,
-                        color = ChestnutPalette.Muted,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            OutlinedButton(onClick = onTextEntry) {
-                Text("文字录入", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
-            }
+            BabyLogMaterialIcon(
+                icon = LineIcon.Voice,
+                tint = Color.White,
+                modifier = Modifier.size(27.dp)
+            )
         }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = title,
+            color = ChestnutPalette.Ink,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = subtitle,
+            color = ChestnutPalette.Muted,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

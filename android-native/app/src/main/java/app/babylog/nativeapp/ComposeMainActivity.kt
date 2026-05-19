@@ -1472,22 +1472,19 @@ private fun BabyLogApp(
         bottomBar = {
             if (showTopLevelChrome) {
                 Column {
-                    if (activeTab == BabyLogRoutes.Home && quickActions.isNotEmpty()) {
+                    if (activeTab == BabyLogRoutes.Home) {
                         PersistentQuickRail(
                             actions = quickActions,
+                            voiceState = smartVoiceState,
+                            onVoiceTap = { onSmartEntryClick(activeTab) },
+                            onVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
+                            onVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) },
                             onAction = { action -> onQuickAction(action, BabyLogRoutes.Home) }
                         )
                     }
-                    VoiceEntryRail(
-                        voiceState = smartVoiceState,
-                        onTextEntry = { onSmartEntryClick(activeTab) },
-                        onVoiceHoldStart = { onSmartVoiceHoldStart(activeTab) },
-                        onVoiceHoldEnd = { onSmartVoiceHoldEnd(activeTab) }
-                    )
                     BottomNav(
                         activeTab = activeTab,
-                        onTabSelected = selectTopLevelTab,
-                        onSmartEntryClick = { onSmartEntryClick(activeTab) }
+                        onTabSelected = selectTopLevelTab
                     )
                 }
             }
@@ -2509,13 +2506,11 @@ internal fun quickActionIcon(eventType: String): LineIcon {
 @Composable
 private fun BottomNav(
     activeTab: String,
-    onTabSelected: (String) -> Unit,
-    onSmartEntryClick: () -> Unit
+    onTabSelected: (String) -> Unit
 ) {
     val items = listOf(
         NavItem(BabyLogRoutes.Home, "首页", LineIcon.Home),
         NavItem(BabyLogRoutes.Timeline, "时间线", LineIcon.Timeline),
-        NavItem("smart", "语音", LineIcon.Voice, isAction = true),
         NavItem(BabyLogRoutes.Library, "资料", LineIcon.Library),
         NavItem(BabyLogRoutes.Settings, "设置", LineIcon.Settings)
     )
@@ -2525,33 +2520,19 @@ private fun BottomNav(
         elevation = 0.dp
     ) {
         items.forEach { item ->
-            val selected = !item.isAction && activeTab == item.key
-            val itemColor = when {
-                item.isAction -> Color.White
-                selected -> Color.White
-                else -> Color.White.copy(alpha = 0.68f)
-            }
+            val selected = activeTab == item.key
+            val itemColor = if (selected) Color.White else Color.White.copy(alpha = 0.68f)
             BottomNavigationItem(
                 selected = selected,
-                onClick = {
-                    if (item.isAction) {
-                        onSmartEntryClick()
-                    } else {
-                        onTabSelected(item.key)
-                    }
-                },
+                onClick = { onTabSelected(item.key) },
                 icon = {
-                    if (item.isAction) {
-                        VoiceNavActionTile()
-                    } else {
-                        BabyLogIconTile(
-                            icon = item.icon,
-                            tint = itemColor,
-                            tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
-                            modifier = Modifier.size(40.dp),
-                            iconSize = 24.dp
-                        )
-                    }
+                    BabyLogIconTile(
+                        icon = item.icon,
+                        tint = itemColor,
+                        tileColor = if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.10f),
+                        modifier = Modifier.size(40.dp),
+                        iconSize = 24.dp
+                    )
                 },
                 label = {
                     Text(
@@ -2568,27 +2549,7 @@ private fun BottomNav(
     }
 }
 
-@Composable
-private fun VoiceNavActionTile() {
-    Surface(
-        modifier = Modifier.size(60.dp),
-        shape = CircleShape,
-        color = ChestnutPalette.Surface,
-        contentColor = ChestnutPalette.Primary,
-        elevation = 8.dp,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            BabyLogMaterialIcon(
-                icon = LineIcon.Voice,
-                tint = ChestnutPalette.Primary,
-                modifier = Modifier.size(34.dp)
-            )
-        }
-    }
-}
-
-private data class NavItem(val key: String, val label: String, val icon: LineIcon, val isAction: Boolean = false)
+private data class NavItem(val key: String, val label: String, val icon: LineIcon)
 
 internal enum class LineIcon(val imageVector: ImageVector) {
     Home(Icons.Rounded.Home),
