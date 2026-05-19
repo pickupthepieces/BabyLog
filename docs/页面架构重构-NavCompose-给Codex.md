@@ -152,3 +152,19 @@
 **核实**：新增 `FetalGrowthReferenceSeries`;p10/p50/p90 计算移入 `remember(metric.key){…}`,位于 `Canvas(` 之前;DrawScope 仅读缓存,不再每帧重算 BCCG。单一 `perf:` commit、仅 FetalGrowthChart.kt、未混、树干净。装机 gfxinfo 50/90=8ms/16ms（≤16.67ms 帧预算,顺滑）;assembleDebug+lint+smoke 绿(CI 兜底)。
 
 **收口**：架构重构线结束。后续转入 `docs/P5后工作队列-给Codex.md`：perf-B 已清 → Q1 首启免责门 → Q2 记录可编辑 → Q2b 产检结构化 → Q4 → Q6（Q3 已完成,Q5 等设备）。
+
+### P5 收尾修正：底部收敛——语音并入 quick rail（用户裁定，先于 Q1）
+
+**问题**：P5 后底部在首页堆三带（`PersistentQuickRail` + `VoiceEntryRail` + `BottomNav`，≈200dp+ 永久占屏），且 `VoiceEntryRail.onTextEntry` 与 `BottomNav(onSmartEntryClick)` 语音入口**重复**；`VoiceEntryRail` 还在非首页 tab 也常驻。P5 交互收敛用力过猛、反增带与重复。
+
+**修法（用户选：语音并进 quick rail）**——一笔独立 `ui:` 提交，**先于 Q1**：
+1. **删除独立 `VoiceEntryRail` 整条带**（移除 `ComposeMainActivity` bottomBar Column 内其调用 1481–1486 及 `QuickRail.kt` 中该 composable）。
+2. **在 `PersistentQuickRail` 内加一个显式麦克风磁贴**："按住说话"（hold → `onSmartVoiceHoldStart/End`；tap → `onSmartEntryClick` 文字/智能录入）。视觉用 Primary 区分、置于 rail 首位，保证可发现；**把原 `VoiceEntryRail` 的录音态反馈（识别中/松开结束等 `smartVoiceState` 提示）移入该磁贴**，不丢状态可见性。
+3. **`BottomNav` 去掉语音/智能录入入口**（移除其 `onSmartEntryClick` 中央按钮/参数），底栏回归纯 4 tab（Home/Timeline/Library/Settings），勿破坏导航。
+4. quick rail（含麦克风磁贴）**仅首页**（沿用现有 `activeTab==Home` 门控）；非首页仅 `BottomNav`。
+5. **结果**：首页底部 3 带→2 带（quick rail 含麦克风 + 底栏）；其他 tab 仅底栏；语音零重复且可发现；baby 阶段经同一 `PersistentQuickRail` 一致获得麦克风磁贴。
+6. 内容区 bottom contentPadding 随新（更矮）chrome 高度更新，确保不被遮挡。
+
+**硬约束**：只迁移语音入口的 UI 载体；按住录音/权限流/转写/人工确认链/降级逻辑（CMA 内 `startSmartVoiceRecording` 等）**逻辑不动**;不动数据/FGR/STT 接线/阶段投影/已锁视觉 token;一笔 `ui:` commit不混不并 main;assembleDebug+lint+smoke 绿;装机：首页 quick rail 含麦克风、按住转写全链、点击进文字录入、底栏纯 4 tab、非首页无语音带、可视区变大。
+
+**验收**：3 带→2 带；语音入口唯一且可发现；按住说话全链不回退；非首页无语音带；导航 4 tab 正常。
