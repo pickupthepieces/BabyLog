@@ -52,6 +52,29 @@ public final class BabyLogServiceSmokeTest {
                         BabyLogService.PregnancyInput.checkup("2026-05-18", "市妇幼产科", "一切正常", "下次 2026-06-16")
                 )
         );
+        BabyLogService.PregnancyInput structuredCheckup = BabyLogService.PregnancyInput.checkupStructured(
+                "2026-05-18",
+                "市妇幼",
+                "产科",
+                "118",
+                "76",
+                "60.4",
+                "24",
+                "88",
+                "143",
+                "尿蛋白阴性",
+                "一切正常",
+                "2026-06-16",
+                "复查血常规",
+                "/tmp/checkup.jpg",
+                "checkup.jpg"
+        );
+        assertEquals("产科", structuredCheckup.department);
+        assertEquals("2026-06-16", structuredCheckup.nextVisitDate);
+        assertEquals(
+                "产检 · 市妇幼 · 血压 118/76 mmHg · 体重 60.4 kg · 胎心 143 bpm · 一切正常",
+                BabyLogService.formatPregnancySummary(structuredCheckup)
+        );
         assertEquals(
                 "胎动 · 20:00-21:00 · 10 次",
                 BabyLogService.formatPregnancySummary(

@@ -177,6 +177,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var pendingCameraFile: File? = null
     private var pendingUltrasoundPhotoPath by mutableStateOf<String?>(null)
     private var pendingUltrasoundPhotoName by mutableStateOf<String?>(null)
+    private var pendingCheckupAttachmentPath by mutableStateOf<String?>(null)
+    private var pendingCheckupAttachmentName by mutableStateOf<String?>(null)
+    private var pendingImageTarget by mutableStateOf(ImagePickTarget.Ultrasound)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.AppTheme)
@@ -279,6 +282,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     editingEventType = editingEvent?.eventType,
                     pendingUltrasoundPhotoPath = pendingUltrasoundPhotoPath,
                     pendingUltrasoundPhotoName = pendingUltrasoundPhotoName,
+                    pendingCheckupAttachmentPath = pendingCheckupAttachmentPath,
+                    pendingCheckupAttachmentName = pendingCheckupAttachmentName,
                     ultrasoundOcrRunning = ultrasoundOcrRunning,
                     ultrasoundOcrCandidate = ultrasoundOcrCandidate,
                     onBabyCareCancel = {
@@ -290,6 +295,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                         editingEvent = null
                         pregnancyAction = null
                         pregnancyDraft = null
+                        pendingCheckupAttachmentPath = null
+                        pendingCheckupAttachmentName = null
                     },
                     onMaternalMetricCancel = {
                         editingEvent = null
@@ -307,8 +314,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onPregnancySave = ::recordPregnancy,
                     onMaternalMetricSave = ::recordMaternalMetric,
                     onUltrasoundSave = ::recordUltrasound,
-                    onPickUltrasoundPhoto = ::pickImage,
-                    onCaptureUltrasoundPhoto = ::requestCameraOrLaunch,
+                    onPickCheckupAttachment = { pickImage(ImagePickTarget.Checkup) },
+                    onCaptureCheckupAttachment = { requestCameraOrLaunch(ImagePickTarget.Checkup) },
+                    onPickUltrasoundPhoto = { pickImage(ImagePickTarget.Ultrasound) },
+                    onCaptureUltrasoundPhoto = { requestCameraOrLaunch(ImagePickTarget.Ultrasound) },
                     onRecognizeUltrasoundPhoto = ::recognizeUltrasoundPhoto,
                     onDismissUltrasoundCandidate = { ultrasoundOcrCandidate = null },
                     onApplyUltrasoundCandidate = {
@@ -436,13 +445,14 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
         cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
-                startCameraCapture()
+                startCameraCapture(pendingImageTarget)
             } else {
                 showToast("没有相机权限，无法拍照")
             }
         }
         cameraLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
             val captured = pendingCameraFile
+            val target = pendingImageTarget
             pendingCameraFile = null
             if (!success || captured == null) {
                 captured?.delete()
@@ -450,13 +460,9 @@ public final class ComposeMainActivity : ComponentActivity() {
             }
             runInBackground {
                 try {
-                    val compressedPath = service.compressImageFileToPrivateFile(captured, "ultrasound.jpg")
+                    val compressedPath = service.compressImageFileToPrivateFile(captured, target.fileName)
                     captured.delete()
-                    runOnUiThread {
-                        pendingUltrasoundPhotoPath = compressedPath
-                        pendingUltrasoundPhotoName = File(compressedPath).name
-                        ultrasoundOcrCandidate = null
-                    }
+                    runOnUiThread { setPickedImage(target, compressedPath) }
                 } catch (error: IOException) {
                     showInfo("保存照片失败", error.message ?: "无法保存照片")
                 }
@@ -617,6 +623,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             "pregnancy_checkup" -> {
                 pregnancyAction = editQuickActionByEventType(event.eventType)
                 pregnancyDraft = draftFromPregnancyEvent(event)
+                pendingCheckupAttachmentPath = null
+                pendingCheckupAttachmentName = null
                 pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
             }
             "maternal_metric" -> {
@@ -649,6 +657,8 @@ public final class ComposeMainActivity : ComponentActivity() {
         } else if (isPregnancyFormAction(action.eventType)) {
             pregnancyDraft = null
             pregnancyAction = action
+            pendingCheckupAttachmentPath = null
+            pendingCheckupAttachmentName = null
             pendingNavRoute = BabyLogRoutes.RecordPregnancyEvent
         } else if (action.eventType == "maternal_metric") {
             maternalMetricDraft = null
@@ -690,6 +700,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     editingEvent = null
                     pregnancyAction = null
                     pregnancyDraft = null
+                    pendingCheckupAttachmentPath = null
+                    pendingCheckupAttachmentName = null
                     markRecordSaved(event)
                 }
                 showToast(if (editing != null) "已更新记录" else "已保存记录")
@@ -790,21 +802,24 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun pickImage() {
+    private fun pickImage(target: ImagePickTarget) {
+        pendingImageTarget = target
         pickImageLauncher.launch("image/*")
     }
 
-    private fun requestCameraOrLaunch() {
+    private fun requestCameraOrLaunch(target: ImagePickTarget) {
+        pendingImageTarget = target
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            startCameraCapture()
+            startCameraCapture(target)
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
-    private fun startCameraCapture() {
+    private fun startCameraCapture(target: ImagePickTarget = pendingImageTarget) {
         try {
-            val file = service.createCameraCaptureFile("ultrasound.jpg")
+            pendingImageTarget = target
+            val file = service.createCameraCaptureFile(target.fileName)
             pendingCameraFile = file
             val uri = BabyLogFileProvider.getUriForFile(this, file)
             cameraLauncher.launch(uri)
@@ -814,16 +829,27 @@ public final class ComposeMainActivity : ComponentActivity() {
     }
 
     private fun copyPickedImage(uri: Uri) {
+        val target = pendingImageTarget
         runInBackground {
             try {
-                val path = service.copyImageUriToPrivateFile(uri, "ultrasound.jpg")
-                runOnUiThread {
-                    pendingUltrasoundPhotoPath = path
-                    pendingUltrasoundPhotoName = File(path).name
-                    ultrasoundOcrCandidate = null
-                }
+                val path = service.copyImageUriToPrivateFile(uri, target.fileName)
+                runOnUiThread { setPickedImage(target, path) }
             } catch (error: IOException) {
                 showInfo("导入图片失败", error.message ?: "无法读取图片")
+            }
+        }
+    }
+
+    private fun setPickedImage(target: ImagePickTarget, path: String) {
+        when (target) {
+            ImagePickTarget.Ultrasound -> {
+                pendingUltrasoundPhotoPath = path
+                pendingUltrasoundPhotoName = File(path).name
+                ultrasoundOcrCandidate = null
+            }
+            ImagePickTarget.Checkup -> {
+                pendingCheckupAttachmentPath = path
+                pendingCheckupAttachmentName = File(path).name
             }
         }
     }
@@ -1161,7 +1187,7 @@ public final class ComposeMainActivity : ComponentActivity() {
 
     private fun editQuickActionByEventType(eventType: String): BabyLogService.QuickAction? {
         return quickActionByEventType(eventType) ?: when (eventType) {
-            "pregnancy_checkup" -> BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", ChestnutPalette.VioletArgb, "pregnancy_checkup")
+            "pregnancy_checkup" -> BabyLogService.QuickAction("产检", "常规指标 / 结论 / 附件", ChestnutPalette.VioletArgb, "pregnancy_checkup")
             else -> null
         }
     }
@@ -1199,8 +1225,17 @@ public final class ComposeMainActivity : ComponentActivity() {
             forms["pregnancy_checkup"] = smartFormFields(
                 "primary" to "检查日期 yyyy-MM-dd",
                 "secondary" to "医院 / 机构",
-                "tertiary" to "结论 / 医嘱摘要",
-                "note" to "下次复诊 / 备注"
+                "department" to "科室",
+                "systolicBp" to "收缩压 mmHg",
+                "diastolicBp" to "舒张压 mmHg",
+                "weightKg" to "体重 kg",
+                "fundalHeightCm" to "宫高 cm",
+                "abdominalCircumferenceCm" to "腹围 cm",
+                "fetalHeartRateBpm" to "胎心率 bpm",
+                "urineRoutine" to "尿常规，如 正常 / + / ++",
+                "tertiary" to "医生结论 / 建议",
+                "nextVisitDate" to "下次产检日期 yyyy-MM-dd",
+                "note" to "备注"
             )
             forms["contraction"] = smartFormFields(
                 "primary" to "开始时间",
@@ -1289,7 +1324,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             return listOf(
                 BabyLogService.QuickAction("B超", "指标 / 照片 / 识别", ChestnutPalette.RoseArgb, "ultrasound"),
-                BabyLogService.QuickAction("产检", "日期 / 医院 / 结论", ChestnutPalette.VioletArgb, "pregnancy_checkup"),
+                BabyLogService.QuickAction("产检", "常规指标 / 结论 / 附件", ChestnutPalette.VioletArgb, "pregnancy_checkup"),
                 BabyLogService.QuickAction("胎动", "会话计数 / 10 次目标", ChestnutPalette.GreenArgb, "fetal_movement"),
                 BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", ChestnutPalette.PeachArgb, "contraction"),
                 BabyLogService.QuickAction("孕妈指标", "体重 / 血压 / 血糖", ChestnutPalette.BlueArgb, "maternal_metric")
@@ -1416,6 +1451,11 @@ internal data class SmartEntryDraft(
     val values: Map<String, String> = emptyMap()
 )
 
+internal enum class ImagePickTarget(val fileName: String) {
+    Ultrasound("ultrasound.jpg"),
+    Checkup("checkup.jpg")
+}
+
 internal data class SmartVoiceUiState(
     val isRecording: Boolean = false,
     val isTranscribing: Boolean = false,
@@ -1482,6 +1522,8 @@ private fun BabyLogApp(
     editingEventType: String?,
     pendingUltrasoundPhotoPath: String?,
     pendingUltrasoundPhotoName: String?,
+    pendingCheckupAttachmentPath: String?,
+    pendingCheckupAttachmentName: String?,
     ultrasoundOcrRunning: Boolean,
     ultrasoundOcrCandidate: BabyLogSmartInput.UltrasoundOcrCandidate?,
     onBabyCareCancel: () -> Unit,
@@ -1492,6 +1534,8 @@ private fun BabyLogApp(
     onPregnancySave: (BabyLogService.PregnancyInput) -> Unit,
     onMaternalMetricSave: (BabyLogService.MaternalMetricInput) -> Unit,
     onUltrasoundSave: (BabyLogService.UltrasoundInput) -> Unit,
+    onPickCheckupAttachment: () -> Unit,
+    onCaptureCheckupAttachment: () -> Unit,
     onPickUltrasoundPhoto: () -> Unit,
     onCaptureUltrasoundPhoto: () -> Unit,
     onRecognizeUltrasoundPhoto: () -> Unit,
@@ -1767,6 +1811,10 @@ private fun BabyLogApp(
                     action = pregnancyAction,
                     draft = pregnancyDraft,
                     isEditing = editingEventType == pregnancyAction?.eventType,
+                    attachmentPath = pendingCheckupAttachmentPath,
+                    attachmentName = pendingCheckupAttachmentName,
+                    onPickAttachment = onPickCheckupAttachment,
+                    onCaptureAttachment = onCaptureCheckupAttachment,
                     onBack = { closeRecord(onPregnancyCancel) },
                     onSave = onPregnancySave
                 )
@@ -2069,7 +2117,9 @@ internal fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
     val latestMaternalMetric = events.firstOrNull { it.eventType == "maternal_metric" }
     val reviewCount = events.count { it.eventType == "ultrasound" && ultrasoundWarningText(it).isNotBlank() }
     val pendingReview = events.firstOrNull { it.eventType == "ultrasound" && ultrasoundWarningText(it).isNotBlank() }
-    val nextVisitDate = latestCheckup?.payload?.optString("nextVisitNote", "")?.let(::extractDateInput)
+    val nextVisitDate = latestCheckup?.payload?.optString("nextVisitDate", "")
+        ?.takeIf { BabyLogFormatters.isValidDateInput(it) }
+        ?: latestCheckup?.payload?.optString("nextVisitNote", "")?.let(::extractDateInput)
     val nextVisitDays = nextVisitDate?.let { daysBetween(BabyLogFormatters.todayDateInput(), it) }
     val hasAnyData = latestUltrasound != null || latestCheckup != null || latestMaternalMetric != null
     Panel {
@@ -2866,9 +2916,9 @@ internal fun pregnancyLabels(eventType: String): PregnancyLabels {
     return when (eventType) {
         "pregnancy_checkup" -> PregnancyLabels(
             "检查日期 yyyy-MM-dd",
-            "医院 / 医生，例如 市妇幼产科",
-            "结论 / 医嘱",
-            "下次产检或备注"
+            "医院 / 机构",
+            "医生结论 / 建议",
+            "备注"
         )
         "fetal_movement" -> PregnancyLabels(
             "时段，例如 20:00-21:00",
@@ -2965,8 +3015,19 @@ private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEnt
         values = smartFormFields(
             "primary" to payload.optString("checkupDate").ifBlank { BabyLogFormatters.recordDay(event.occurredAt) },
             "secondary" to payload.optString("provider"),
-            "tertiary" to payload.optString("finding"),
-            "note" to payload.optString("nextVisitNote")
+            "department" to payload.optString("department"),
+            "systolicBp" to payloadNumberText(payload, "systolicBp"),
+            "diastolicBp" to payloadNumberText(payload, "diastolicBp"),
+            "weightKg" to payloadNumberText(payload, "weightKg"),
+            "fundalHeightCm" to payloadNumberText(payload, "fundalHeightCm"),
+            "abdominalCircumferenceCm" to payloadNumberText(payload, "abdominalCircumferenceCm"),
+            "fetalHeartRateBpm" to payloadNumberText(payload, "fetalHeartRateBpm"),
+            "urineRoutine" to payload.optString("urineRoutine"),
+            "tertiary" to payload.optString("doctorConclusion").ifBlank { payload.optString("finding") },
+            "nextVisitDate" to payload.optString("nextVisitDate").ifBlank { extractDateInput(payload.optString("nextVisitNote")) ?: "" },
+            "note" to payload.optString("note").ifBlank {
+                payload.optString("nextVisitNote").takeUnless { BabyLogFormatters.isValidDateInput(it) }.orEmpty()
+            }
         )
     )
 }

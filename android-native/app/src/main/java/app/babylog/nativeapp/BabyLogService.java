@@ -84,11 +84,12 @@ public final class BabyLogService {
         String occurredAt = "pregnancy_checkup".equals(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : BabyLogFormatters.nowIso();
+        List<String> attachmentIds = createPregnancyAttachmentIds(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 input.eventType,
                 occurredAt,
                 payload,
-                Collections.emptyList(),
+                attachmentIds,
                 "manual"
         );
         repository.putEvent(event);
@@ -98,11 +99,13 @@ public final class BabyLogService {
 
     public BabyLogDomain.BabyLogEvent updatePregnancyEvent(String eventId, PregnancyInput input) throws JSONException {
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
+        List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
+        attachmentIds.addAll(createPregnancyAttachmentIds(input));
         BabyLogDomain.BabyLogEvent event = createEditedEvent(
                 existing,
                 input.eventType,
                 buildPregnancyPayload(input),
-                existing.attachmentIds
+                attachmentIds
         );
         repository.putEvent(event);
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
@@ -279,8 +282,19 @@ public final class BabyLogService {
         if ("pregnancy_checkup".equals(input.eventType)) {
             putStringIfNotBlank(payload, "checkupDate", input.primary);
             putStringIfNotBlank(payload, "provider", input.secondary);
+            putStringIfNotBlank(payload, "department", input.department);
+            putNumberIfNotNull(payload, "systolicBp", BabyLogFormatters.parseOptionalNumber(input.systolicBp));
+            putNumberIfNotNull(payload, "diastolicBp", BabyLogFormatters.parseOptionalNumber(input.diastolicBp));
+            putNumberIfNotNull(payload, "weightKg", BabyLogFormatters.parseOptionalNumber(input.weightKg));
+            putNumberIfNotNull(payload, "fundalHeightCm", BabyLogFormatters.parseOptionalNumber(input.fundalHeightCm));
+            putNumberIfNotNull(payload, "abdominalCircumferenceCm", BabyLogFormatters.parseOptionalNumber(input.abdominalCircumferenceCm));
+            putNumberIfNotNull(payload, "fetalHeartRateBpm", BabyLogFormatters.parseOptionalNumber(input.fetalHeartRateBpm));
+            putStringIfNotBlank(payload, "urineRoutine", input.urineRoutine);
+            putStringIfNotBlank(payload, "doctorConclusion", input.tertiary);
             putStringIfNotBlank(payload, "finding", input.tertiary);
-            putStringIfNotBlank(payload, "nextVisitNote", input.note);
+            putStringIfNotBlank(payload, "nextVisitDate", input.nextVisitDate);
+            putStringIfNotBlank(payload, "nextVisitNote", input.nextVisitDate.isEmpty() ? input.note : input.nextVisitDate);
+            putStringIfNotBlank(payload, "note", input.note);
         } else if ("fetal_movement".equals(input.eventType)) {
             putStringIfNotBlank(payload, "movementWindow", input.primary);
             putNumberIfNotNull(payload, "movementCount", BabyLogFormatters.parseOptionalNumber(input.secondary));
@@ -364,6 +378,19 @@ public final class BabyLogService {
         StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel(input.eventType));
         if ("pregnancy_checkup".equals(input.eventType)) {
             appendSummary(summary, input.secondary);
+            Double systolic = BabyLogFormatters.parseOptionalNumber(input.systolicBp);
+            Double diastolic = BabyLogFormatters.parseOptionalNumber(input.diastolicBp);
+            if (systolic != null && diastolic != null) {
+                appendSummary(summary, "血压 " + BabyLogFormatters.formatNumber(systolic) + "/" + BabyLogFormatters.formatNumber(diastolic) + " mmHg");
+            }
+            Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
+            if (weight != null) {
+                appendSummary(summary, "体重 " + BabyLogFormatters.formatNumber(weight) + " kg");
+            }
+            Double fetalHeartRate = BabyLogFormatters.parseOptionalNumber(input.fetalHeartRateBpm);
+            if (fetalHeartRate != null) {
+                appendSummary(summary, "胎心 " + BabyLogFormatters.formatNumber(fetalHeartRate) + " bpm");
+            }
             appendSummary(summary, input.tertiary);
         } else if ("fetal_movement".equals(input.eventType)) {
             appendSummary(summary, input.primary);
@@ -570,6 +597,27 @@ public final class BabyLogService {
             throw new JSONException("记录类型不匹配");
         }
         return existing;
+    }
+
+    private List<String> createPregnancyAttachmentIds(PregnancyInput input) throws JSONException {
+        List<String> attachmentIds = new ArrayList<>();
+        if (!"pregnancy_checkup".equals(input.eventType) || isBlank(input.attachmentPath)) {
+            return attachmentIds;
+        }
+        File image = new File(input.attachmentPath);
+        if (image.exists() && image.length() > 0) {
+            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
+                    "document_image",
+                    isBlank(input.attachmentName) ? image.getName() : input.attachmentName,
+                    "image/jpeg",
+                    image.length(),
+                    input.attachmentPath
+            );
+            repository.putAttachment(attachment);
+            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
+            attachmentIds.add(attachment.id);
+        }
+        return attachmentIds;
     }
 
     private List<String> createUltrasoundAttachmentIds(UltrasoundInput input) throws JSONException {
@@ -1161,17 +1209,97 @@ public final class BabyLogService {
         public final String secondary;
         public final String tertiary;
         public final String note;
+        public final String department;
+        public final String systolicBp;
+        public final String diastolicBp;
+        public final String weightKg;
+        public final String fundalHeightCm;
+        public final String abdominalCircumferenceCm;
+        public final String fetalHeartRateBpm;
+        public final String urineRoutine;
+        public final String nextVisitDate;
+        public final String attachmentPath;
+        public final String attachmentName;
 
         private PregnancyInput(String eventType, String primary, String secondary, String tertiary, String note) {
+            this(eventType, primary, secondary, tertiary, note, "", "", "", "", "", "", "", "", "", "", "");
+        }
+
+        private PregnancyInput(
+                String eventType,
+                String primary,
+                String secondary,
+                String tertiary,
+                String note,
+                String department,
+                String systolicBp,
+                String diastolicBp,
+                String weightKg,
+                String fundalHeightCm,
+                String abdominalCircumferenceCm,
+                String fetalHeartRateBpm,
+                String urineRoutine,
+                String nextVisitDate,
+                String attachmentPath,
+                String attachmentName
+        ) {
             this.eventType = eventType;
-            this.primary = primary;
-            this.secondary = secondary;
-            this.tertiary = tertiary;
-            this.note = note;
+            this.primary = primary == null ? "" : primary.trim();
+            this.secondary = secondary == null ? "" : secondary.trim();
+            this.tertiary = tertiary == null ? "" : tertiary.trim();
+            this.note = note == null ? "" : note.trim();
+            this.department = department == null ? "" : department.trim();
+            this.systolicBp = systolicBp == null ? "" : systolicBp.trim();
+            this.diastolicBp = diastolicBp == null ? "" : diastolicBp.trim();
+            this.weightKg = weightKg == null ? "" : weightKg.trim();
+            this.fundalHeightCm = fundalHeightCm == null ? "" : fundalHeightCm.trim();
+            this.abdominalCircumferenceCm = abdominalCircumferenceCm == null ? "" : abdominalCircumferenceCm.trim();
+            this.fetalHeartRateBpm = fetalHeartRateBpm == null ? "" : fetalHeartRateBpm.trim();
+            this.urineRoutine = urineRoutine == null ? "" : urineRoutine.trim();
+            this.nextVisitDate = nextVisitDate == null ? "" : nextVisitDate.trim();
+            this.attachmentPath = attachmentPath == null ? "" : attachmentPath.trim();
+            this.attachmentName = attachmentName == null ? "" : attachmentName.trim();
         }
 
         public static PregnancyInput checkup(String checkupDate, String provider, String finding, String nextVisitNote) {
             return new PregnancyInput("pregnancy_checkup", checkupDate, provider, finding, nextVisitNote);
+        }
+
+        public static PregnancyInput checkupStructured(
+                String checkupDate,
+                String provider,
+                String department,
+                String systolicBp,
+                String diastolicBp,
+                String weightKg,
+                String fundalHeightCm,
+                String abdominalCircumferenceCm,
+                String fetalHeartRateBpm,
+                String urineRoutine,
+                String doctorConclusion,
+                String nextVisitDate,
+                String note,
+                String attachmentPath,
+                String attachmentName
+        ) {
+            return new PregnancyInput(
+                    "pregnancy_checkup",
+                    checkupDate,
+                    provider,
+                    doctorConclusion,
+                    note,
+                    department,
+                    systolicBp,
+                    diastolicBp,
+                    weightKg,
+                    fundalHeightCm,
+                    abdominalCircumferenceCm,
+                    fetalHeartRateBpm,
+                    urineRoutine,
+                    nextVisitDate,
+                    attachmentPath,
+                    attachmentName
+            );
         }
 
         public static PregnancyInput fetalMovement(String movementWindow, String movementCount, String note) {
