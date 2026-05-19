@@ -48,6 +48,13 @@ private data class FetalGrowthPoint(
     val event: BabyLogDomain.BabyLogEvent
 )
 
+private data class FetalGrowthReferenceSeries(
+    val weeks: List<Int>,
+    val p10Values: List<Double>,
+    val p50Values: List<Double>,
+    val p90Values: List<Double>
+)
+
 private val fetalGrowthMetrics = listOf(
     FetalGrowthMetric("efwGram", "EFW", "g", ChestnutPalette.Rose),
     FetalGrowthMetric("bpdMm", "BPD", "mm", ChestnutPalette.Green),
@@ -160,6 +167,22 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
 
 @Composable
 private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowthMetric) {
+    val referenceSeries = remember(metric.key) {
+        val referenceWeeks = (14..40).map { it * 7 }
+        FetalGrowthReferenceSeries(
+            weeks = referenceWeeks,
+            p10Values = referenceWeeks.map {
+                BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, -1.2815515655446004)
+            },
+            p50Values = referenceWeeks.map {
+                BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, 0.0)
+            },
+            p90Values = referenceWeeks.map {
+                BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, 1.2815515655446004)
+            }
+        )
+    }
+
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -176,17 +199,7 @@ private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowt
 
         val minWeek = 14 * 7
         val maxWeek = 40 * 7
-        val referenceWeeks = (14..40).map { it * 7 }
-        val p10Values = referenceWeeks.map {
-            BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, -1.2815515655446004)
-        }
-        val p50Values = referenceWeeks.map {
-            BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, 0.0)
-        }
-        val p90Values = referenceWeeks.map {
-            BabyLogFetalGrowthReference.referenceValue(BabyLogFetalGrowthReference.DEFAULT_STANDARD, metric.key, it, 1.2815515655446004)
-        }
-        val allValues = (points.map { it.value } + p10Values + p90Values)
+        val allValues = (points.map { it.value } + referenceSeries.p10Values + referenceSeries.p90Values)
             .filter { !it.isNaN() && !it.isInfinite() }
         val minValue = allValues.minOrNull() ?: points.minOf { it.value }
         val maxValue = allValues.maxOrNull() ?: points.maxOf { it.value }
@@ -228,7 +241,7 @@ private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowt
         }
 
         fun drawReference(values: List<Double>, color: Color, strokeWidth: Float) {
-            referenceWeeks.zip(values)
+            referenceSeries.weeks.zip(values)
                 .filter { !it.second.isNaN() && !it.second.isInfinite() }
                 .map { toOffset(it.first, it.second) }
                 .zipWithNext()
@@ -243,9 +256,9 @@ private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowt
                 }
         }
 
-        drawReference(p10Values, ChestnutPalette.Blue.copy(alpha = 0.48f), 1.4.dp.toPx())
-        drawReference(p50Values, ChestnutPalette.Green.copy(alpha = 0.58f), 1.8.dp.toPx())
-        drawReference(p90Values, ChestnutPalette.Peach.copy(alpha = 0.48f), 1.4.dp.toPx())
+        drawReference(referenceSeries.p10Values, ChestnutPalette.Blue.copy(alpha = 0.48f), 1.4.dp.toPx())
+        drawReference(referenceSeries.p50Values, ChestnutPalette.Green.copy(alpha = 0.58f), 1.8.dp.toPx())
+        drawReference(referenceSeries.p90Values, ChestnutPalette.Peach.copy(alpha = 0.48f), 1.4.dp.toPx())
 
         val offsets = points.map { toOffset(it.gestationalAgeDays, it.value) }
         offsets.zipWithNext().forEach { (start, end) ->
