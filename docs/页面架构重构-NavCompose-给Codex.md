@@ -299,3 +299,16 @@ Codex 反馈定位不到/加 key 未解。Claude 二次核查确诊：
 3. **`remember` 的表单状态持有者**（如 `class UltrasoundFormState` 持各字段 `mutableStateOf`），每字段行拆**独立小 composable 只读自身 state**；改 A 字段时 Compose 跳过 B 行，**只重组被编辑那一行**。
 
 三者一起才根治。约束/验收同 perf-D：独立 `perf:`，不改字段集/校验/人工确认链/保存/Q2 编辑行为/数据；assemble+lint+smoke 绿；装机 gfxinfo 编辑 B 超页打字+滚动 50/90 ≤~16ms。MaternalMetric/PregnancyEvent 重表单同法。
+
+#### perf-D 确诊（Claude + 真机 gfxinfo，铁证）
+
+**真机 gfxinfo（编辑 B 超页交互后）**：Janky 48.6%、90th 27ms、**Number Slow UI thread = 188 = 全部卡帧**；GPU 50/90/99 = 3/4/5ms。→ 100% 主线程（组合+measure），非绘制。
+
+**根因（确诊）**：Codex 做 perf-D 时把 `UltrasoundFormScreen` 容器从懒加载 `RecordFormScaffold`(LazyColumn) **换成了非懒 `RecordFormColumnScaffold`(`Column.verticalScroll`，RecordFormScaffold.kt:114-118)**。`Column+verticalScroll` 一次性组合并 measure 全部 ~28 个 Material TextField（verticalScroll 须量全部子项算滚动范围）→ 每帧主线程 20-30ms。其余 3 表单仍用懒 `RecordFormScaffold` 故不卡——正对"只有 B 超编辑页卡"。状态持有者/方法引用/derivedStateOf 子 composable 隔离都对、要保留，但被非懒容器整体抵消。
+
+**精确修（高置信，独立 `perf:` 或并入 5254097 的修正提交）**：
+1. `UltrasoundFormScreen` **改回懒 `RecordFormScaffold`(LazyColumn)**；每字段/分区 `item(key="bpd"){}`…（保留 state holder + 方法引用回调 + `UltrasoundEfwInput`/`UltrasoundSoftWarnings` 子 composable）。
+2. 评估 `RecordFormColumnScaffold` 是否还有别处用；本页不再用它。若无人用可后续清理（非本笔必须）。
+3. 同理：任何重表单都不得用 `Column+verticalScroll`，统一走 LazyColumn 版。
+
+**验收**：编辑 B 超页 gfxinfo 重测——Slow UI thread 大幅下降、90th ≤ ~16ms、Janky 显著下降；字段集/校验/人工确认链/Q2 编辑/数据不变；assemble+lint+smoke 绿。Claude 复测一次真机 gfxinfo 验收。
