@@ -126,3 +126,13 @@
 
 1. **baby 快捷"奶瓶"等一拍即记 = 保持原样**（Piyo 风,按设计如此,不改走表单确认）。该决策项关闭,不单开轮次,P5 及后续不要动 baby 快捷入库行为。
 2. **当前焦点 = 孕期**；出生后档保留但非重点。**P5 quick rail 重心放孕期常驻 rail**;baby 侧维持现状,不过度投入。P2 遗留"BabyCare 真机字段全等性走查"**降级**为低优先（baby 非焦点,逻辑已保留即可,不阻塞）。
+
+### P5 追加：首页滚动卡顿性能修复（并入 P5，用户决定）
+
+装机发现首页上下滑卡顿。Claude 代码定位两根因,**并入 P5 一笔一起做**（不单开）：
+
+1. **根因A（主因）**：`BabyLogScreenColumn`(CMA:1717,所有列表页公共壳) 的 `LazyColumn.background(Brush.verticalGradient(...))` ——渐变写在 composable 体内未 remember,且铺在滚动容器背景=每帧全屏 overdraw 重绘,所有页滚动皆卡,首页最重。**修：删该 verticalGradient,改纯色 `ChestnutPalette.Bg`**（与 P5「删首页回潮渐变回扁平」同一动作）。今后禁止把未 remember 的 Brush 直接作滚动容器背景。
+2. **根因B**：`FetalGrowthChart.kt` ~180,`p10/p50/p90Values = referenceWeeks.map{ referenceValue(...) }` 共 27周×3=81 次 BCCG/LMS 超越函数,位于 `Canvas{}` DrawScope 内→每次绘制/重组重算。**修：移出 DrawScope,提到 `remember(metric.key){ 计算 p10/p50/p90 + min/max 缩放 }` 只算一次复用**（曲线仅依赖 metric.key,与滚动无关；数据点 points 已 remember,照此对齐）。
+3. 通用：首页重派生值一律 `remember` 按输入 key 缓存;composable 体内勿 new Brush/对象。
+
+验收补充：装机首页上下滑应顺滑（无明显掉帧）;FGR 面板在屏滚动不卡。
