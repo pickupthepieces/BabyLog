@@ -114,6 +114,18 @@ public final class BabyLogFormattersSmokeTest {
                 BabyLogDomain.ChildProfile.createForNewFamily("", "unknown", "", "", "auto", true),
                 "2026-05-18"
         ));
+        assertEquals(BabyLogDomain.STAGE_PREGNANCY_ENDED, BabyLogFormatters.resolveCareStage(
+                BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "2026-05-01", BabyLogDomain.STAGE_PREGNANCY_ENDED, true),
+                "2026-05-18"
+        ));
+        assertEquals(BabyLogDomain.STAGE_PAUSED, BabyLogFormatters.resolveCareStage(
+                BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "2026-05-01", BabyLogDomain.STAGE_PAUSED, true),
+                "2026-05-18"
+        ));
+        assertEquals(true, BabyLogFormatters.shouldMutePregnancyDerivedUi(BabyLogDomain.STAGE_PREGNANCY_ENDED));
+        assertEquals(true, BabyLogFormatters.shouldMutePregnancyDerivedUi(BabyLogDomain.STAGE_PAUSED));
+        assertEquals(false, BabyLogFormatters.shouldMutePregnancyDerivedUi(BabyLogDomain.STAGE_PREGNANCY));
+        assertEquals(false, BabyLogFormatters.shouldMutePregnancyDerivedUi(BabyLogDomain.STAGE_BABY));
         if (!BabyLogFormatters.matchesTimelineFilter("feed", "baby")) {
             throw new AssertionError("feed should match baby filter");
         }

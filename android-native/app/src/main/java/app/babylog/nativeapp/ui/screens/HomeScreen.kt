@@ -38,6 +38,7 @@ internal fun HomeScreen(
     onQuickRailVisibilityChange: (Boolean) -> Unit
 ) {
     val stage = currentCareStage(state.childProfile)
+    val pregnancyDerivedUiMuted = BabyLogFormatters.shouldMutePregnancyDerivedUi(stage)
     val listState = rememberLazyListState()
     val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
     val railTargetVisible = remember { mutableStateOf(true) }
@@ -85,6 +86,8 @@ internal fun HomeScreen(
                         onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, 1))
                     }
                 )
+            } else if (pregnancyDerivedUiMuted) {
+                PregnancyQuietCard(stage)
             } else {
                 WeekCard(state.childProfile)
             }
@@ -144,10 +147,22 @@ internal fun HomeScreen(
         }
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             item { FetalGrowthPanel(state.timeline) }
-        } else {
+        } else if (!pregnancyDerivedUiMuted) {
             item { SectionHeader(title = "趋势") }
             item { TrendPanel(state.timeline, stage) }
         }
+    }
+}
+
+@Composable
+private fun PregnancyQuietCard(stage: String) {
+    Panel {
+        SectionHeader(if (stage == BabyLogDomain.STAGE_PAUSED) "记录已暂停提醒" else "妊娠记录已静音")
+        Text(
+            "记录会保留，时间线、详情和导出仍可使用。你可以在档案里切换状态。",
+            color = ChestnutPalette.Muted,
+            fontSize = 13.sp
+        )
     }
 }
 

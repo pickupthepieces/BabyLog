@@ -48,7 +48,15 @@ internal fun ProfileSettingsScreen(
     var heightCm by rememberSaveable(state.title, state.profile.heightCm) {
         mutableStateOf(state.profile.heightCm?.let { BabyLogFormatters.formatNumber(it) }.orEmpty())
     }
-    var stageOverride by rememberSaveable(state.title, state.initialStage) { mutableStateOf(state.initialStage) }
+    var stageOverride by rememberSaveable(
+        state.title,
+        state.initialStage,
+        state.profile.expectedDueDate,
+        state.profile.birthDate
+    ) {
+        mutableStateOf(profileStageChoice(state.profile, state.initialStage))
+    }
+    var showPregnancyEndedNotice by rememberSaveable(state.title, state.initialStage) { mutableStateOf(false) }
 
     SettingsPageScaffold(
         title = state.title,
@@ -112,16 +120,33 @@ internal fun ProfileSettingsScreen(
         }
         item {
             ChoiceChipRow(
-                label = "阶段",
+                label = "妊娠状态",
                 selected = stageOverride,
                 options = listOf(
-                    BabyLogDomain.STAGE_AUTO to "自动",
-                    BabyLogDomain.STAGE_PREGNANCY to "孕期",
+                    BabyLogDomain.STAGE_PREGNANCY to "孕期中",
                     BabyLogDomain.STAGE_BABY to "出生后",
-                    BabyLogDomain.STAGE_UNKNOWN to "未知"
+                    BabyLogDomain.STAGE_PREGNANCY_ENDED to "妊娠结束",
+                    BabyLogDomain.STAGE_PAUSED to "暂停"
                 ),
-                onSelect = { stageOverride = it }
+                onSelect = {
+                    if (it == BabyLogDomain.STAGE_PREGNANCY_ENDED && stageOverride != it) {
+                        showPregnancyEndedNotice = true
+                    }
+                    stageOverride = it
+                }
             )
+        }
+        if (showPregnancyEndedNotice && stageOverride == BabyLogDomain.STAGE_PREGNANCY_ENDED) {
+            item {
+                Text(
+                    "我们会保留你的记录；之后想看可以随时回来。不再发提醒，你可以在档案里再切换。",
+                    color = Color(0xFF7C4A21),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFEBCB))
+                        .padding(12.dp)
+                )
+            }
         }
         item {
             Text(
@@ -132,6 +157,20 @@ internal fun ProfileSettingsScreen(
                     .background(Color(0xFFFFEBCB))
                     .padding(12.dp)
             )
+        }
+    }
+}
+
+private fun profileStageChoice(profile: BabyLogDomain.ChildProfile, initialStage: String): String {
+    return when (initialStage) {
+        BabyLogDomain.STAGE_PREGNANCY,
+        BabyLogDomain.STAGE_BABY,
+        BabyLogDomain.STAGE_PREGNANCY_ENDED,
+        BabyLogDomain.STAGE_PAUSED -> initialStage
+        else -> if (BabyLogFormatters.isValidDateInput(profile.birthDate)) {
+            BabyLogDomain.STAGE_BABY
+        } else {
+            BabyLogDomain.STAGE_PREGNANCY
         }
     }
 }

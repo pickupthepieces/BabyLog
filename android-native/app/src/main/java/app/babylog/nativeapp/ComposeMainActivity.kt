@@ -1615,7 +1615,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             forms["screening_anomaly"] = smartFormFields(
                 "primary" to "检查日期 yyyy-MM-dd",
                 "gestationalAge" to "孕周",
-                "structureConclusion" to "结构结论 / 异常描述，照报告原文",
+                "structureConclusion" to "结构结论 / 报告描述，照报告原文",
                 "conclusion" to "结论文本",
                 "attachmentNote" to "附件备注",
                 "note" to "备注"
@@ -1626,7 +1626,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "fastingGlucoseMmolL" to "空腹血糖 mmol/L",
                 "oneHourGlucoseMmolL" to "1h 血糖 mmol/L",
                 "twoHourGlucoseMmolL" to "2h 血糖 mmol/L",
-                "abnormalFlag" to "报告标注：正常 / 异常 / 见报告",
+                "abnormalFlag" to "报告标注：正常 / 需核对 / 见报告",
                 "conclusion" to "结论文本",
                 "note" to "备注"
             )
@@ -2803,7 +2803,7 @@ internal fun PregnancySummaryPanel(
                 title = "待复核",
                 value = if (reviewCount == 0) "0 项" else "$reviewCount 项",
                 subtitle = pendingReview?.let { BabyLogFormatters.formatEventDay(it.occurredAt) }
-                    ?: if (latestUltrasound == null) "录入 B 超后检查" else "B 超范围正常",
+                    ?: if (latestUltrasound == null) "录入 B 超后检查" else "暂无待复核",
                 tone = if (reviewCount == 0) ChestnutPalette.Green else ChestnutPalette.Danger,
                 modifier = Modifier.weight(1f)
             )
@@ -2811,7 +2811,7 @@ internal fun PregnancySummaryPanel(
                 title = "下次产检",
                 value = nextVisitDays?.let {
                     when {
-                        it < 0 -> "已过期"
+                        it < 0 -> "日期已到"
                         it == 0 -> "今天"
                         else -> "$it 天"
                     }
@@ -4005,15 +4005,19 @@ private fun stageLabel(stage: String): String {
     return when (stage) {
         BabyLogDomain.STAGE_PREGNANCY -> "孕期"
         BabyLogDomain.STAGE_BABY -> "出生后"
+        BabyLogDomain.STAGE_PREGNANCY_ENDED -> "妊娠结束"
+        BabyLogDomain.STAGE_PAUSED -> "暂停"
         else -> "待补档案"
     }
 }
 
 private fun stageOverrideLabel(stageOverride: String): String {
     return when (stageOverride) {
-        BabyLogDomain.STAGE_PREGNANCY -> "固定孕期"
-        BabyLogDomain.STAGE_BABY -> "固定出生后"
-        BabyLogDomain.STAGE_UNKNOWN -> "固定未知"
+        BabyLogDomain.STAGE_PREGNANCY -> "孕期中"
+        BabyLogDomain.STAGE_BABY -> "出生后"
+        BabyLogDomain.STAGE_PREGNANCY_ENDED -> "妊娠结束"
+        BabyLogDomain.STAGE_PAUSED -> "暂停"
+        BabyLogDomain.STAGE_UNKNOWN -> "待补档案"
         else -> "自动"
     }
 }
@@ -4030,8 +4034,10 @@ private fun normalizeSexInput(value: String): String {
 private fun normalizeStageInput(value: String): String {
     val normalized = value.trim().lowercase(Locale.US)
     return when (normalized) {
-        "孕期", BabyLogDomain.STAGE_PREGNANCY -> BabyLogDomain.STAGE_PREGNANCY
+        "孕期", "孕期中", BabyLogDomain.STAGE_PREGNANCY -> BabyLogDomain.STAGE_PREGNANCY
         "出生后", "育儿", BabyLogDomain.STAGE_BABY -> BabyLogDomain.STAGE_BABY
+        "妊娠结束", BabyLogDomain.STAGE_PREGNANCY_ENDED -> BabyLogDomain.STAGE_PREGNANCY_ENDED
+        "暂停", BabyLogDomain.STAGE_PAUSED -> BabyLogDomain.STAGE_PAUSED
         "未知", BabyLogDomain.STAGE_UNKNOWN -> BabyLogDomain.STAGE_UNKNOWN
         else -> BabyLogDomain.STAGE_AUTO
     }
@@ -4053,6 +4059,8 @@ internal fun isEventVisibleInHome(event: BabyLogDomain.BabyLogEvent, stage: Stri
     return when (stage) {
         BabyLogDomain.STAGE_PREGNANCY -> group == "pregnancy" || group == "ultrasound" || group == "checkup"
         BabyLogDomain.STAGE_BABY -> group == "baby" || group == "temperature"
+        BabyLogDomain.STAGE_PREGNANCY_ENDED,
+        BabyLogDomain.STAGE_PAUSED -> group == "pregnancy" || group == "ultrasound" || group == "checkup"
         else -> false
     }
 }

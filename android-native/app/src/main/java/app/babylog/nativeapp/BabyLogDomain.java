@@ -18,6 +18,8 @@ public final class BabyLogDomain {
     public static final String STAGE_PREGNANCY = "pregnancy";
     public static final String STAGE_BABY = "baby";
     public static final String STAGE_UNKNOWN = "unknown";
+    public static final String STAGE_PREGNANCY_ENDED = "pregnancy_ended";
+    public static final String STAGE_PAUSED = "paused";
 
     public static final String[] EVENT_TYPES = {
             "pregnancy_checkup",
@@ -453,10 +455,18 @@ public final class BabyLogDomain {
     }
 
     private static String normalizeStageOverride(String value) {
-        if (STAGE_PREGNANCY.equals(value) || STAGE_BABY.equals(value) || STAGE_UNKNOWN.equals(value)) {
+        if (isExplicitStageOverride(value)) {
             return value;
         }
         return STAGE_AUTO;
+    }
+
+    public static boolean isExplicitStageOverride(String value) {
+        return STAGE_PREGNANCY.equals(value)
+                || STAGE_BABY.equals(value)
+                || STAGE_UNKNOWN.equals(value)
+                || STAGE_PREGNANCY_ENDED.equals(value)
+                || STAGE_PAUSED.equals(value);
     }
 
     private static String normalizeRole(String role) {

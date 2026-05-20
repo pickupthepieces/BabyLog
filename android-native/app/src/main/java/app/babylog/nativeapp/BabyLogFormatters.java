@@ -143,9 +143,7 @@ public final class BabyLogFormatters {
         if (profile == null || !profile.setupCompleted) {
             return BabyLogDomain.STAGE_UNKNOWN;
         }
-        if (BabyLogDomain.STAGE_PREGNANCY.equals(profile.stageOverride)
-                || BabyLogDomain.STAGE_BABY.equals(profile.stageOverride)
-                || BabyLogDomain.STAGE_UNKNOWN.equals(profile.stageOverride)) {
+        if (BabyLogDomain.isExplicitStageOverride(profile.stageOverride)) {
             return profile.stageOverride;
         }
         String today = isValidDateInput(todayDate) ? todayDate : todayDateInput();
@@ -156,6 +154,11 @@ public final class BabyLogFormatters {
             return BabyLogDomain.STAGE_PREGNANCY;
         }
         return BabyLogDomain.STAGE_UNKNOWN;
+    }
+
+    public static boolean shouldMutePregnancyDerivedUi(String stage) {
+        return BabyLogDomain.STAGE_PREGNANCY_ENDED.equals(stage)
+                || BabyLogDomain.STAGE_PAUSED.equals(stage);
     }
 
     public static String recordDay(String iso) {

@@ -171,7 +171,7 @@ public final class BabyLogSmartVisionClient {
                 + "如果同时有 B 超和产检字段，优先选择图片主体对应的报告类型；无法判断时 eventType 置空。"
                 + "不要识别姓名、身份证、门诊号、住院号、床号、手机号、医生签名等个人身份信息。"
                 + "B 超不要识别、返回或推断孕周；产检/母子健康手册只有明确写出孕周时才可填写 gestationalAge。"
-                + "所有分级、阴阳性、是否异常只按报告原文抄录，不要根据数值推断，不要输出诊断或治疗建议。"
+                + "所有分级、阴阳性、报告标注只按报告原文抄录，不要根据数值推断，不要输出诊断或治疗建议。"
                 + "数值字段只填数字并按字段单位换算：B 超长度为 mm，EFW 为 g，羊水为 cm；血压为 mmHg，体重 kg，Hb g/L。"
                 + "不确定的内容省略或放入 warnings，不要输出 Markdown。";
     }
@@ -220,7 +220,7 @@ public final class BabyLogSmartVisionClient {
         fields.put("fastingGlucoseMmolL", "空腹血糖 mmol/L");
         fields.put("oneHourGlucoseMmolL", "1h 血糖 mmol/L");
         fields.put("twoHourGlucoseMmolL", "2h 血糖 mmol/L");
-        fields.put("abnormalFlag", "是否异常：报告写正常/异常/见报告");
+        fields.put("abnormalFlag", "报告标注：报告写正常/需核对/见报告");
         fields.put("gbsResult", "GBS：阴性 / 阳性 / 见报告");
         fields.put("nstResult", "胎心监护：反应型 / 无反应型 / 见报告");
         fields.put("conclusion", "结论文本");

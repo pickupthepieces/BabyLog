@@ -367,7 +367,7 @@ internal fun PregnancyEventFormScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(BabyLogFormatters.eventLabel(action.eventType), color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                    Text("分级、阴阳性、是否异常均按报告或用户录入；App 不计算、不判读。", color = ChestnutPalette.Muted, fontSize = 12.sp)
+                    Text("分级、阴阳性、报告标注均按报告或用户录入；App 不计算、不判读。", color = ChestnutPalette.Muted, fontSize = 12.sp)
                 }
             }
             when (action.eventType) {
@@ -418,7 +418,7 @@ internal fun PregnancyEventFormScreen(
                     item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_anomaly" -> {
-                    item { VoiceLongTextField("结构结论 / 异常描述", structureConclusion, { structureConclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 3, maxLines = 8) }
+                    item { VoiceLongTextField("结构结论 / 报告描述", structureConclusion, { structureConclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 3, maxLines = 8) }
                     item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_ogtt" -> {
@@ -433,7 +433,7 @@ internal fun PregnancyEventFormScreen(
                         ChoiceChipRow(
                             label = "报告标注",
                             selected = abnormalFlag,
-                            options = listOf("正常" to "正常", "异常" to "异常", "见报告" to "见报告"),
+                            options = listOf("正常" to "正常", "需核对" to "需核对", "见报告" to "见报告"),
                             onSelect = { abnormalFlag = it }
                         )
                     }
