@@ -146,3 +146,23 @@
 4. 保留 1.1s 跳主页;不改任何业务逻辑。
 
 **MUST 不变**:不用 imagegen 重生 logo;不动 launcher mipmap / QuickRail / in-app 贴纸接线 / 其它视觉。assemble+lint+smoke 绿;装机看 splash:bg 与 logo 融为一体、字标克制、整体不再像半成品。Claude 验收看一张 splash 截图即可。
+
+### Splash 终版决策（用户裁定,取代上节"confetti 保留 + 字标"做法）
+
+**用户终版口径**:Splash 极简 = **只一个 logo + 一个应用名,其它全删**——confetti 背景/装饰/任何额外元素都不要。
+
+**取代上节"Splash 二次修正"中的两条**:
+- 取消"confetti backdrop 保留"→ **删 `SplashBackdrop` composable 与 `ConfettiMark` data class**;为 backdrop 服务的 import(`Canvas`/`drawCircle`/`drawRoundRect`/`rotate`/`Offset`/`Size`/`CornerRadius`)一并清。
+- "字标"保留(就一行 "BabyLog",同前规)。
+- "bg 与 logo 自带 bg 同色"保留(同前规,源图采样)。
+
+**最终 splash 内容(以此为准)**:
+1. Box(fillMaxSize, background=SplashBg采样色, contentAlignment=Center)
+2. Column(居中):
+   - `Image(R.drawable.chestnut_main_logo, size≈260-280dp)`
+   - `Spacer(18-24dp)`
+   - `Text("BabyLog", SemiBold 16-18sp, color=Ink 或低调 muted)`
+3. **不要其它任何元素**——没有 confetti、没有副标题、没有 tagline、没有白圈、没有阴影、没有装饰。
+4. window status/nav bar color 与 SplashBg 一致;保留 1.1s 跳主页。
+
+**约束不变**:不用 imagegen 重生 logo;不动 launcher mipmap / QuickRail / in-app 贴纸接线 / 其它视觉。assemble+lint+smoke 绿;装机一张 splash 截图给 Claude 验收。
