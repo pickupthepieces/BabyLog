@@ -73,3 +73,17 @@
 ## 八、给 Codex 的话(到时直接转发)
 
 > 读 `docs/UI-X图标系统切Piyo插图风-给Codex.md` 全文。本轮:用 gpt-image-2 (imagegen) 生成 5 张快捷记录贴纸 + 栗子吉祥物 v2 主版，全部同一 prompt 模板批量出图(参数见第二节),透明背景 PNG ≥512px,无 tint;QuickRail.kt 渲染从 Material icon 切到贴纸(无外圈染色);BottomNav 与功能性图标保持 Material 不动。出完先发 Claude 看一致性再装机回归。一笔 `feat:` 提交(可拆"resources" + "wire up"两笔,各独立、不混 G3/G9、不并 main),assemble+lint+smoke 绿。
+
+## 副线 staging 资产批次 — 已通过一致性 review（2026-05-20）
+
+**已就绪资产**（`diagnostics/ui-x-stickers/`，6 张 512×512 RGBA 透明 PNG + contact sheet）：
+- `sticker_b_chao.png` / `sticker_checkup.png` / `sticker_fetal_movement.png` / `sticker_contraction.png` / `sticker_maternal_metric.png` / `chestnut_mascot_v2.png`
+
+**审计过程**：v1 contact sheet(4488caa) → B超含底座栗子角色 + 孕妈指标含完整人物 → reroll 这 2 张(2544635) → v2 contact sheet 通过。整套风格一致(白厚边/柔阴影/暖珊瑚色板/统一线宽)。
+
+**主线 UI-X 接线时**(G9 之后启动)：
+- 把 6 张 PNG 从 `diagnostics/ui-x-stickers/` 复制到 `android-native/app/src/main/res/drawable-nodpi/`。
+- `QuickRail.kt` 渲染 5 张快捷贴纸替换 Material icon，无 tint，无外圈染色。
+- `splash` 用 `chestnut_mascot_v2.png` 替换现 `chestnut_mascot.png`(或并存,splash 切引用即可)。
+- BottomNav / 设置/编辑/删除等功能性图标保持 Material Rounded **不动**。
+- 应用启动图标 `mipmap-*/ic_launcher*` 已于 `7d10c9b` 由用户授意一并更新,主线 UI-X 不必再动该部分,只做 in-app 贴纸接线。
