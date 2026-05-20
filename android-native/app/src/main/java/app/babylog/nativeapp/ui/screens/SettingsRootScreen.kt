@@ -19,6 +19,7 @@ internal fun SettingsRootScreen(
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
     onOpenDisclaimer: () -> Unit,
+    onOpenDueDateCalculator: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     BabyLogScreenColumn(inner) {
@@ -37,6 +38,7 @@ internal fun SettingsRootScreen(
                 onClearLocalData = onClearLocalData,
                 onOpenTrash = onOpenTrash,
                 onOpenDisclaimer = onOpenDisclaimer,
+                onOpenDueDateCalculator = onOpenDueDateCalculator,
                 onEditProfile = onEditProfile
             )
         }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 internal fun ProfileSettingsScreen(
     state: ProfileDialogState?,
     onBack: () -> Unit,
+    onOpenDueDateCalculator: (ProfileInput, Boolean) -> Unit,
     onSave: (ProfileInput, Boolean) -> Unit
 ) {
     if (state == null) {
@@ -72,7 +74,25 @@ internal fun ProfileSettingsScreen(
                 onSelect = { sex = it }
             )
         }
-        item { DateInputRow("预产期", expectedDueDate, { expectedDueDate = it }) }
+        item {
+            DateInputRow("预产期", expectedDueDate, { expectedDueDate = it })
+            TextButton(
+                onClick = {
+                    onOpenDueDateCalculator(
+                        ProfileInput(
+                            nickname.trim(),
+                            sex.trim(),
+                            expectedDueDate.trim(),
+                            birthDate.trim(),
+                            stageOverride.trim()
+                        ),
+                        state.firstRun
+                    )
+                }
+            ) {
+                Text("用 LMP / CRL 推算", color = ChestnutPalette.Primary)
+            }
+        }
         item { DateInputRow("出生日期", birthDate, { birthDate = it }) }
         item {
             ChoiceChipRow(

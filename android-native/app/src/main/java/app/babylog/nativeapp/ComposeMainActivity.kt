@@ -275,6 +275,9 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onClearLocalData = { showClearLocalConfirm = true },
                     onOpenTrash = { pendingNavRoute = BabyLogRoutes.LibraryTrash },
                     onOpenDisclaimer = { pendingNavRoute = BabyLogRoutes.SettingsDisclaimer },
+                    onOpenDueDateCalculator = { pendingNavRoute = BabyLogRoutes.SettingsDueDateCalc },
+                    onOpenDueDateCalculatorFromProfile = ::openDueDateCalculatorFromProfile,
+                    onApplyDueDateFromCalculator = ::applyDueDateFromCalculator,
                     onRestoreTrashEvent = { event ->
                         restoreEvent(event.id)
                     },
@@ -1567,6 +1570,50 @@ public final class ComposeMainActivity : ComponentActivity() {
         pendingNavRoute = BabyLogRoutes.SettingsProfile
     }
 
+    private fun openDueDateCalculatorFromProfile(input: ProfileInput, firstRun: Boolean) {
+        val title = profilePageState?.title ?: if (firstRun) "新建孕期家庭" else "编辑宝宝档案"
+        val normalizedStage = normalizeStageInput(input.stageOverride)
+        profilePageState = ProfileDialogState(
+            title = title,
+            profile = BabyLogDomain.ChildProfile.createForNewFamily(
+                input.nickname,
+                normalizeSexInput(input.sex),
+                input.expectedDueDate,
+                input.birthDate,
+                normalizedStage,
+                true
+            ),
+            firstRun = firstRun,
+            initialStage = normalizedStage
+        )
+        pendingNavRoute = BabyLogRoutes.SettingsDueDateCalc
+    }
+
+    private fun applyDueDateFromCalculator(dueDate: String) {
+        if (!BabyLogFormatters.isValidDateInput(dueDate)) {
+            showToast("预产期格式应为 yyyy-MM-dd")
+            return
+        }
+        val current = profilePageState ?: ProfileDialogState(
+            title = if (uiState.setupCompleted) "编辑宝宝档案" else "新建孕期家庭",
+            profile = if (uiState.setupCompleted) uiState.childProfile else BabyLogDomain.ChildProfile.createForNewFamily("", "unknown", "", "", BabyLogDomain.STAGE_PREGNANCY, true),
+            firstRun = !uiState.setupCompleted,
+            initialStage = if (uiState.setupCompleted) uiState.childProfile.stageOverride else BabyLogDomain.STAGE_PREGNANCY
+        )
+        val profile = current.profile
+        profilePageState = current.copy(
+            profile = BabyLogDomain.ChildProfile.createForNewFamily(
+                profile.nickname,
+                profile.sex,
+                dueDate,
+                profile.birthDate,
+                current.initialStage,
+                true
+            )
+        )
+        showToast("已填入预产期，请在档案页保存后生效")
+    }
+
     private fun saveProfile(input: ProfileInput, firstRun: Boolean) {
         if (input.expectedDueDate.isNotEmpty() && !BabyLogFormatters.isValidDateInput(input.expectedDueDate)) {
             showToast("预产期格式应为 yyyy-MM-dd")
@@ -1803,6 +1850,9 @@ private fun BabyLogApp(
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
     onOpenDisclaimer: () -> Unit,
+    onOpenDueDateCalculator: () -> Unit,
+    onOpenDueDateCalculatorFromProfile: (ProfileInput, Boolean) -> Unit,
+    onApplyDueDateFromCalculator: (String) -> Unit,
     onRestoreTrashEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onCreatePregnancyProfile: () -> Unit,
     onCreateBabyProfile: () -> Unit,
@@ -1904,6 +1954,11 @@ private fun BabyLogApp(
         onCloseSettingsPage()
         if (!navController.popBackStack()) {
             selectTopLevelTab(if (state.setupCompleted) BabyLogRoutes.Settings else BabyLogRoutes.Home)
+        }
+    }
+    fun closeDueDateCalculator() {
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(BabyLogRoutes.Settings)
         }
     }
     fun closeAttachmentList() {
@@ -2071,6 +2126,7 @@ private fun BabyLogApp(
                     onClearLocalData = onClearLocalData,
                     onOpenTrash = onOpenTrash,
                     onOpenDisclaimer = onOpenDisclaimer,
+                    onOpenDueDateCalculator = onOpenDueDateCalculator,
                     onEditProfile = onEditProfile
                 )
             }
@@ -2085,9 +2141,24 @@ private fun BabyLogApp(
                 ProfileSettingsScreen(
                     state = profilePageState,
                     onBack = ::closeSettingsPage,
+                    onOpenDueDateCalculator = onOpenDueDateCalculatorFromProfile,
                     onSave = { input, firstRun ->
                         closeSettingsPage()
                         onSaveProfile(input, firstRun)
+                    }
+                )
+            }
+            composable(BabyLogRoutes.SettingsDueDateCalc) {
+                DueDateCalcScreen(
+                    currentExpectedDueDate = state.childProfile.expectedDueDate,
+                    onBack = ::closeDueDateCalculator,
+                    onApplyDueDate = { dueDate ->
+                        onApplyDueDateFromCalculator(dueDate)
+                        if (!navController.popBackStack(BabyLogRoutes.SettingsProfile, false)) {
+                            navController.navigate(BabyLogRoutes.SettingsProfile) {
+                                launchSingleTop = true
+                            }
+                        }
                     }
                 )
             }
@@ -2762,6 +2833,7 @@ internal fun SettingsScreen(
     onClearLocalData: () -> Unit,
     onOpenTrash: () -> Unit,
     onOpenDisclaimer: () -> Unit,
+    onOpenDueDateCalculator: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -2792,6 +2864,13 @@ internal fun SettingsScreen(
                 subtitle = stageOverrideLabel(state.childProfile.stageOverride),
                 action = "编辑",
                 onClick = onEditProfile
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
+                title = "孕周 / 预产期计算器",
+                subtitle = "LMP、周期和早期 B 超 CRL 辅助推算",
+                action = "打开",
+                onClick = onOpenDueDateCalculator
             )
         }
         SettingsPanel("同步") {
