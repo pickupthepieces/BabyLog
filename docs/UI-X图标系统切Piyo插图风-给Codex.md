@@ -89,3 +89,44 @@
 - `splash` 用 `chestnut_mascot_v2.png` 替换现 `chestnut_mascot.png`(或并存,splash 切引用即可)。
 - BottomNav / 设置/编辑/删除等功能性图标保持 Material Rounded **不动**。
 - 应用启动图标 `mipmap-*/ic_launcher*` 已于 `7d10c9b` 由用户授意一并更新,主线 UI-X 不必再动该部分,只做 in-app 贴纸接线。
+
+## 主 Logo / Launcher Icon 最终决策（2026-05-20）
+
+**用户拍板：BabyLog App 主 logo / Android launcher icon 使用 `diagnostics/app-icon-update/chestnuticon.jpg` 这张栗子图。**
+
+资产口径：
+- Canonical 视觉源图：`diagnostics/app-icon-update/chestnuticon.jpg`（1254×1254）。
+- 高清导出版：`diagnostics/app-icon-update/chestnuticon-4096.png`（4096×4096，确定性放大，不经 imagegen 重绘）。
+- 兼容备用导出版：`diagnostics/app-icon-update/chestnuticon-4096.jpg`。
+- 当前 Android launcher mipmap 资源已由该图生成，详见 `diagnostics/app-icon-update/CLAUDE_REVIEW.md`。
+
+设计定稿特征：
+- 单主体栗子，非拟人化，无眼睛、嘴、腮红、手脚或配饰。
+- 日系卡哇伊扁平贴纸风；圆润 Q 感；暖栗棕主体 + 奶油色底部斑块 + 细白贴纸边 + 轻微贴纸阴影。
+- 背景为温柔栗粉/奶茶玫瑰色系，整体用于 app 主图标时保持当前构图与比例。
+
+后续约束：
+- **不要再用 imagegen 重新生成主 logo 来替换当前版本**，除非用户明确要求重新设计；imagegen 容易改变主体轮廓、居中和背景色。
+- 如需不同尺寸，优先从上述源图/4096 PNG 做确定性 resize/crop。
+- UI-X 后续只处理 in-app 贴纸和快捷入口图标，不应顺手替换 `mipmap-*/ic_launcher*`。
+
+## Splash 改用主 Logo（2026-05-20 后续）
+
+**用户决策**：Splash 也要体现主 logo,与桌面 launcher icon 一致,品牌印象统一。当前 splash 用的是 in-app 贴纸版 `chestnut_mascot_v2`,需切到 canonical 主 logo。
+
+**做法（一笔小 `ui:` 提交）**：
+1. 从 canonical 源做**确定性 resize**生成 `android-native/app/src/main/res/drawable-nodpi/chestnut_main_logo.png`:
+   - 源:`diagnostics/app-icon-update/chestnuticon-4096.png`(优先)或 `chestnuticon.jpg`
+   - 目标尺寸:**~1024×1024 PNG**(splash 显示 ~238dp 够用;不必塞 3.7MB 高清进 APK)
+   - 工具:任意确定性 image-resize(ffmpeg/PIL/imagemagick/Android Studio Image Asset 都行),**禁止用 imagegen 重生**——保主体轮廓、居中、背景色完整保留。
+   - 目标文件大小 ≤500KB(若超,提示并说明)。
+2. `SplashActivity.kt`:
+   - line 123 `painterResource(R.drawable.chestnut_mascot_v2)` → `painterResource(R.drawable.chestnut_main_logo)`
+   - **移除外层白圈 backdrop**(line 89-94 `Box(size=274dp).clip(CircleShape).background(Color.White α0.14)`)**和内层白 Surface 圆**(line 95-108 `Surface(shape=CircleShape, color=White α0.96, size=238dp)`)——主 logo 自带 sticker 框与背景,再套白圈视觉冗余。
+   - 直接 `Image(painter=chestnut_main_logo, size≈238dp)` 居中在 coral primary splash bg 上,就是放大版桌面图标观感。
+3. **`chestnut_mascot_v2.png` 用途排查**:
+   - 全局 grep `R.drawable.chestnut_mascot_v2` / `chestnut_mascot_v2` 找其它引用。
+   - 若仅 splash 在用 → 顺手删 res/ 里的 `chestnut_mascot_v2.png` 收小 APK(staging `diagnostics/ui-x-stickers/chestnut_mascot_v2.png` 保留作历史)。
+   - 若别处还在用(如空态/资料库) → 保留不动,只切 splash。
+
+**约束**:仅 `SplashActivity.kt` + `res/drawable-nodpi/chestnut_main_logo.png`(新增)± `chestnut_mascot_v2.png`(条件删除);不动 launcher icon mipmap(`7d10c9b` 已就绪)、不动 QuickRail/in-app 贴纸接线、不动其它视觉。assemble+lint+smoke 绿;装机看 splash 显主 logo + 跳主页正常。
