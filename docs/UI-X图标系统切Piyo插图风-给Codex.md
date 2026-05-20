@@ -130,3 +130,19 @@
    - 若别处还在用(如空态/资料库) → 保留不动,只切 splash。
 
 **约束**:仅 `SplashActivity.kt` + `res/drawable-nodpi/chestnut_main_logo.png`(新增)± `chestnut_mascot_v2.png`(条件删除);不动 launcher icon mipmap(`7d10c9b` 已就绪)、不动 QuickRail/in-app 贴纸接线、不动其它视觉。assemble+lint+smoke 绿;装机看 splash 显主 logo + 跳主页正常。
+
+## Splash 二次修正（80189af 后,2026-05-20）
+
+**用户反馈**:logo 显示 OK,但 (1) logo 自带粉底套在 coral splash bg 上视觉打架(粉格子贴 coral);(2) Codex 把白圈和字标 pill 都删了,剩一个孤零零小 logo,**像半成品**——Q4 当初决策是"不要冗余文案、**至多应用名 logo**",字标本来允许,被砍过头。
+
+**做法（一笔小 `ui:` 提交,只动 SplashActivity.kt ± palette token）**:
+
+1. **Splash bg 改为与主 logo 自带 bg 同色**(栗粉/奶茶玫瑰色系)——logo 和 bg 融为一体,不再像贴片:
+   - 采源图 `diagnostics/app-icon-update/chestnuticon-4096.png` 角落像素(逐角采样取众数/中位,确定性,不靠肉眼猜)定准 bg hex。
+   - 增加 `ChestnutPalette.SplashBg`(或 inline 一个 const 也行)用于 splash bg + `window.statusBarColor` + `window.navigationBarColor` 同步改色。
+   - confetti backdrop 保留(对的);其颜色 alpha 可微调到新 bg 上仍可见但不抢戏。
+2. **加回克制的应用名字标**:logo 下方居中显示 "BabyLog" 文字,SemiBold 16-18sp,色用与新 bg 协调的 `ChestnutPalette.Ink`(或低调 muted)。**就这一行字,不要副标题/不要 tagline**——符合 Q4 "至多应用名 logo"决策。
+3. **logo + 字标整体居中**(建议 logo ≈260-280dp + Spacer ≈18-24dp + 字标),构图有重心感,不再空荡。
+4. 保留 1.1s 跳主页;不改任何业务逻辑。
+
+**MUST 不变**:不用 imagegen 重生 logo;不动 launcher mipmap / QuickRail / in-app 贴纸接线 / 其它视觉。assemble+lint+smoke 绿;装机看 splash:bg 与 logo 融为一体、字标克制、整体不再像半成品。Claude 验收看一张 splash 截图即可。
