@@ -3,6 +3,7 @@ package app.babylog.nativeapp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,19 +53,28 @@ internal fun PersistentQuickRail(
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val tone = Color(action.toneColor)
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(tone.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BabyLogMaterialIcon(
-                        icon = quickActionIcon(action.eventType),
-                        tint = tone,
-                        modifier = Modifier.size(20.dp)
+                val sticker = quickActionSticker(action.eventType)
+                if (sticker != null) {
+                    Image(
+                        painter = sticker,
+                        contentDescription = action.label,
+                        modifier = Modifier.size(44.dp)
                     )
+                } else {
+                    val tone = Color(action.toneColor)
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(tone.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BabyLogMaterialIcon(
+                            icon = quickActionIcon(action.eventType),
+                            tint = tone,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -75,5 +87,17 @@ internal fun PersistentQuickRail(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun quickActionSticker(eventType: String): Painter? {
+    return when (eventType) {
+        "ultrasound" -> painterResource(R.drawable.sticker_b_chao)
+        "pregnancy_checkup" -> painterResource(R.drawable.sticker_checkup)
+        "fetal_movement" -> painterResource(R.drawable.sticker_fetal_movement)
+        "contraction" -> painterResource(R.drawable.sticker_contraction)
+        "maternal_metric" -> painterResource(R.drawable.sticker_maternal_metric)
+        else -> null
     }
 }

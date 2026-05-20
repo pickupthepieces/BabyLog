@@ -120,7 +120,7 @@ private fun BabyLogSplash() {
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Image(
-                            painter = painterResource(R.drawable.chestnut_mascot),
+                            painter = painterResource(R.drawable.chestnut_mascot_v2),
                             contentDescription = null,
                             modifier = Modifier.size(214.dp)
                         )
