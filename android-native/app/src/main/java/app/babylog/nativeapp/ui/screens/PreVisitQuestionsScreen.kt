@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.sp
 internal fun PreVisitQuestionsScreen(
     questions: List<BabyLogPreVisitQuestionStore.Question>,
     onBack: () -> Unit,
-    onSave: (String?, String, String) -> Unit,
+    onSave: (String?, String, String, () -> Unit) -> Unit,
     onDelete: (BabyLogPreVisitQuestionStore.Question) -> Unit
 ) {
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -101,11 +101,12 @@ internal fun PreVisitQuestionsScreen(
                                 errorText = "日期格式应为 yyyy-MM-dd"
                                 return@Button
                             }
-                            onSave(editingId, questionText, visitDate)
-                            editingId = null
-                            questionText = ""
-                            visitDate = ""
-                            errorText = ""
+                            onSave(editingId, questionText, visitDate) {
+                                editingId = null
+                                questionText = ""
+                                visitDate = ""
+                                errorText = ""
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
                     ) {

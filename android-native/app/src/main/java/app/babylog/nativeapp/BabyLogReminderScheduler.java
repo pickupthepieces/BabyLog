@@ -108,13 +108,25 @@ public final class BabyLogReminderScheduler {
             return;
         }
         try {
+            if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
+                scheduleInexact(alarmManager, triggerAt, pendingIntent);
+                return;
+            }
             if (Build.VERSION.SDK_INT >= 23) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
             }
         } catch (SecurityException ignored) {
+            scheduleInexact(alarmManager, triggerAt, pendingIntent);
+        }
+    }
+
+    private static void scheduleInexact(AlarmManager alarmManager, long triggerAt, PendingIntent pendingIntent) {
+        if (Build.VERSION.SDK_INT >= 23) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+        } else {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
         }
     }
 
@@ -165,6 +177,17 @@ public final class BabyLogReminderScheduler {
         public Result doWork() {
             refreshAndSchedule(getApplicationContext());
             return Result.success();
+        }
+    }
+
+    public static final class BootReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent == null ? "" : intent.getAction();
+            if (Intent.ACTION_BOOT_COMPLETED.equals(action)
+                    || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+                refreshAndSchedule(context);
+            }
         }
     }
 

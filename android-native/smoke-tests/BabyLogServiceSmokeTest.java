@@ -313,6 +313,19 @@ public final class BabyLogServiceSmokeTest {
         deletedAttachmentData.put("attachmentBlobs", new JSONArray());
         BabyLogService.validateBackupDataForImport(deletedAttachmentData);
 
+        JSONObject missingLocalAttachment = new JSONObject(attachment.toString());
+        missingLocalAttachment.put("id", "att_missing_local_file");
+        missingLocalAttachment.put("localPath", new File("missing/scan.jpg").getAbsolutePath());
+        JSONArray sanitizedAttachments = BabyLogService.sanitizeAttachmentsForBackup(
+                new JSONArray().put(missingLocalAttachment),
+                "2026-05-20T12:00:00.000+0800"
+        );
+        assertEquals("2026-05-20T12:00:00.000+0800", sanitizedAttachments.getJSONObject(0).optString("deletedAt"));
+        JSONObject sanitizedBackupData = new JSONObject(validImportData.toString());
+        sanitizedBackupData.put("attachments", sanitizedAttachments);
+        sanitizedBackupData.put("attachmentBlobs", new JSONArray());
+        BabyLogService.validateBackupDataForImport(sanitizedBackupData);
+
         JSONObject badSyncData = new JSONObject(validImportData.toString());
         badSyncData.getJSONArray("syncChanges").getJSONObject(0).remove("entityId");
         assertThrows(() -> BabyLogService.validateBackupDataForImport(badSyncData));

@@ -1873,9 +1873,12 @@ public final class ComposeMainActivity : ComponentActivity() {
                         child,
                         BabyLogDomain.FamilyMember.localManager()
                     )
+                    repository.putSyncChange(BabyLogDomain.createSyncChange("familyProfile", BabyLogDomain.FAMILY_ID, "upsert"))
+                    repository.putSyncChange(BabyLogDomain.createSyncChange("familyMember", BabyLogDomain.LOCAL_MEMBER_ID, "upsert"))
                 } else {
                     repository.saveChildProfile(child)
                 }
+                repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", child.id, "upsert"))
                 runOnUiThread {
                     profilePageState = null
                     pendingNavRoute = BabyLogRoutes.Home
@@ -1888,7 +1891,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun savePreVisitQuestion(id: String?, text: String, visitDate: String) {
+    private fun savePreVisitQuestion(id: String?, text: String, visitDate: String, onSaved: () -> Unit) {
         val cleanText = text.trim()
         val cleanDate = visitDate.trim()
         if (cleanText.isBlank()) {
@@ -1903,6 +1906,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             try {
                 preVisitQuestionStore.saveQuestion(id, cleanText, cleanDate)
                 runOnUiThread {
+                    onSaved()
                     showToast("问题已保存")
                     reloadData()
                 }
@@ -1938,13 +1942,14 @@ public final class ComposeMainActivity : ComponentActivity() {
         note: String,
         dueDate: String,
         dueTime: String,
-        enabled: Boolean
+        enabled: Boolean,
+        onSaved: () -> Unit
     ) {
         if (title.trim().isBlank()) {
             showToast("请填写提醒标题")
             return
         }
-        if (!BabyLogFormatters.isValidDateInput(dueDate) || !dueTime.matches(Regex("\\d{2}:\\d{2}"))) {
+        if (!BabyLogFormatters.isValidDateInput(dueDate) || !isValidReminderTimeInput(dueTime)) {
             showToast("提醒时间格式不正确")
             return
         }
@@ -1954,6 +1959,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 reminderStore.saveUserReminder(id, title, note, dueAtIso, enabled)
                 BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
                 runOnUiThread {
+                    onSaved()
                     showToast("提醒已保存")
                     reloadData()
                 }
@@ -2213,11 +2219,11 @@ private fun BabyLogApp(
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
-    onSavePreVisitQuestion: (String?, String, String) -> Unit,
+    onSavePreVisitQuestion: (String?, String, String, () -> Unit) -> Unit,
     onDeletePreVisitQuestion: (BabyLogPreVisitQuestionStore.Question) -> Unit,
     onOpenReminderCenter: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onSaveUserReminder: (String?, String, String, String, String, Boolean) -> Unit,
+    onSaveUserReminder: (String?, String, String, String, String, Boolean, () -> Unit) -> Unit,
     onToggleReminder: (BabyLogReminderStore.Reminder, Boolean) -> Unit,
     onDismissReminder: (BabyLogReminderStore.Reminder) -> Unit,
     onCompleteReminder: (BabyLogReminderStore.Reminder) -> Unit,
@@ -4275,6 +4281,15 @@ private fun parsePositiveProfileNumber(value: String): OptionalProfileNumber? {
         return null
     }
     return OptionalProfileNumber(parsed)
+}
+
+private fun isValidReminderTimeInput(value: String): Boolean {
+    if (!value.matches(Regex("\\d{2}:\\d{2}"))) {
+        return false
+    }
+    val hour = value.substring(0, 2).toIntOrNull() ?: return false
+    val minute = value.substring(3, 5).toIntOrNull() ?: return false
+    return hour in 0..23 && minute in 0..59
 }
 
 internal fun isEventVisibleInHome(event: BabyLogDomain.BabyLogEvent, stage: String): Boolean {

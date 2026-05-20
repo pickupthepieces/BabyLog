@@ -67,8 +67,8 @@ public final class BabyLogReminderStore {
                 "",
                 SOURCE_USER,
                 enabled,
-                existing == null ? "" : existing.dismissedAt,
-                existing == null ? "" : existing.completedAt,
+                "",
+                "",
                 existing == null ? now : existing.createdAt,
                 now
         );
@@ -77,7 +77,7 @@ public final class BabyLogReminderStore {
     }
 
     public void setEnabled(String id, boolean enabled) {
-        updateStatus(id, enabled, null, null);
+        updateStatus(id, enabled, enabled ? "" : null, enabled ? "" : null);
     }
 
     public void dismiss(String id) {
@@ -106,30 +106,56 @@ public final class BabyLogReminderStore {
     }
 
     public void syncSystemReminders(BabyLogDomain.ChildProfile profile, List<BabyLogDomain.BabyLogEvent> events) throws JSONException {
-        if (isSystemMuted(profile)) {
-            return;
-        }
-        List<Reminder> generated = generateSystemReminders(profile, events);
-        Map<String, Reminder> current = new HashMap<>();
-        for (Reminder reminder : listReminders()) {
-            current.put(reminder.id, reminder);
-        }
         JSONArray updated = new JSONArray();
+        for (Reminder reminder : mergeSystemReminders(listReminders(), generateSystemReminders(profile, events), isSystemMuted(profile))) {
+            updated.put(reminder.toJson());
+        }
+        preferences().edit().putString(REMINDERS_KEY, updated.toString()).commit();
+    }
+
+    public static List<Reminder> mergeSystemReminders(
+            List<Reminder> currentReminders,
+            List<Reminder> generated,
+            boolean systemMuted
+    ) {
+        List<Reminder> currentList = currentReminders == null ? new ArrayList<Reminder>() : currentReminders;
+        if (systemMuted) {
+            List<Reminder> kept = new ArrayList<>();
+            for (Reminder reminder : currentList) {
+                if (reminder != null && !SOURCE_SYSTEM.equals(reminder.source)) {
+                    kept.add(reminder);
+                }
+            }
+            return kept;
+        }
+
+        List<Reminder> generatedList = generated == null ? new ArrayList<Reminder>() : generated;
+        Map<String, Reminder> current = new HashMap<>();
+        for (Reminder reminder : currentList) {
+            if (reminder != null) {
+                current.put(reminder.id, reminder);
+            }
+        }
+        List<Reminder> updated = new ArrayList<>();
         Set<String> generatedIds = new HashSet<>();
-        for (Reminder generatedReminder : generated) {
+        for (Reminder generatedReminder : generatedList) {
+            if (generatedReminder == null) {
+                continue;
+            }
             generatedIds.add(generatedReminder.id);
             Reminder existing = current.get(generatedReminder.id);
             Reminder next = existing == null ? generatedReminder : generatedReminder.withLocalStatus(existing);
-            updated.put(next.toJson());
+            updated.add(next);
         }
-        for (Reminder reminder : current.values()) {
-            if (!SOURCE_SYSTEM.equals(reminder.source) || generatedIds.contains(reminder.id)) {
-                if (!generatedIds.contains(reminder.id)) {
-                    updated.put(reminder.toJson());
-                }
+        for (Reminder reminder : currentList) {
+            if (reminder == null || generatedIds.contains(reminder.id)) {
+                continue;
+            }
+            if (!SOURCE_SYSTEM.equals(reminder.source)) {
+                updated.add(reminder);
             }
         }
-        preferences().edit().putString(REMINDERS_KEY, updated.toString()).commit();
+        return updated;
     }
 
     public static List<Reminder> generateSystemReminders(
@@ -149,7 +175,7 @@ public final class BabyLogReminderStore {
                 }
             }
         }
-        addCheckupReminders(reminders, events);
+        addCheckupReminders(reminders, events, today);
         addScreeningWindowReminders(reminders, profile, completedTypes, today);
         int gestationalDays = gestationalDays(profile);
         if (gestationalDays >= 28 * 7) {
@@ -187,7 +213,7 @@ public final class BabyLogReminderStore {
                 && isBlank(reminder.completedAt);
     }
 
-    private static void addCheckupReminders(List<Reminder> reminders, List<BabyLogDomain.BabyLogEvent> events) {
+    private static void addCheckupReminders(List<Reminder> reminders, List<BabyLogDomain.BabyLogEvent> events, String today) {
         if (events == null) {
             return;
         }
@@ -197,19 +223,23 @@ public final class BabyLogReminderStore {
                 continue;
             }
             String nextVisitDate = event.payload.optString("nextVisitDate", "").trim();
-            if (BabyLogFormatters.isValidDateInput(nextVisitDate)) {
+            if (BabyLogFormatters.isValidDateInput(nextVisitDate)
+                    && BabyLogFormatters.daysBetweenDateInputs(today, nextVisitDate) >= 0) {
                 dates.add(nextVisitDate);
             }
         }
         for (String date : dates) {
-            addCheckupReminder(reminders, date, -3, "3 天后产检");
-            addCheckupReminder(reminders, date, -1, "1 天后产检");
-            addCheckupReminder(reminders, date, 0, "今天有产检安排");
+            addCheckupReminder(reminders, date, -3, "3 天后产检", today);
+            addCheckupReminder(reminders, date, -1, "1 天后产检", today);
+            addCheckupReminder(reminders, date, 0, "今天有产检安排", today);
         }
     }
 
-    private static void addCheckupReminder(List<Reminder> reminders, String checkupDate, int dayOffset, String title) {
+    private static void addCheckupReminder(List<Reminder> reminders, String checkupDate, int dayOffset, String title, String today) {
         String dueDate = BabyLogFormatters.offsetDateInput(checkupDate, dayOffset);
+        if (BabyLogFormatters.daysBetweenDateInputs(today, dueDate) < 0) {
+            return;
+        }
         reminders.add(systemReminder(
                 String.format(Locale.US, "sys_checkup_%s_%d", checkupDate, dayOffset),
                 KIND_CHECKUP_TODO,

@@ -4,6 +4,7 @@ import app.babylog.nativeapp.BabyLogReminderStore;
 
 import org.json.JSONObject;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -91,6 +92,57 @@ public final class BabyLogReminderStoreSmokeTest {
         assertTrue(BabyLogReminderStore.isSystemMuted(ended));
         assertTrue(BabyLogReminderStore.isSystemMuted(paused));
         assertEquals(0, BabyLogReminderStore.generateSystemReminders(ended, Collections.singletonList(checkup)).size());
+
+        BabyLogDomain.BabyLogEvent pastCheckup = BabyLogDomain.createEvent(
+                "pregnancy_checkup",
+                today + "T12:00:00.000+0800",
+                new JSONObject()
+                        .put("nextVisitDate", BabyLogFormatters.offsetDateInput(today, -2))
+                        .put("summary", "历史产检"),
+                Collections.emptyList(),
+                "manual"
+        );
+        List<BabyLogReminderStore.Reminder> pastReminders = BabyLogReminderStore.generateSystemReminders(
+                pregnancy,
+                Collections.singletonList(pastCheckup)
+        );
+        assertNoKind(pastReminders, BabyLogReminderStore.KIND_CHECKUP_TODO);
+
+        BabyLogReminderStore.Reminder systemReminder = new BabyLogReminderStore.Reminder(
+                "sys_checkup_2026-05-20_0",
+                BabyLogReminderStore.KIND_CHECKUP_TODO,
+                "今天有产检安排",
+                "",
+                today + "T09:00:00.000+0800",
+                "",
+                BabyLogReminderStore.SOURCE_SYSTEM,
+                true,
+                "",
+                "",
+                BabyLogFormatters.nowIso(),
+                BabyLogFormatters.nowIso()
+        );
+        BabyLogReminderStore.Reminder userReminder = new BabyLogReminderStore.Reminder(
+                "rem_custom",
+                BabyLogReminderStore.KIND_USER_CUSTOM,
+                "自定义提醒",
+                "",
+                today + "T09:00:00.000+0800",
+                "",
+                BabyLogReminderStore.SOURCE_USER,
+                true,
+                "",
+                "",
+                BabyLogFormatters.nowIso(),
+                BabyLogFormatters.nowIso()
+        );
+        List<BabyLogReminderStore.Reminder> mutedMerge = BabyLogReminderStore.mergeSystemReminders(
+                Arrays.asList(systemReminder, userReminder),
+                Collections.emptyList(),
+                true
+        );
+        assertEquals(1, mutedMerge.size());
+        assertEquals(BabyLogReminderStore.SOURCE_USER, mutedMerge.get(0).source);
     }
 
     private static void assertContainsKind(List<BabyLogReminderStore.Reminder> reminders, String kind) {
@@ -109,6 +161,14 @@ public final class BabyLogReminderStoreSmokeTest {
             }
         }
         throw new AssertionError("expected reminder title " + title);
+    }
+
+    private static void assertNoKind(List<BabyLogReminderStore.Reminder> reminders, String kind) {
+        for (BabyLogReminderStore.Reminder reminder : reminders) {
+            if (kind.equals(reminder.kind)) {
+                throw new AssertionError("unexpected reminder kind " + kind + ": " + reminder.title);
+            }
+        }
     }
 
     private static void assertNoBannedWords(List<BabyLogReminderStore.Reminder> reminders) {

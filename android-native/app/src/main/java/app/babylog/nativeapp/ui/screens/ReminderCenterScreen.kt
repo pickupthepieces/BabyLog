@@ -30,7 +30,7 @@ internal fun ReminderCenterScreen(
     notificationPermissionGranted: Boolean,
     onBack: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onSaveUserReminder: (String?, String, String, String, String, Boolean) -> Unit,
+    onSaveUserReminder: (String?, String, String, String, String, Boolean, () -> Unit) -> Unit,
     onToggleReminder: (BabyLogReminderStore.Reminder, Boolean) -> Unit,
     onDismissReminder: (BabyLogReminderStore.Reminder) -> Unit,
     onCompleteReminder: (BabyLogReminderStore.Reminder) -> Unit,
@@ -139,18 +139,19 @@ internal fun ReminderCenterScreen(
                                     errorText = "日期格式应为 yyyy-MM-dd"
                                     return@Button
                                 }
-                                if (!dueTime.matches(Regex("\\d{2}:\\d{2}"))) {
+                                if (!isValidReminderTimeInput(dueTime)) {
                                     errorText = "时间格式应为 HH:mm"
                                     return@Button
                                 }
-                                onSaveUserReminder(editingId, cleanTitle, note, dueDate, dueTime, enabled)
-                                editingId = null
-                                title = ""
-                                note = ""
-                                dueDate = BabyLogFormatters.todayDateInput()
-                                dueTime = "09:00"
-                                enabled = true
-                                errorText = ""
+                                onSaveUserReminder(editingId, cleanTitle, note, dueDate, dueTime, enabled) {
+                                    editingId = null
+                                    title = ""
+                                    note = ""
+                                    dueDate = BabyLogFormatters.todayDateInput()
+                                    dueTime = "09:00"
+                                    enabled = true
+                                    errorText = ""
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
                         ) { Text("保存提醒", color = Color.White, fontWeight = FontWeight.Bold) }
@@ -273,4 +274,13 @@ private fun reminderKindLabel(kind: String): String {
         BabyLogReminderStore.KIND_BACKUP -> "备份"
         else -> "自定义"
     }
+}
+
+private fun isValidReminderTimeInput(value: String): Boolean {
+    if (!value.matches(Regex("\\d{2}:\\d{2}"))) {
+        return false
+    }
+    val hour = value.substring(0, 2).toIntOrNull() ?: return false
+    val minute = value.substring(3, 5).toIntOrNull() ?: return false
+    return hour in 0..23 && minute in 0..59
 }

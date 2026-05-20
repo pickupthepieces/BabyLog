@@ -16,11 +16,17 @@
         domain="sharedpref"
         path="babylog_reminders.xml" />
     <exclude
+        domain="sharedpref"
+        path="babylog_pre_visit.xml" />
+    <exclude
         domain="file"
         path="attachments" />
     <exclude
         domain="file"
         path="camera-captures" />
+    <exclude
+        domain="external"
+        path="Pictures/camera-captures" />
     <exclude
         domain="file"
         path="last-import-undo.json" />

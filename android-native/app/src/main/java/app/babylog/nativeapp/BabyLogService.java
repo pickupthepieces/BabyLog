@@ -54,7 +54,7 @@ public final class BabyLogService {
         );
         repository.putEvent(event);
         if ("birth".equals(event.eventType)) {
-            repository.saveChildProfile(withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt));
+            saveChildProfileWithSync(withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt));
         }
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
         return event;
@@ -239,7 +239,7 @@ public final class BabyLogService {
             repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "delete"));
         }
         if ("birth".equals(event.eventType)) {
-            repository.saveChildProfile(repository.loadChildProfile().withBirthDate(""));
+            saveChildProfileWithSync(repository.loadChildProfile().withBirthDate(""));
         }
         return deleted;
     }
@@ -262,9 +262,15 @@ public final class BabyLogService {
             repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
         }
         if ("birth".equals(restored.eventType)) {
-            repository.saveChildProfile(withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt));
+            saveChildProfileWithSync(withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt));
         }
         return restored;
+    }
+
+    private void saveChildProfileWithSync(BabyLogDomain.ChildProfile profile) throws JSONException {
+        BabyLogDomain.ChildProfile next = profile == null ? BabyLogDomain.ChildProfile.empty() : profile;
+        repository.saveChildProfile(next);
+        repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", next.id, "upsert"));
     }
 
     public int purgeExpiredTrash() {
@@ -1061,9 +1067,11 @@ public final class BabyLogService {
         data.put("childProfiles", repository.exportChildProfiles());
         data.put("familyMembers", repository.exportFamilyMembers());
         data.put("events", repository.exportEvents());
-        data.put("attachments", repository.exportAttachments());
-        data.put("attachmentBlobs", createAttachmentBlobBackup());
+        JSONArray attachments = sanitizeAttachmentsForBackup(repository.exportAttachments(), BabyLogFormatters.nowIso());
+        data.put("attachments", attachments);
+        data.put("attachmentBlobs", createAttachmentBlobBackup(attachments));
         data.put("syncChanges", repository.exportSyncChanges());
+        validateBackupDataForImport(data);
 
         JSONObject backup = new JSONObject();
         backup.put("format", BACKUP_FORMAT);
@@ -1243,17 +1251,48 @@ public final class BabyLogService {
         return bytes;
     }
 
-    private JSONArray createAttachmentBlobBackup() throws IOException, JSONException {
+    public static JSONArray sanitizeAttachmentsForBackup(JSONArray attachments, String missingAt) throws JSONException {
+        JSONArray sanitized = new JSONArray();
+        if (attachments == null) {
+            return sanitized;
+        }
+        String timestamp = isBlank(missingAt) ? BabyLogFormatters.nowIso() : missingAt;
+        for (int i = 0; i < attachments.length(); i++) {
+            JSONObject json = attachments.optJSONObject(i);
+            if (json == null) {
+                continue;
+            }
+            JSONObject copy = new JSONObject(json.toString());
+            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(copy);
+            if (attachment != null && attachment.deletedAt == null) {
+                File file = new File(attachment.localPath);
+                if (!file.isFile()) {
+                    copy.put("deletedAt", timestamp);
+                    copy.put("updatedAt", timestamp);
+                    copy.put("ocrStatus", "missing-local-file");
+                }
+            }
+            sanitized.put(copy);
+        }
+        return sanitized;
+    }
+
+    private JSONArray createAttachmentBlobBackup(JSONArray attachments) throws IOException, JSONException {
         JSONArray blobs = new JSONArray();
-        JSONArray attachments = repository.exportAttachments();
+        if (attachments == null) {
+            return blobs;
+        }
         for (int i = 0; i < attachments.length(); i++) {
             BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(attachments.optJSONObject(i));
             if (attachment == null) {
                 continue;
             }
-            File file = new File(attachment.localPath);
-            if (!file.exists()) {
+            if (attachment.deletedAt != null) {
                 continue;
+            }
+            File file = new File(attachment.localPath);
+            if (!file.isFile()) {
+                throw new IOException("附件文件不存在：" + attachment.originalName);
             }
             JSONObject blob = new JSONObject();
             blob.put("familyId", attachment.familyId);
