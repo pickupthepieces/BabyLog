@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,20 +46,25 @@ internal fun PersistentQuickRail(
             Column(
                 modifier = Modifier
                     .width(58.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(Color(action.toneColor).copy(alpha = 0.16f))
                     .clickable { currentOnAction(action) }
-                    .padding(vertical = 5.dp),
+                    .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                BabyLogIconTile(
-                    icon = quickActionIcon(action.eventType),
-                    tint = Color(action.toneColor),
-                    tileColor = Color(action.toneColor).copy(alpha = 0.18f),
-                    modifier = Modifier.size(28.dp),
-                    iconSize = 18.dp
-                )
-                Spacer(Modifier.height(3.dp))
+                val tone = Color(action.toneColor)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(tone.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BabyLogMaterialIcon(
+                        icon = quickActionIcon(action.eventType),
+                        tint = tone,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = action.label,
                     color = ChestnutPalette.Ink,
