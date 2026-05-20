@@ -183,3 +183,21 @@
 - 任何用户可见处沿用同样双名(README/DISCLAIMER 标题区适度补副标,可后续 docs 跟进,不强求本笔)。
 
 **MUST 不变**:applicationId `app.babylog.nativeapp`、Kotlin/Java 包名、GitHub repo 路径、所有 import、smoke 测试等技术 ID 全部不动——本笔纯**显示名**变更。assemble+lint+smoke 绿,装机看 splash + 桌面 launcher label 都显双名。
+
+### 命名最终布局校准（取代上节"manifest label 改为 BabyLog · 栗记"）
+
+**用户裁定:双名只出现于 splash 一次,其余地方各保单名,避免到处中英文双显的视觉噪声。**
+
+| 位置 | 显示 |
+|---|---|
+| Splash 字标(品牌介绍场景) | **双名**:BabyLog(SemiBold 22sp Ink) + 栗记(Medium 14sp Muted) |
+| **Android Launcher 桌面 label**(`android:label` / `strings.xml app_name`) | **单名 "栗记"**(2 字最紧凑,避免被 launcher 空间截断) |
+| App 内 TopBrandBand 顶栏标题 | **单名 "BabyLog"**(保持现状,不动) |
+| README H1 / 主要文档 | H1 可加副标"栗记"一次,正文沿用 BabyLog |
+
+**对前节"manifest label 同步改为 BabyLog · 栗记"的取代**:
+- `AndroidManifest.xml` 的 `android:label`(或 `strings.xml` 的 `app_name`)= **"栗记"**(只 2 字,非"BabyLog · 栗记")。
+- splash 字标 仍按前节双名实现(BabyLog 主 + 栗记 辅)。
+- App 内 TopBrandBand 字符串保持现有"BabyLog",**本笔不动**。
+
+**MUST 不变**:applicationId `app.babylog.nativeapp` / 包名 / GitHub repo / import / smoke 等技术 ID 一切不动。Codex 把 splash 双名 + launcher label 改"栗记" + 删 backdrop + bg 同色 一起做成一笔 ui:。
