@@ -159,6 +159,14 @@ public final class BabyLogDomain {
         return json.optString(key, "");
     }
 
+    static Double optDoubleOrNull(JSONObject json, String key) {
+        if (json == null || json.isNull(key) || !json.has(key)) {
+            return null;
+        }
+        double value = json.optDouble(key, Double.NaN);
+        return Double.isNaN(value) || Double.isInfinite(value) ? null : value;
+    }
+
     public static final class FamilyProfile {
         public final String id;
         public final String name;
@@ -221,6 +229,8 @@ public final class BabyLogDomain {
         public final String sex;
         public final String expectedDueDate;
         public final String birthDate;
+        public final Double prePregnancyWeightKg;
+        public final Double heightCm;
         public final String stageOverride;
         public final boolean setupCompleted;
         public final String createdAt;
@@ -234,6 +244,8 @@ public final class BabyLogDomain {
                 String sex,
                 String expectedDueDate,
                 String birthDate,
+                Double prePregnancyWeightKg,
+                Double heightCm,
                 String stageOverride,
                 boolean setupCompleted,
                 String createdAt,
@@ -246,6 +258,8 @@ public final class BabyLogDomain {
             this.sex = normalizeSex(sex);
             this.expectedDueDate = expectedDueDate == null ? "" : expectedDueDate.trim();
             this.birthDate = birthDate == null ? "" : birthDate.trim();
+            this.prePregnancyWeightKg = sanitizePositiveNumber(prePregnancyWeightKg);
+            this.heightCm = sanitizePositiveNumber(heightCm);
             this.stageOverride = normalizeStageOverride(stageOverride);
             this.setupCompleted = setupCompleted;
             this.createdAt = createdAt == null ? "" : createdAt;
@@ -255,7 +269,7 @@ public final class BabyLogDomain {
 
         public static ChildProfile empty() {
             String now = BabyLogFormatters.nowIso();
-            return new ChildProfile(CHILD_ID, FAMILY_ID, "", "unknown", "", "", STAGE_AUTO, false, now, now, SCHEMA_VERSION);
+            return new ChildProfile(CHILD_ID, FAMILY_ID, "", "unknown", "", "", null, null, STAGE_AUTO, false, now, now, SCHEMA_VERSION);
         }
 
         public static ChildProfile createForNewFamily(
@@ -263,6 +277,19 @@ public final class BabyLogDomain {
                 String sex,
                 String expectedDueDate,
                 String birthDate,
+                String stageOverride,
+                boolean setupCompleted
+        ) {
+            return createForNewFamily(nickname, sex, expectedDueDate, birthDate, null, null, stageOverride, setupCompleted);
+        }
+
+        public static ChildProfile createForNewFamily(
+                String nickname,
+                String sex,
+                String expectedDueDate,
+                String birthDate,
+                Double prePregnancyWeightKg,
+                Double heightCm,
                 String stageOverride,
                 boolean setupCompleted
         ) {
@@ -274,6 +301,8 @@ public final class BabyLogDomain {
                     sex,
                     expectedDueDate,
                     birthDate,
+                    prePregnancyWeightKg,
+                    heightCm,
                     stageOverride,
                     setupCompleted,
                     now,
@@ -290,6 +319,8 @@ public final class BabyLogDomain {
                     sex,
                     expectedDueDate,
                     nextBirthDate,
+                    prePregnancyWeightKg,
+                    heightCm,
                     stageOverride,
                     setupCompleted,
                     createdAt,
@@ -306,6 +337,12 @@ public final class BabyLogDomain {
             json.put("sex", sex);
             json.put("expectedDueDate", expectedDueDate);
             json.put("birthDate", birthDate);
+            if (prePregnancyWeightKg != null) {
+                json.put("prePregnancyWeightKg", prePregnancyWeightKg);
+            }
+            if (heightCm != null) {
+                json.put("heightCm", heightCm);
+            }
             json.put("stageOverride", stageOverride);
             json.put("setupCompleted", setupCompleted);
             json.put("createdAt", createdAt);
@@ -325,12 +362,21 @@ public final class BabyLogDomain {
                     json.optString("sex", "unknown"),
                     optStringOrEmpty(json, "expectedDueDate"),
                     optStringOrEmpty(json, "birthDate"),
+                    optDoubleOrNull(json, "prePregnancyWeightKg"),
+                    optDoubleOrNull(json, "heightCm"),
                     json.optString("stageOverride", STAGE_AUTO),
                     json.optBoolean("setupCompleted", true),
                     json.optString("createdAt"),
                     json.optString("updatedAt"),
                     json.optInt("schemaVersion", SCHEMA_VERSION)
             );
+        }
+
+        private static Double sanitizePositiveNumber(Double value) {
+            if (value == null || value.isNaN() || value.isInfinite() || value <= 0) {
+                return null;
+            }
+            return value;
         }
     }
 

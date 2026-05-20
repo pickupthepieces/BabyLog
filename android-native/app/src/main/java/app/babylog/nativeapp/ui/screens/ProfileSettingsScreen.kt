@@ -42,6 +42,12 @@ internal fun ProfileSettingsScreen(
     }
     var expectedDueDate by rememberSaveable(state.title) { mutableStateOf(state.profile.expectedDueDate) }
     var birthDate by rememberSaveable(state.title) { mutableStateOf(state.profile.birthDate) }
+    var prePregnancyWeightKg by rememberSaveable(state.title) {
+        mutableStateOf(state.profile.prePregnancyWeightKg?.let { BabyLogFormatters.formatNumber(it) }.orEmpty())
+    }
+    var heightCm by rememberSaveable(state.title) {
+        mutableStateOf(state.profile.heightCm?.let { BabyLogFormatters.formatNumber(it) }.orEmpty())
+    }
     var stageOverride by rememberSaveable(state.title) { mutableStateOf(state.initialStage) }
 
     SettingsPageScaffold(
@@ -55,6 +61,8 @@ internal fun ProfileSettingsScreen(
                     sex.trim(),
                     expectedDueDate.trim(),
                     birthDate.trim(),
+                    prePregnancyWeightKg.trim(),
+                    heightCm.trim(),
                     stageOverride.trim()
                 ),
                 state.firstRun
@@ -84,6 +92,8 @@ internal fun ProfileSettingsScreen(
                             sex.trim(),
                             expectedDueDate.trim(),
                             birthDate.trim(),
+                            prePregnancyWeightKg.trim(),
+                            heightCm.trim(),
                             stageOverride.trim()
                         ),
                         state.firstRun
@@ -94,6 +104,12 @@ internal fun ProfileSettingsScreen(
             }
         }
         item { DateInputRow("出生日期", birthDate, { birthDate = it }) }
+        item {
+            UnitInputRow("孕前体重", prePregnancyWeightKg, { prePregnancyWeightKg = it }, "kg")
+        }
+        item {
+            UnitInputRow("身高", heightCm, { heightCm = it }, "cm")
+        }
         item {
             ChoiceChipRow(
                 label = "阶段",

@@ -290,6 +290,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenTrash = { pendingNavRoute = BabyLogRoutes.LibraryTrash },
                     onOpenDisclaimer = { pendingNavRoute = BabyLogRoutes.SettingsDisclaimer },
                     onOpenDueDateCalculator = { pendingNavRoute = BabyLogRoutes.SettingsDueDateCalc },
+                    onOpenWeightGain = { pendingNavRoute = BabyLogRoutes.ToolsWeightGain },
                     onOpenDueDateCalculatorFromProfile = ::openDueDateCalculatorFromProfile,
                     onApplyDueDateFromCalculator = ::applyDueDateFromCalculator,
                     onRestoreTrashEvent = { event ->
@@ -1735,6 +1736,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 normalizeSexInput(input.sex),
                 input.expectedDueDate,
                 input.birthDate,
+                BabyLogFormatters.parseOptionalNumber(input.prePregnancyWeightKg),
+                BabyLogFormatters.parseOptionalNumber(input.heightCm),
                 normalizedStage,
                 true
             ),
@@ -1762,6 +1765,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 profile.sex,
                 dueDate,
                 profile.birthDate,
+                profile.prePregnancyWeightKg,
+                profile.heightCm,
                 current.initialStage,
                 true
             )
@@ -1778,6 +1783,16 @@ public final class ComposeMainActivity : ComponentActivity() {
             showToast("出生日期格式应为 yyyy-MM-dd")
             return
         }
+        val prePregnancyWeightKg = parsePositiveProfileNumber(input.prePregnancyWeightKg)
+        if (prePregnancyWeightKg == null) {
+            showToast("孕前体重请填写大于 0 的数字")
+            return
+        }
+        val heightCm = parsePositiveProfileNumber(input.heightCm)
+        if (heightCm == null) {
+            showToast("身高请填写大于 0 的数字")
+            return
+        }
         runInBackground {
             try {
                 val child = BabyLogDomain.ChildProfile.createForNewFamily(
@@ -1785,6 +1800,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     normalizeSexInput(input.sex),
                     input.expectedDueDate,
                     input.birthDate,
+                    prePregnancyWeightKg.value,
+                    heightCm.value,
                     normalizeStageInput(input.stageOverride),
                     true
                 )
@@ -1917,8 +1934,12 @@ internal data class ProfileInput(
     val sex: String,
     val expectedDueDate: String,
     val birthDate: String,
+    val prePregnancyWeightKg: String,
+    val heightCm: String,
     val stageOverride: String
 )
+
+private data class OptionalProfileNumber(val value: Double?)
 
 private data class ImportPreview(
     val eventCount: Int,
@@ -2011,6 +2032,7 @@ private fun BabyLogApp(
     onOpenTrash: () -> Unit,
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
+    onOpenWeightGain: () -> Unit,
     onOpenDueDateCalculatorFromProfile: (ProfileInput, Boolean) -> Unit,
     onApplyDueDateFromCalculator: (String) -> Unit,
     onRestoreTrashEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
@@ -2225,6 +2247,7 @@ private fun BabyLogApp(
                         onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Home) },
                         onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Home) },
                         onDeleteEvent = onDeleteEvent,
+                        onOpenWeightGain = { navController.navigate(BabyLogRoutes.ToolsWeightGain) },
                         onQuickRailVisibilityChange = { visible ->
                             if (quickRailVisible != visible) {
                                 quickRailVisible = visible
@@ -2307,6 +2330,7 @@ private fun BabyLogApp(
                     onOpenTrash = onOpenTrash,
                     onOpenDisclaimer = onOpenDisclaimer,
                     onOpenDueDateCalculator = onOpenDueDateCalculator,
+                    onOpenWeightGain = onOpenWeightGain,
                     onEditProfile = onEditProfile
                 )
             }
@@ -2340,6 +2364,18 @@ private fun BabyLogApp(
                             }
                         }
                     }
+                )
+            }
+            composable(BabyLogRoutes.ToolsWeightGain) {
+                WeightGainScreen(
+                    profile = state.childProfile,
+                    events = state.timeline,
+                    onBack = {
+                        if (!navController.popBackStack()) {
+                            selectTopLevelTab(BabyLogRoutes.Home)
+                        }
+                    },
+                    onEditProfile = onEditProfile
                 )
             }
             composable(BabyLogRoutes.SettingsSync) {
@@ -2717,7 +2753,10 @@ internal fun BabyDaySummary(events: List<BabyLogDomain.BabyLogEvent>, selectedDa
 }
 
 @Composable
-internal fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
+internal fun PregnancySummaryPanel(
+    events: List<BabyLogDomain.BabyLogEvent>,
+    onOpenWeightGain: () -> Unit = {}
+) {
     val latestUltrasound = events.firstOrNull { it.eventType == "ultrasound" }
     val latestCheckup = events.firstOrNull { it.eventType == "pregnancy_checkup" }
     val latestMaternalMetric = events.firstOrNull { it.eventType == "maternal_metric" }
@@ -2729,7 +2768,7 @@ internal fun PregnancySummaryPanel(events: List<BabyLogDomain.BabyLogEvent>) {
     val nextVisitDays = nextVisitDate?.let { daysBetween(BabyLogFormatters.todayDateInput(), it) }
     val hasAnyData = latestUltrasound != null || latestCheckup != null || latestMaternalMetric != null
     Panel {
-        SectionHeader(title = "孕期摘要")
+        SectionHeader(title = "孕期摘要", action = "增重曲线", onAction = onOpenWeightGain)
         if (!hasAnyData) {
             EmptyPanel("记录第一次产检或 B 超，这里会显示摘要和待复核提醒")
             return@Panel
@@ -3036,6 +3075,7 @@ internal fun SettingsScreen(
     onOpenTrash: () -> Unit,
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
+    onOpenWeightGain: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -3073,6 +3113,13 @@ internal fun SettingsScreen(
                 subtitle = "LMP、周期和早期 B 超 CRL 辅助推算",
                 action = "打开",
                 onClick = onOpenDueDateCalculator
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
+                title = "孕期增重曲线",
+                subtitle = "按孕前 BMI 展示 IOM 参考带和体重历史",
+                action = "查看",
+                onClick = onOpenWeightGain
             )
         }
         SettingsPanel("同步") {
@@ -3988,6 +4035,17 @@ private fun normalizeStageInput(value: String): String {
         "未知", BabyLogDomain.STAGE_UNKNOWN -> BabyLogDomain.STAGE_UNKNOWN
         else -> BabyLogDomain.STAGE_AUTO
     }
+}
+
+private fun parsePositiveProfileNumber(value: String): OptionalProfileNumber? {
+    if (value.trim().isEmpty()) {
+        return OptionalProfileNumber(null)
+    }
+    val parsed = BabyLogFormatters.parseOptionalNumber(value)
+    if (parsed == null || parsed <= 0.0) {
+        return null
+    }
+    return OptionalProfileNumber(parsed)
 }
 
 internal fun isEventVisibleInHome(event: BabyLogDomain.BabyLogEvent, stage: String): Boolean {

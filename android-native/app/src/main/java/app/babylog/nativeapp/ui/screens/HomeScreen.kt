@@ -34,6 +34,7 @@ internal fun HomeScreen(
     onOpenDetail: (BabyLogDomain.BabyLogEvent) -> Unit,
     onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
+    onOpenWeightGain: () -> Unit,
     onQuickRailVisibilityChange: (Boolean) -> Unit
 ) {
     val stage = currentCareStage(state.childProfile)
@@ -113,7 +114,7 @@ internal fun HomeScreen(
             }
         }
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
-            item { PregnancySummaryPanel(state.timeline) }
+            item { PregnancySummaryPanel(state.timeline, onOpenWeightGain) }
             item { PrenatalScreeningTodoPanel(state.childProfile, state.timeline) }
         }
         if (stage != BabyLogDomain.STAGE_BABY) {

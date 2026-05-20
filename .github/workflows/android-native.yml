@@ -53,6 +53,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogFormatters.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogImageUtils.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogFetalGrowthReference.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogWeightGainCalculator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogVisitSummaryExporter.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartConfigStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartInput.java \
@@ -68,6 +69,7 @@ jobs:
             smoke-tests/BabyLogFormattersSmokeTest.java \
             smoke-tests/BabyLogImageUtilsSmokeTest.java \
             smoke-tests/BabyLogFetalGrowthReferenceSmokeTest.java \
+            smoke-tests/BabyLogWeightGainCalculatorSmokeTest.java \
             smoke-tests/BabyLogVisitSummaryExporterSmokeTest.java \
             smoke-tests/BabyLogSmartInputSmokeTest.java \
             smoke-tests/BabyLogSmartVisionClientSmokeTest.java \
@@ -80,6 +82,7 @@ jobs:
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFormattersSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogImageUtilsSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFetalGrowthReferenceSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogWeightGainCalculatorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogVisitSummaryExporterSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartInputSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartVisionClientSmokeTest

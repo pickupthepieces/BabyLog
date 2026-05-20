@@ -20,6 +20,7 @@ internal fun SettingsRootScreen(
     onOpenTrash: () -> Unit,
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
+    onOpenWeightGain: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     BabyLogScreenColumn(inner) {
@@ -39,6 +40,7 @@ internal fun SettingsRootScreen(
                 onOpenTrash = onOpenTrash,
                 onOpenDisclaimer = onOpenDisclaimer,
                 onOpenDueDateCalculator = onOpenDueDateCalculator,
+                onOpenWeightGain = onOpenWeightGain,
                 onEditProfile = onEditProfile
             )
         }

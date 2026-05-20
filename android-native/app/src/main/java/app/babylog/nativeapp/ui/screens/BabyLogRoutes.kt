@@ -18,6 +18,7 @@ internal object BabyLogRoutes {
     const val SettingsSpeech = "settings/speech"
     const val SettingsDisclaimer = "settings/disclaimer"
     const val SettingsDueDateCalc = "settings/duedate-calc"
+    const val ToolsWeightGain = "tools/weight-gain"
     const val LibraryAttachments = "library/attachments"
     const val LibraryTrash = "library/trash"
     const val LibraryVisitSummary = "library/visit-summary"
@@ -42,7 +43,8 @@ internal object BabyLogRoutes {
             route == SettingsModel ||
             route == SettingsSpeech ||
             route == SettingsDisclaimer ||
-            route == SettingsDueDateCalc
+            route == SettingsDueDateCalc ||
+            route == ToolsWeightGain
     }
 
     fun isBrowseSubpage(route: String?): Boolean {

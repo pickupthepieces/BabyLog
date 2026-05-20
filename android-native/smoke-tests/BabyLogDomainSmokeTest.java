@@ -25,6 +25,20 @@ public final class BabyLogDomainSmokeTest {
         assertEquals("pregnancy", child.stageOverride);
         assertEquals(true, child.setupCompleted);
 
+        BabyLogDomain.ChildProfile childWithWeight = BabyLogDomain.ChildProfile.createForNewFamily(
+                "栗子",
+                "female",
+                "2026-09-16",
+                "",
+                55.0,
+                165.0,
+                "pregnancy",
+                true
+        );
+        BabyLogDomain.ChildProfile restoredChild = BabyLogDomain.ChildProfile.fromJson(childWithWeight.toJson());
+        assertEquals(55.0, restoredChild.prePregnancyWeightKg);
+        assertEquals(165.0, restoredChild.heightCm);
+
         BabyLogDomain.FamilyMember manager = BabyLogDomain.FamilyMember.localManager();
         assertEquals(BabyLogDomain.LOCAL_MEMBER_ID, manager.id);
         assertEquals("manager", manager.role);
