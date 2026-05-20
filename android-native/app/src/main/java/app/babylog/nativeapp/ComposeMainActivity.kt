@@ -137,6 +137,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var service: BabyLogService
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
     private lateinit var disclaimerStore: BabyLogDisclaimerStore
+    private lateinit var preVisitQuestionStore: BabyLogPreVisitQuestionStore
     private val smartVisionClient = BabyLogSmartVisionClient()
     private val smartTextClient = BabyLogSmartTextClient()
     private val speechClient = BabyLogParaformerSpeechClient()
@@ -205,6 +206,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         service = BabyLogService(this, repository)
         smartConfigStore = BabyLogSmartConfigStore(this)
         disclaimerStore = BabyLogDisclaimerStore(this)
+        preVisitQuestionStore = BabyLogPreVisitQuestionStore(this)
         uiState = uiState.copy(disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion())
         registerLaunchers()
         refreshSmartConfigSummary()
@@ -250,6 +252,9 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenVisitSummary = {
                         pendingNavRoute = BabyLogRoutes.LibraryVisitSummary
                     },
+                    onOpenPreVisitQuestions = {
+                        pendingNavRoute = BabyLogRoutes.PreVisitQuestions
+                    },
                     onCloseAttachmentList = {
                         attachmentListPageState = null
                     },
@@ -291,6 +296,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenDisclaimer = { pendingNavRoute = BabyLogRoutes.SettingsDisclaimer },
                     onOpenDueDateCalculator = { pendingNavRoute = BabyLogRoutes.SettingsDueDateCalc },
                     onOpenWeightGain = { pendingNavRoute = BabyLogRoutes.ToolsWeightGain },
+                    onSavePreVisitQuestion = ::savePreVisitQuestion,
+                    onDeletePreVisitQuestion = ::deletePreVisitQuestion,
                     onOpenDueDateCalculatorFromProfile = ::openDueDateCalculatorFromProfile,
                     onApplyDueDateFromCalculator = ::applyDueDateFromCalculator,
                     onRestoreTrashEvent = { event ->
@@ -562,6 +569,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 attachments = service.listAttachmentsNewestFirst(),
                 syncConfig = repository.loadSyncSettings(),
                 childProfile = repository.loadChildProfile(),
+                preVisitQuestions = preVisitQuestionStore.listQuestions(),
                 setupCompleted = repository.hasCompletedSetup(),
                 disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion(),
                 hasImportUndoSnapshot = service.hasImportUndoSnapshot(),
@@ -1835,6 +1843,42 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun savePreVisitQuestion(id: String?, text: String, visitDate: String) {
+        val cleanText = text.trim()
+        val cleanDate = visitDate.trim()
+        if (cleanText.isBlank()) {
+            showToast("请先填写想问的问题")
+            return
+        }
+        if (cleanDate.isNotBlank() && !BabyLogFormatters.isValidDateInput(cleanDate)) {
+            showToast("日期格式应为 yyyy-MM-dd")
+            return
+        }
+        runInBackground {
+            try {
+                preVisitQuestionStore.saveQuestion(id, cleanText, cleanDate)
+                runOnUiThread {
+                    showToast("问题已保存")
+                    reloadData()
+                }
+            } catch (error: JSONException) {
+                runOnUiThread {
+                    showInfo("保存失败", error.message ?: "无法保存问题")
+                }
+            }
+        }
+    }
+
+    private fun deletePreVisitQuestion(question: BabyLogPreVisitQuestionStore.Question) {
+        runInBackground {
+            preVisitQuestionStore.deleteQuestion(question.id)
+            runOnUiThread {
+                showToast("问题已删除")
+                reloadData()
+            }
+        }
+    }
+
     private fun quickActionsForStage(stage: String): List<BabyLogService.QuickAction> {
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             return listOf(
@@ -1928,6 +1972,7 @@ internal data class BabyLogUiState(
     val attachments: List<BabyLogDomain.AttachmentRecord> = emptyList(),
     val syncConfig: BabyLogDomain.BackendConfig = BabyLogDomain.BackendConfig.disabled(),
     val childProfile: BabyLogDomain.ChildProfile = BabyLogDomain.ChildProfile.empty(),
+    val preVisitQuestions: List<BabyLogPreVisitQuestionStore.Question> = emptyList(),
     val setupCompleted: Boolean = false,
     val disclaimerAccepted: Boolean = false,
     val hasImportUndoSnapshot: Boolean = false,
@@ -2015,6 +2060,7 @@ private fun BabyLogApp(
     previewAttachment: BabyLogDomain.AttachmentRecord?,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
     onOpenVisitSummary: () -> Unit,
+    onOpenPreVisitQuestions: () -> Unit,
     onCloseAttachmentList: () -> Unit,
     onPreviewAttachment: (BabyLogDomain.AttachmentRecord) -> Unit,
     onCloseAttachmentPreview: () -> Unit,
@@ -2045,6 +2091,8 @@ private fun BabyLogApp(
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
+    onSavePreVisitQuestion: (String?, String, String) -> Unit,
+    onDeletePreVisitQuestion: (BabyLogPreVisitQuestionStore.Question) -> Unit,
     onOpenDueDateCalculatorFromProfile: (ProfileInput, Boolean) -> Unit,
     onApplyDueDateFromCalculator: (String) -> Unit,
     onRestoreTrashEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
@@ -2290,6 +2338,7 @@ private fun BabyLogApp(
                     attachments = state.attachments,
                     onBack = ::closeRecordDetail,
                     onPreviewAttachment = onPreviewAttachment,
+                    onOpenPreVisitQuestions = onOpenPreVisitQuestions,
                     onEdit = { detailEvent -> onEditEvent(detailEvent, recordDetailReturnRoute) },
                     onDelete = onDeleteEvent
                 )
@@ -2299,13 +2348,15 @@ private fun BabyLogApp(
                     inner = inner,
                     state = state,
                     onShowAttachments = onShowAttachments,
-                    onOpenVisitSummary = onOpenVisitSummary
+                    onOpenVisitSummary = onOpenVisitSummary,
+                    onOpenPreVisitQuestions = onOpenPreVisitQuestions
                 )
             }
             composable(BabyLogRoutes.LibraryVisitSummary) {
                 VisitSummaryScreen(
                     events = state.timeline,
                     attachments = state.attachments,
+                    preVisitQuestions = state.preVisitQuestions,
                     onBack = ::closeBrowseSubpage,
                     onCopy = onCopyVisitSummary,
                     onShare = onShareVisitSummary,
@@ -2344,7 +2395,16 @@ private fun BabyLogApp(
                     onOpenDisclaimer = onOpenDisclaimer,
                     onOpenDueDateCalculator = onOpenDueDateCalculator,
                     onOpenWeightGain = onOpenWeightGain,
+                    onOpenPreVisitQuestions = onOpenPreVisitQuestions,
                     onEditProfile = onEditProfile
+                )
+            }
+            composable(BabyLogRoutes.PreVisitQuestions) {
+                PreVisitQuestionsScreen(
+                    questions = state.preVisitQuestions,
+                    onBack = ::closeBrowseSubpage,
+                    onSave = onSavePreVisitQuestion,
+                    onDelete = onDeletePreVisitQuestion
                 )
             }
             composable(BabyLogRoutes.LibraryTrash) {
@@ -3077,6 +3137,7 @@ internal fun SettingsScreen(
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
+    onOpenPreVisitQuestions: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -3121,6 +3182,13 @@ internal fun SettingsScreen(
                 subtitle = "按孕前 BMI 展示 IOM 参考带和体重历史",
                 action = "查看",
                 onClick = onOpenWeightGain
+            )
+            Divider(color = ChestnutPalette.Border)
+            ActionRow(
+                title = "想问医生的问题",
+                subtitle = if (state.preVisitQuestions.isEmpty()) "产检前随手记录待问事项" else "${state.preVisitQuestions.size} 条待问",
+                action = "管理",
+                onClick = onOpenPreVisitQuestions
             )
         }
         SettingsPanel("同步") {

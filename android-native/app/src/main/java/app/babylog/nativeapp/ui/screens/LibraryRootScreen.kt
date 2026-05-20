@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Divider
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +29,8 @@ internal fun LibraryRootScreen(
     inner: PaddingValues,
     state: BabyLogUiState,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
-    onOpenVisitSummary: () -> Unit
+    onOpenVisitSummary: () -> Unit,
+    onOpenPreVisitQuestions: () -> Unit
 ) {
     var keyword by rememberSaveable { mutableStateOf("") }
     var typeFilter by rememberSaveable { mutableStateOf("all") }
@@ -59,6 +61,13 @@ internal fun LibraryRootScreen(
                     subtitle = "按时间整理产检、B 超、孕妈指标和筛查记录",
                     action = "打开",
                     onClick = onOpenVisitSummary
+                )
+                Divider(color = ChestnutPalette.Border)
+                ActionRow(
+                    title = "想问医生的问题",
+                    subtitle = if (state.preVisitQuestions.isEmpty()) "产检前随手记录待问事项" else "${state.preVisitQuestions.size} 条待问",
+                    action = "管理",
+                    onClick = onOpenPreVisitQuestions
                 )
             }
         }

@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,24 @@ public final class BabyLogVisitSummaryExporter {
             String endDate,
             Set<String> selectedCategories
     ) {
+        return buildMarkdown(
+                sourceEvents,
+                sourceAttachments,
+                startDate,
+                endDate,
+                selectedCategories,
+                Collections.<BabyLogPreVisitQuestionStore.Question>emptyList()
+        );
+    }
+
+    public static String buildMarkdown(
+            List<BabyLogDomain.BabyLogEvent> sourceEvents,
+            List<BabyLogDomain.AttachmentRecord> sourceAttachments,
+            String startDate,
+            String endDate,
+            Set<String> selectedCategories,
+            List<BabyLogPreVisitQuestionStore.Question> preVisitQuestions
+    ) {
         List<BabyLogDomain.BabyLogEvent> events = sourceEvents == null
                 ? Collections.emptyList()
                 : BabyLogService.sortEventsNewestFirst(sourceEvents);
@@ -66,6 +85,11 @@ public final class BabyLogVisitSummaryExporter {
         StringBuilder markdown = new StringBuilder();
         markdown.append("# BabyLog 复诊汇总（").append(rangeLabel(startDate, endDate)).append("）\n");
         markdown.append(DISCLAIMER_LINE).append("\n");
+
+        appendPreVisitQuestionSection(markdown, preVisitQuestions);
+        appendDoctorInstructionSection(markdown, included);
+        appendPendingReviewSection(markdown, included);
+        appendReportExcerptSection(markdown, included);
 
         if (included.isEmpty()) {
             markdown.append("\n暂无符合条件的记录。\n");
@@ -116,6 +140,106 @@ public final class BabyLogVisitSummaryExporter {
         if (CATEGORY_FETAL_MOVEMENT.equals(category)) return "胎动";
         if (CATEGORY_CONTRACTION.equals(category)) return "宫缩";
         return category == null ? "" : category;
+    }
+
+    private static void appendPreVisitQuestionSection(
+            StringBuilder markdown,
+            List<BabyLogPreVisitQuestionStore.Question> questions
+    ) {
+        if (questions == null || questions.isEmpty()) {
+            return;
+        }
+        markdown.append("\n## 想问医生的问题\n");
+        for (BabyLogPreVisitQuestionStore.Question question : questions) {
+            if (question == null || isBlank(question.text)) {
+                continue;
+            }
+            String prefix = isBlank(question.visitDate) ? "" : question.visitDate + "：";
+            appendBullet(markdown, prefix + question.text);
+        }
+    }
+
+    private static void appendDoctorInstructionSection(
+            StringBuilder markdown,
+            List<BabyLogDomain.BabyLogEvent> events
+    ) {
+        List<String> lines = new ArrayList<>();
+        for (BabyLogDomain.BabyLogEvent event : events) {
+            if (event == null || !"pregnancy_checkup".equals(event.eventType)) {
+                continue;
+            }
+            JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
+            List<String> values = new ArrayList<>();
+            addIfNotBlank(values, textWithLabel(payload, "doctorConclusion", "医生结论", false));
+            addIfNotBlank(values, textWithLabel(payload, "diagnosisText", "医生结论", false));
+            addIfNotBlank(values, textWithLabel(payload, "treatmentAdvice", "处理建议", false));
+            if (!values.isEmpty()) {
+                lines.add(eventDateToken(event) + "：" + join(values, "；"));
+            }
+        }
+        if (lines.isEmpty()) {
+            return;
+        }
+        markdown.append("\n## 医生嘱咐\n");
+        for (String line : lines) {
+            appendBullet(markdown, line);
+        }
+    }
+
+    private static void appendPendingReviewSection(
+            StringBuilder markdown,
+            List<BabyLogDomain.BabyLogEvent> events
+    ) {
+        List<String> lines = new ArrayList<>();
+        for (BabyLogDomain.BabyLogEvent event : events) {
+            if (event == null || event.payload == null) {
+                continue;
+            }
+            int reviewCount = event.payload.optInt("reviewCount", 0);
+            boolean hasMarker = containsReportOriginalMarker(event.payload);
+            boolean hasReviewText = containsAnyPayloadText(event.payload, "待复核", "需核对");
+            if (reviewCount > 0 || hasMarker || hasReviewText) {
+                List<String> values = new ArrayList<>();
+                if (reviewCount > 0) {
+                    values.add("待核对 " + reviewCount + " 项");
+                }
+                if (hasMarker || hasReviewText) {
+                    values.add("含需人工核对字段（报告原文）");
+                }
+                lines.add(eventDateToken(event) + " · " + BabyLogFormatters.eventLabel(event.eventType) + "：" + join(values, "；"));
+            }
+        }
+        if (lines.isEmpty()) {
+            return;
+        }
+        markdown.append("\n## 待复核\n");
+        for (String line : lines) {
+            appendBullet(markdown, line);
+        }
+    }
+
+    private static void appendReportExcerptSection(
+            StringBuilder markdown,
+            List<BabyLogDomain.BabyLogEvent> events
+    ) {
+        LinkedHashSet<String> lines = new LinkedHashSet<>();
+        for (BabyLogDomain.BabyLogEvent event : events) {
+            if (event == null || event.payload == null) {
+                continue;
+            }
+            for (String excerpt : reportExcerptLines(event)) {
+                if (!isBlank(excerpt)) {
+                    lines.add(eventDateToken(event) + " · " + BabyLogFormatters.eventLabel(event.eventType) + "：" + excerpt);
+                }
+            }
+        }
+        if (lines.isEmpty()) {
+            return;
+        }
+        markdown.append("\n## 报告原文摘录\n");
+        for (String line : lines) {
+            appendBullet(markdown, line);
+        }
     }
 
     private static void appendEvent(StringBuilder markdown, BabyLogDomain.BabyLogEvent event, int attachmentCount) {
@@ -345,6 +469,25 @@ public final class BabyLogVisitSummaryExporter {
         return lines;
     }
 
+    private static List<String> reportExcerptLines(BabyLogDomain.BabyLogEvent event) {
+        JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
+        List<String> lines = new ArrayList<>();
+        if (BabyLogFormatters.isScreeningEventType(event.eventType)) {
+            for (String line : screeningLines(event.eventType, payload)) {
+                if (line.contains("报告原文")) {
+                    lines.add(line);
+                }
+            }
+        } else if ("ultrasound".equals(event.eventType)) {
+            addIfNotBlank(lines, reportText(payload, "diagnosisText", "超声诊断"));
+            addIfNotBlank(lines, reportText(payload, "clinicalDetails", "备注"));
+            addIfNotBlank(lines, reportText(payload, "warningText", "待核对提示"));
+            addIfNotBlank(lines, reportText(payload, "structureConclusion", "结构结论"));
+            addIfNotBlank(lines, reportText(payload, "conclusion", "结论"));
+        }
+        return lines;
+    }
+
     private static List<String> fetalMovementLines(JSONObject payload) {
         List<String> lines = new ArrayList<>();
         List<String> values = new ArrayList<>();
@@ -463,6 +606,31 @@ public final class BabyLogVisitSummaryExporter {
             return "";
         }
         return label + " " + value + (reportOriginal ? "（报告原文）" : "");
+    }
+
+    private static boolean containsReportOriginalMarker(JSONObject payload) {
+        return containsAnyPayloadText(payload, "报告原文");
+    }
+
+    private static boolean containsAnyPayloadText(JSONObject payload, String... needles) {
+        if (payload == null || needles == null || needles.length == 0) {
+            return false;
+        }
+        java.util.Iterator<String> keys = payload.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object value = payload.opt(key);
+            if (value == null || JSONObject.NULL.equals(value)) {
+                continue;
+            }
+            String text = String.valueOf(value);
+            for (String needle : needles) {
+                if (!isBlank(needle) && text.contains(needle)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static String text(JSONObject payload, String key) {

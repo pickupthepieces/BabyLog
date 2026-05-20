@@ -39,6 +39,7 @@ import java.util.TimeZone
 internal fun VisitSummaryScreen(
     events: List<BabyLogDomain.BabyLogEvent>,
     attachments: List<BabyLogDomain.AttachmentRecord>,
+    preVisitQuestions: List<BabyLogPreVisitQuestionStore.Question>,
     onBack: () -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
@@ -65,13 +66,14 @@ internal fun VisitSummaryScreen(
     val rangeDates = remember(range, customStart, customEnd) {
         visitSummaryRangeDates(range, customStart, customEnd)
     }
-    val generated = remember(events, attachments, rangeDates, selectedCsv) {
+    val generated = remember(events, attachments, preVisitQuestions, rangeDates, selectedCsv) {
         BabyLogVisitSummaryExporter.buildMarkdown(
             events,
             attachments,
             rangeDates.first,
             rangeDates.second,
-            HashSet(selected)
+            HashSet(selected),
+            preVisitQuestions
         )
     }
 

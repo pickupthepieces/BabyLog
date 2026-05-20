@@ -54,6 +54,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogImageUtils.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogFetalGrowthReference.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogWeightGainCalculator.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogPreVisitQuestionStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogVisitSummaryExporter.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartConfigStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartInput.java \

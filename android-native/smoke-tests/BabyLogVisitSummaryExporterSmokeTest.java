@@ -1,4 +1,5 @@
 import app.babylog.nativeapp.BabyLogDomain;
+import app.babylog.nativeapp.BabyLogPreVisitQuestionStore;
 import app.babylog.nativeapp.BabyLogVisitSummaryExporter;
 
 import org.json.JSONObject;
@@ -53,6 +54,8 @@ public final class BabyLogVisitSummaryExporterSmokeTest {
                 .put("examDate", "2026-04-20")
                 .put("bpdMm", 45)
                 .put("hcMm", 176)
+                .put("diagnosisText", "宫内孕，单活胎")
+                .put("reviewCount", 1)
                 .put("summary", "B 超 · BPD 45 mm");
         BabyLogDomain.BabyLogEvent ultrasound = BabyLogDomain.createEvent(
                 "ultrasound",
@@ -109,15 +112,33 @@ public final class BabyLogVisitSummaryExporterSmokeTest {
         );
 
         List<BabyLogDomain.BabyLogEvent> events = Arrays.asList(ultrasound, screening, checkup, fetalMovement, contractionOne, contractionTwo);
+        List<BabyLogPreVisitQuestionStore.Question> questions = Collections.singletonList(
+                new BabyLogPreVisitQuestionStore.Question(
+                        "pvq_test",
+                        "下次产检需要带哪些报告？",
+                        "2026-05-25",
+                        "2026-05-20T08:00:00+0800",
+                        "2026-05-20T08:00:00+0800"
+                )
+        );
         String markdown = BabyLogVisitSummaryExporter.buildMarkdown(
                 events,
                 Collections.singletonList(attachment),
                 "",
                 "",
-                null
+                null,
+                questions
         );
 
         assertContains(markdown, BabyLogVisitSummaryExporter.DISCLAIMER_LINE);
+        assertContains(markdown, "## 想问医生的问题");
+        assertContains(markdown, "2026-05-25：下次产检需要带哪些报告？");
+        assertContains(markdown, "## 医生嘱咐");
+        assertContains(markdown, "医生结论 胎儿发育正常");
+        assertContains(markdown, "## 待复核");
+        assertContains(markdown, "待核对 1 项");
+        assertContains(markdown, "## 报告原文摘录");
+        assertContains(markdown, "超声诊断 宫内孕，单活胎（报告原文）");
         assertContains(markdown, "## 2026-05-18 · 产检（22+6 周 · 奉化区妇幼）");
         assertContains(markdown, "血压 118/76 mmHg");
         assertContains(markdown, "体重 60.4 kg");

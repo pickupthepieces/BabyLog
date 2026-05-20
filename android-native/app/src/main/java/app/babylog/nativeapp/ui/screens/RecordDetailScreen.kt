@@ -29,6 +29,7 @@ internal fun RecordDetailScreen(
     attachments: List<BabyLogDomain.AttachmentRecord>,
     onBack: () -> Unit,
     onPreviewAttachment: (BabyLogDomain.AttachmentRecord) -> Unit,
+    onOpenPreVisitQuestions: () -> Unit,
     onEdit: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDelete: (BabyLogDomain.BabyLogEvent) -> Unit
 ) {
@@ -66,6 +67,21 @@ internal fun RecordDetailScreen(
             item {
                 val pattern = remember(allEvents) { fetalMovementPatternPoints(allEvents) }
                 FetalMovementPatternPanel(pattern)
+            }
+        }
+        if (event.eventType == "pregnancy_checkup") {
+            item {
+                SettingsPanel("复诊准备") {
+                    DetailField("说明", "可把这次产检想追问的内容加入复诊清单。")
+                    OutlinedButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        onClick = onOpenPreVisitQuestions
+                    ) {
+                        Text("添加给医生的问题", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
         item {
