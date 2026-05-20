@@ -35,6 +35,7 @@ internal fun HomeScreen(
     onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onOpenWeightGain: () -> Unit,
+    onOpenReminderCenter: () -> Unit,
     onQuickRailVisibilityChange: (Boolean) -> Unit
 ) {
     val stage = currentCareStage(state.childProfile)
@@ -118,6 +119,7 @@ internal fun HomeScreen(
         }
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             item { PregnancySummaryPanel(state.timeline, onOpenWeightGain) }
+            item { NextCheckupReminderPanel(state.reminders, onOpenReminderCenter) }
             item { PrenatalScreeningTodoPanel(state.childProfile, state.timeline) }
         }
         if (stage != BabyLogDomain.STAGE_BABY) {
@@ -150,6 +152,43 @@ internal fun HomeScreen(
         } else if (!pregnancyDerivedUiMuted) {
             item { SectionHeader(title = "趋势") }
             item { TrendPanel(state.timeline, stage) }
+        }
+    }
+}
+
+@Composable
+private fun NextCheckupReminderPanel(
+    reminders: List<BabyLogReminderStore.Reminder>,
+    onOpenReminderCenter: () -> Unit
+) {
+    val next = reminders
+        .asSequence()
+        .filter { it.kind == BabyLogReminderStore.KIND_CHECKUP_TODO }
+        .filter { BabyLogReminderStore.isActionable(it) }
+        .sortedBy { it.dueAtIso.ifBlank { "9999" } }
+        .firstOrNull() ?: return
+    val dueDate = next.dueAtIso.take(10)
+    val days = if (BabyLogFormatters.isValidDateInput(dueDate)) {
+        BabyLogFormatters.daysBetweenDateInputs(BabyLogFormatters.todayDateInput(), dueDate)
+    } else {
+        null
+    }
+    val dateLabel = when {
+        days == null -> "日期待核对"
+        days > 0 -> "${days} 天后"
+        days == 0 -> "今天"
+        else -> "日期已到"
+    }
+    Panel {
+        SectionHeader("下次产检提醒", action = "提醒中心", onAction = onOpenReminderCenter)
+        Text(
+            "$dateLabel · ${next.title}",
+            color = ChestnutPalette.Ink,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
+        if (next.note.isNotBlank()) {
+            Text(next.note, color = ChestnutPalette.Muted, fontSize = 12.sp)
         }
     }
 }

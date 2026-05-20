@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -138,10 +139,12 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
     private lateinit var disclaimerStore: BabyLogDisclaimerStore
     private lateinit var preVisitQuestionStore: BabyLogPreVisitQuestionStore
+    private lateinit var reminderStore: BabyLogReminderStore
     private val smartVisionClient = BabyLogSmartVisionClient()
     private val smartTextClient = BabyLogSmartTextClient()
     private val speechClient = BabyLogParaformerSpeechClient()
     private lateinit var audioPermissionLauncher: ActivityResultLauncher<String>
+    private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraLauncher: ActivityResultLauncher<Uri>
     private lateinit var pickImageLauncher: ActivityResultLauncher<String>
@@ -207,9 +210,11 @@ public final class ComposeMainActivity : ComponentActivity() {
         smartConfigStore = BabyLogSmartConfigStore(this)
         disclaimerStore = BabyLogDisclaimerStore(this)
         preVisitQuestionStore = BabyLogPreVisitQuestionStore(this)
+        reminderStore = BabyLogReminderStore(this)
         uiState = uiState.copy(disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion())
         registerLaunchers()
         refreshSmartConfigSummary()
+        handleNavigationIntent(intent)
 
         setContent {
             ChestnutTheme {
@@ -298,6 +303,13 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenWeightGain = { pendingNavRoute = BabyLogRoutes.ToolsWeightGain },
                     onSavePreVisitQuestion = ::savePreVisitQuestion,
                     onDeletePreVisitQuestion = ::deletePreVisitQuestion,
+                    onOpenReminderCenter = { pendingNavRoute = BabyLogRoutes.ReminderCenter },
+                    onRequestNotificationPermission = ::requestNotificationPermission,
+                    onSaveUserReminder = ::saveUserReminder,
+                    onToggleReminder = ::toggleReminder,
+                    onDismissReminder = ::dismissReminder,
+                    onCompleteReminder = ::completeReminder,
+                    onDeleteReminder = ::deleteReminder,
                     onOpenDueDateCalculatorFromProfile = ::openDueDateCalculatorFromProfile,
                     onApplyDueDateFromCalculator = ::applyDueDateFromCalculator,
                     onRestoreTrashEvent = { event ->
@@ -496,6 +508,20 @@ public final class ComposeMainActivity : ComponentActivity() {
         reloadData()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNavigationIntent(intent)
+    }
+
+    private fun handleNavigationIntent(intent: Intent?) {
+        val route = intent?.getStringExtra(BabyLogReminderScheduler.OPEN_ROUTE_EXTRA)
+        if (!route.isNullOrBlank()) {
+            pendingNavRoute = route
+            pendingNavNonce = System.currentTimeMillis()
+        }
+    }
+
     private fun registerLaunchers() {
         audioPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -508,6 +534,14 @@ public final class ComposeMainActivity : ComponentActivity() {
                 )
                 showToast("没有麦克风权限；可在系统设置中重新授权，也可手动输入")
             }
+        }
+        notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                showToast("提醒通知已开启")
+            } else {
+                showToast("未开启通知权限；提醒仍会保留在提醒中心")
+            }
+            reloadData()
         }
         cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -562,14 +596,25 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun reloadData() {
         runInBackground {
             service.purgeExpiredTrash()
+            val timeline = service.listTimelineEvents()
+            val childProfile = repository.loadChildProfile()
+            try {
+                reminderStore.syncSystemReminders(childProfile, timeline)
+            } catch (ignored: JSONException) {
+                // Reminder generation should not block the app shell.
+            }
+            BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), childProfile)
+            BabyLogReminderScheduler.enqueuePeriodicRefresh(this)
             val nextState = BabyLogUiState(
                 dashboard = service.loadDashboard(),
-                timeline = service.listTimelineEvents(),
+                timeline = timeline,
                 trashEvents = service.listTrashEvents(),
                 attachments = service.listAttachmentsNewestFirst(),
                 syncConfig = repository.loadSyncSettings(),
-                childProfile = repository.loadChildProfile(),
+                childProfile = childProfile,
                 preVisitQuestions = preVisitQuestionStore.listQuestions(),
+                reminders = reminderStore.listReminders(),
+                notificationPermissionGranted = BabyLogReminderScheduler.hasNotificationPermission(this),
                 setupCompleted = repository.hasCompletedSetup(),
                 disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion(),
                 hasImportUndoSnapshot = service.hasImportUndoSnapshot(),
@@ -1879,6 +1924,81 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) {
+            showToast("当前系统不需要单独开启通知权限")
+            return
+        }
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun saveUserReminder(
+        id: String?,
+        title: String,
+        note: String,
+        dueDate: String,
+        dueTime: String,
+        enabled: Boolean
+    ) {
+        if (title.trim().isBlank()) {
+            showToast("请填写提醒标题")
+            return
+        }
+        if (!BabyLogFormatters.isValidDateInput(dueDate) || !dueTime.matches(Regex("\\d{2}:\\d{2}"))) {
+            showToast("提醒时间格式不正确")
+            return
+        }
+        val dueAtIso = "${dueDate}T${dueTime}:00.000+0800"
+        runInBackground {
+            try {
+                reminderStore.saveUserReminder(id, title, note, dueAtIso, enabled)
+                BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
+                runOnUiThread {
+                    showToast("提醒已保存")
+                    reloadData()
+                }
+            } catch (error: JSONException) {
+                runOnUiThread { showInfo("保存失败", error.message ?: "无法保存提醒") }
+            }
+        }
+    }
+
+    private fun toggleReminder(reminder: BabyLogReminderStore.Reminder, enabled: Boolean) {
+        runInBackground {
+            reminderStore.setEnabled(reminder.id, enabled)
+            BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
+            runOnUiThread { reloadData() }
+        }
+    }
+
+    private fun dismissReminder(reminder: BabyLogReminderStore.Reminder) {
+        runInBackground {
+            reminderStore.dismiss(reminder.id)
+            BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
+            runOnUiThread { reloadData() }
+        }
+    }
+
+    private fun completeReminder(reminder: BabyLogReminderStore.Reminder) {
+        runInBackground {
+            reminderStore.complete(reminder.id)
+            BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
+            runOnUiThread { reloadData() }
+        }
+    }
+
+    private fun deleteReminder(reminder: BabyLogReminderStore.Reminder) {
+        if (reminder.source == BabyLogReminderStore.SOURCE_SYSTEM) {
+            showToast("系统提醒可忽略或关闭")
+            return
+        }
+        runInBackground {
+            reminderStore.delete(reminder.id)
+            BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
+            runOnUiThread { reloadData() }
+        }
+    }
+
     private fun quickActionsForStage(stage: String): List<BabyLogService.QuickAction> {
         if (stage == BabyLogDomain.STAGE_PREGNANCY) {
             return listOf(
@@ -1973,6 +2093,8 @@ internal data class BabyLogUiState(
     val syncConfig: BabyLogDomain.BackendConfig = BabyLogDomain.BackendConfig.disabled(),
     val childProfile: BabyLogDomain.ChildProfile = BabyLogDomain.ChildProfile.empty(),
     val preVisitQuestions: List<BabyLogPreVisitQuestionStore.Question> = emptyList(),
+    val reminders: List<BabyLogReminderStore.Reminder> = emptyList(),
+    val notificationPermissionGranted: Boolean = true,
     val setupCompleted: Boolean = false,
     val disclaimerAccepted: Boolean = false,
     val hasImportUndoSnapshot: Boolean = false,
@@ -2093,6 +2215,13 @@ private fun BabyLogApp(
     onOpenWeightGain: () -> Unit,
     onSavePreVisitQuestion: (String?, String, String) -> Unit,
     onDeletePreVisitQuestion: (BabyLogPreVisitQuestionStore.Question) -> Unit,
+    onOpenReminderCenter: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+    onSaveUserReminder: (String?, String, String, String, String, Boolean) -> Unit,
+    onToggleReminder: (BabyLogReminderStore.Reminder, Boolean) -> Unit,
+    onDismissReminder: (BabyLogReminderStore.Reminder) -> Unit,
+    onCompleteReminder: (BabyLogReminderStore.Reminder) -> Unit,
+    onDeleteReminder: (BabyLogReminderStore.Reminder) -> Unit,
     onOpenDueDateCalculatorFromProfile: (ProfileInput, Boolean) -> Unit,
     onApplyDueDateFromCalculator: (String) -> Unit,
     onRestoreTrashEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
@@ -2308,6 +2437,7 @@ private fun BabyLogApp(
                         onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Home) },
                         onDeleteEvent = onDeleteEvent,
                         onOpenWeightGain = { navController.navigate(BabyLogRoutes.ToolsWeightGain) },
+                        onOpenReminderCenter = onOpenReminderCenter,
                         onQuickRailVisibilityChange = { visible ->
                             if (quickRailVisible != visible) {
                                 quickRailVisible = visible
@@ -2396,6 +2526,7 @@ private fun BabyLogApp(
                     onOpenDueDateCalculator = onOpenDueDateCalculator,
                     onOpenWeightGain = onOpenWeightGain,
                     onOpenPreVisitQuestions = onOpenPreVisitQuestions,
+                    onOpenReminderCenter = onOpenReminderCenter,
                     onEditProfile = onEditProfile
                 )
             }
@@ -2405,6 +2536,20 @@ private fun BabyLogApp(
                     onBack = ::closeBrowseSubpage,
                     onSave = onSavePreVisitQuestion,
                     onDelete = onDeletePreVisitQuestion
+                )
+            }
+            composable(BabyLogRoutes.ReminderCenter) {
+                ReminderCenterScreen(
+                    reminders = state.reminders,
+                    systemMuted = BabyLogReminderStore.isSystemMuted(state.childProfile),
+                    notificationPermissionGranted = state.notificationPermissionGranted,
+                    onBack = ::closeBrowseSubpage,
+                    onRequestNotificationPermission = onRequestNotificationPermission,
+                    onSaveUserReminder = onSaveUserReminder,
+                    onToggleReminder = onToggleReminder,
+                    onDismissReminder = onDismissReminder,
+                    onCompleteReminder = onCompleteReminder,
+                    onDeleteReminder = onDeleteReminder
                 )
             }
             composable(BabyLogRoutes.LibraryTrash) {
@@ -3138,6 +3283,7 @@ internal fun SettingsScreen(
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
     onOpenPreVisitQuestions: () -> Unit,
+    onOpenReminderCenter: () -> Unit,
     onEditProfile: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -3189,6 +3335,14 @@ internal fun SettingsScreen(
                 subtitle = if (state.preVisitQuestions.isEmpty()) "产检前随手记录待问事项" else "${state.preVisitQuestions.size} 条待问",
                 action = "管理",
                 onClick = onOpenPreVisitQuestions
+            )
+        }
+        SettingsPanel("提醒") {
+            ActionRow(
+                title = "提醒中心",
+                subtitle = "${state.reminders.count { BabyLogReminderStore.isActionable(it) }} 条可查看提醒；系统通知可单独授权",
+                action = "打开",
+                onClick = onOpenReminderCenter
             )
         }
         SettingsPanel("同步") {

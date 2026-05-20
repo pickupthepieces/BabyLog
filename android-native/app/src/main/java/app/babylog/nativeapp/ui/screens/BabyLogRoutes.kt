@@ -19,6 +19,7 @@ internal object BabyLogRoutes {
     const val SettingsDisclaimer = "settings/disclaimer"
     const val SettingsDueDateCalc = "settings/duedate-calc"
     const val PreVisitQuestions = "tools/pre-visit-questions"
+    const val ReminderCenter = "tools/reminder-center"
     const val ToolsWeightGain = "tools/weight-gain"
     const val LibraryAttachments = "library/attachments"
     const val LibraryTrash = "library/trash"
@@ -46,6 +47,7 @@ internal object BabyLogRoutes {
             route == SettingsDisclaimer ||
             route == SettingsDueDateCalc ||
             route == PreVisitQuestions ||
+            route == ReminderCenter ||
             route == ToolsWeightGain
     }
 
@@ -54,6 +56,7 @@ internal object BabyLogRoutes {
             route == LibraryTrash ||
             route == LibraryVisitSummary ||
             route == PreVisitQuestions ||
+            route == ReminderCenter ||
             route == AttachmentPreview ||
             route == RecordDetail
     }

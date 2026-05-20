@@ -13,6 +13,9 @@
         domain="sharedpref"
         path="babylog_disclaimer_state.xml" />
     <exclude
+        domain="sharedpref"
+        path="babylog_reminders.xml" />
+    <exclude
         domain="file"
         path="attachments" />
     <exclude
