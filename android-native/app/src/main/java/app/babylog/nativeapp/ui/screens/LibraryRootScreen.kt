@@ -27,7 +27,8 @@ import java.util.Locale
 internal fun LibraryRootScreen(
     inner: PaddingValues,
     state: BabyLogUiState,
-    onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit
+    onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
+    onOpenVisitSummary: () -> Unit
 ) {
     var keyword by rememberSaveable { mutableStateOf("") }
     var typeFilter by rememberSaveable { mutableStateOf("all") }
@@ -50,6 +51,16 @@ internal fun LibraryRootScreen(
                 endDate = endDate,
                 onEndDateChange = { endDate = it }
             )
+        }
+        item {
+            SettingsPanel("复诊沟通") {
+                ActionRow(
+                    title = "复诊汇总导出",
+                    subtitle = "按时间整理产检、B 超、孕妈指标和筛查记录",
+                    action = "打开",
+                    onClick = onOpenVisitSummary
+                )
+            }
         }
         item {
             LibraryScreen(

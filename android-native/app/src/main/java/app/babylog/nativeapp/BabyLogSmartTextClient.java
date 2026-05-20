@@ -73,6 +73,26 @@ public final class BabyLogSmartTextClient {
         }
     }
 
+    public String polishVisitSummary(
+            String markdown,
+            BabyLogSmartConfigStore.Config config
+    ) throws IOException, JSONException {
+        if (config == null || !config.isConfigured()) {
+            throw new IOException("请先配置大模型 API");
+        }
+        if (markdown == null || markdown.trim().isEmpty()) {
+            throw new IOException("没有可润色的汇总文本");
+        }
+
+        JSONObject request = buildVisitSummaryPolishRequest(config.getModel(), markdown);
+        String response = postJson(BabyLogSmartVisionClient.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+        try {
+            return parseVisitSummaryPolishResponse(response);
+        } catch (IllegalArgumentException error) {
+            throw new IOException("模型返回内容无法解析：" + error.getMessage(), error);
+        }
+    }
+
     public static JSONObject buildSmartFillRequest(
             String model,
             String formName,
@@ -153,6 +173,43 @@ public final class BabyLogSmartTextClient {
                 .put("temperature", 0)
                 .put("messages", messages)
                 .put("response_format", new JSONObject().put("type", "json_object"));
+    }
+
+    public static JSONObject buildVisitSummaryPolishRequest(
+            String model,
+            String markdown
+    ) throws JSONException {
+        JSONArray messages = new JSONArray();
+        messages.put(new JSONObject()
+                .put("role", "system")
+                .put("content", visitSummaryPolishSystemPrompt()));
+        messages.put(new JSONObject()
+                .put("role", "user")
+                .put("content", "请润色下面这份 BabyLog 复诊汇总，严格遵守系统规则：\n\n" + nullToEmpty(markdown)));
+
+        return new JSONObject()
+                .put("model", model)
+                .put("temperature", 0)
+                .put("messages", messages);
+    }
+
+    public static String visitSummaryPolishSystemPrompt() {
+        return "你是一个把家庭孕期记录整理成医生面摘要的助手。严格规则：\n"
+                + "1. 仅基于下方给定文本重新组织语序与衔接，使其简洁易读；\n"
+                + "2. 禁止添加任何诊断、解释、医学建议、风险判定或新信息；\n"
+                + "3. 禁止修改数值、日期、字段值；不会删除字段；\n"
+                + "4. 保留原文中的“报告原文”标注；\n"
+                + "5. 保留顶部免责声明；\n"
+                + "6. 输出纯中文 Markdown，不解释你的工作。";
+    }
+
+    public static String parseVisitSummaryPolishResponse(String responseJson) {
+        String content = BabyLogSmartInput.extractOpenAiMessageContent(responseJson);
+        String markdown = stripMarkdownFence(content).trim();
+        if (markdown.isEmpty()) {
+            throw new IllegalArgumentException("润色文本为空");
+        }
+        return markdown;
     }
 
     public static SmartFillCandidate parseSmartFillResponse(
@@ -324,6 +381,21 @@ public final class BabyLogSmartTextClient {
             }
         }
         return builder.toString();
+    }
+
+    private static String stripMarkdownFence(String content) {
+        if (content == null) {
+            return "";
+        }
+        String trimmed = content.trim();
+        if (trimmed.startsWith("```")) {
+            int firstLineEnd = trimmed.indexOf('\n');
+            int fenceEnd = trimmed.lastIndexOf("```");
+            if (firstLineEnd >= 0 && fenceEnd > firstLineEnd) {
+                return trimmed.substring(firstLineEnd + 1, fenceEnd).trim();
+            }
+        }
+        return trimmed;
     }
 
     private static String nullToEmpty(String value) {

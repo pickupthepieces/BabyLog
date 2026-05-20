@@ -1,0 +1,496 @@
+package app.babylog.nativeapp;
+
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+public final class BabyLogVisitSummaryExporter {
+    public static final String CATEGORY_CHECKUP = "checkup";
+    public static final String CATEGORY_ULTRASOUND = "ultrasound";
+    public static final String CATEGORY_MATERNAL_METRIC = "maternal_metric";
+    public static final String CATEGORY_SCREENING = "screening";
+    public static final String CATEGORY_FETAL_MOVEMENT = "fetal_movement";
+    public static final String CATEGORY_CONTRACTION = "contraction";
+    public static final String DISCLAIMER_LINE = "> 仅家庭记录摘要，所有数值/分级由用户或报告原文录入，未经医学判读。本应用非医疗器械。";
+    public static final List<String> DEFAULT_CATEGORIES = Collections.unmodifiableList(Arrays.asList(
+            CATEGORY_CHECKUP,
+            CATEGORY_ULTRASOUND,
+            CATEGORY_MATERNAL_METRIC,
+            CATEGORY_SCREENING,
+            CATEGORY_FETAL_MOVEMENT,
+            CATEGORY_CONTRACTION
+    ));
+
+    private BabyLogVisitSummaryExporter() {
+    }
+
+    public static String buildMarkdown(
+            List<BabyLogDomain.BabyLogEvent> sourceEvents,
+            List<BabyLogDomain.AttachmentRecord> sourceAttachments,
+            String startDate,
+            String endDate,
+            Set<String> selectedCategories
+    ) {
+        List<BabyLogDomain.BabyLogEvent> events = sourceEvents == null
+                ? Collections.emptyList()
+                : BabyLogService.sortEventsNewestFirst(sourceEvents);
+        Map<String, BabyLogDomain.AttachmentRecord> attachments = indexAttachments(sourceAttachments);
+        Set<String> categories = selectedCategories == null
+                ? new HashSet<>(DEFAULT_CATEGORIES)
+                : new HashSet<>(selectedCategories);
+
+        List<BabyLogDomain.BabyLogEvent> included = new ArrayList<>();
+        for (BabyLogDomain.BabyLogEvent event : events) {
+            if (event == null || event.deletedAt != null) {
+                continue;
+            }
+            String category = categoryForEvent(event.eventType);
+            if (category.isEmpty() || !categories.contains(category)) {
+                continue;
+            }
+            String date = eventDateToken(event);
+            if (!inRange(date, startDate, endDate)) {
+                continue;
+            }
+            included.add(event);
+        }
+
+        StringBuilder markdown = new StringBuilder();
+        markdown.append("# BabyLog 复诊汇总（").append(rangeLabel(startDate, endDate)).append("）\n");
+        markdown.append(DISCLAIMER_LINE).append("\n");
+
+        if (included.isEmpty()) {
+            markdown.append("\n暂无符合条件的记录。\n");
+            return markdown.toString();
+        }
+
+        for (BabyLogDomain.BabyLogEvent event : included) {
+            appendEvent(markdown, event, attachmentCount(event, attachments));
+        }
+        return markdown.toString().trim() + "\n";
+    }
+
+    public static String categoryForEvent(String eventType) {
+        if ("pregnancy_checkup".equals(eventType)) {
+            return CATEGORY_CHECKUP;
+        }
+        if ("ultrasound".equals(eventType)) {
+            return CATEGORY_ULTRASOUND;
+        }
+        if ("maternal_metric".equals(eventType)) {
+            return CATEGORY_MATERNAL_METRIC;
+        }
+        if (BabyLogFormatters.isScreeningEventType(eventType)) {
+            return CATEGORY_SCREENING;
+        }
+        if ("fetal_movement".equals(eventType)) {
+            return CATEGORY_FETAL_MOVEMENT;
+        }
+        if ("contraction".equals(eventType)) {
+            return CATEGORY_CONTRACTION;
+        }
+        return "";
+    }
+
+    public static String categoryLabel(String category) {
+        if (CATEGORY_CHECKUP.equals(category)) return "产检";
+        if (CATEGORY_ULTRASOUND.equals(category)) return "B 超";
+        if (CATEGORY_MATERNAL_METRIC.equals(category)) return "孕妈指标";
+        if (CATEGORY_SCREENING.equals(category)) return "筛查专项";
+        if (CATEGORY_FETAL_MOVEMENT.equals(category)) return "胎动";
+        if (CATEGORY_CONTRACTION.equals(category)) return "宫缩";
+        return category == null ? "" : category;
+    }
+
+    private static void appendEvent(StringBuilder markdown, BabyLogDomain.BabyLogEvent event, int attachmentCount) {
+        JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
+        String date = eventDateToken(event);
+        String title = date + " · " + BabyLogFormatters.eventLabel(event.eventType);
+        String titleMeta = titleMeta(payload, event.eventType);
+        markdown.append("\n## ").append(title);
+        if (!isBlank(titleMeta)) {
+            markdown.append("（").append(titleMeta).append("）");
+        }
+        markdown.append("\n");
+
+        List<String> lines = eventLines(event, payload);
+        if (lines.isEmpty()) {
+            String summary = BabyLogFormatters.eventSummary(event);
+            if (!isBlank(summary) && !summary.contains("待补充详情")) {
+                lines.add(summary);
+            }
+        }
+        for (String line : lines) {
+            appendBullet(markdown, line);
+        }
+        if (attachmentCount > 0) {
+            appendBullet(markdown, "附件 " + attachmentCount + " 张");
+        }
+    }
+
+    private static List<String> eventLines(BabyLogDomain.BabyLogEvent event, JSONObject payload) {
+        if ("pregnancy_checkup".equals(event.eventType)) {
+            return checkupLines(payload);
+        }
+        if ("ultrasound".equals(event.eventType)) {
+            return ultrasoundLines(payload);
+        }
+        if ("maternal_metric".equals(event.eventType)) {
+            return maternalMetricLines(payload);
+        }
+        if (BabyLogFormatters.isScreeningEventType(event.eventType)) {
+            return screeningLines(event.eventType, payload);
+        }
+        if ("fetal_movement".equals(event.eventType)) {
+            return fetalMovementLines(payload);
+        }
+        if ("contraction".equals(event.eventType)) {
+            return contractionLines(payload);
+        }
+        return Collections.emptyList();
+    }
+
+    private static List<String> checkupLines(JSONObject payload) {
+        List<String> lines = new ArrayList<>();
+        List<String> vitals = new ArrayList<>();
+        String bp = bloodPressure(payload);
+        addIfNotBlank(vitals, bp);
+        addIfNotBlank(vitals, valueWithUnit(payload, "weightKg", "体重", "kg"));
+        addIfNotBlank(vitals, valueWithUnit(payload, "fundalHeightCm", "宫高", "cm"));
+        addIfNotBlank(vitals, valueWithUnit(payload, "abdominalCircumferenceCm", "腹围", "cm"));
+        addIfNotBlank(vitals, valueWithUnit(payload, "fetalHeartRateBpm", "胎心率", "bpm"));
+        addIfNotBlank(vitals, textWithLabel(payload, "fetalPresentation", "胎位", false));
+        addIfNotBlank(vitals, textWithLabel(payload, "edema", "水肿", false));
+        addIfNotBlank(vitals, textWithLabel(payload, "urineRoutine", "尿常规", false));
+        addIfNotBlank(vitals, textWithLabel(payload, "urineProtein", "尿蛋白", false));
+        addIfNotBlank(vitals, valueWithUnit(payload, "hemoglobinGL", "血红蛋白", "g/L"));
+        if (!vitals.isEmpty()) {
+            lines.add(join(vitals, "；"));
+        }
+
+        List<String> findings = new ArrayList<>();
+        addIfNotBlank(findings, textWithLabel(payload, "department", "科室", false));
+        addIfNotBlank(findings, textWithLabel(payload, "reportType", "报告类型", false));
+        addIfNotBlank(findings, textWithLabel(payload, "highRiskFactors", "高危因素", false));
+        addIfNotBlank(findings, textWithLabel(payload, "doctorConclusion", "医生结论", false));
+        addIfNotBlank(findings, textWithLabel(payload, "treatmentAdvice", "处理建议", false));
+        String nextVisit = text(payload, "nextVisitDate");
+        if (!isBlank(nextVisit)) {
+            String note = text(payload, "nextVisitNote");
+            findings.add("下次产检 " + nextVisit + (isBlank(note) || nextVisit.equals(note) ? "" : "（" + note + "）"));
+        }
+        addIfNotBlank(findings, textWithLabel(payload, "note", "备注", false));
+        addIfNotBlank(findings, textWithLabel(payload, "attachmentNote", "附件备注", false));
+        if (!findings.isEmpty()) {
+            lines.add(join(findings, "；"));
+        }
+        return lines;
+    }
+
+    private static List<String> ultrasoundLines(JSONObject payload) {
+        List<String> lines = new ArrayList<>();
+        List<String> growth = new ArrayList<>();
+        addIfNotBlank(growth, valueWithUnit(payload, "bpdMm", "BPD", "mm"));
+        addIfNotBlank(growth, valueWithUnit(payload, "hcMm", "HC", "mm"));
+        addIfNotBlank(growth, valueWithUnit(payload, "acMm", "AC", "mm"));
+        addIfNotBlank(growth, valueWithUnit(payload, "flMm", "FL", "mm"));
+        addIfNotBlank(growth, valueWithUnit(payload, "efwGram", "EFW", "g"));
+        if (!growth.isEmpty()) {
+            lines.add(join(growth, "，"));
+        }
+
+        List<String> clinical = new ArrayList<>();
+        addIfNotBlank(clinical, valueWithUnit(payload, "afiCm", "AFI", "cm"));
+        addIfNotBlank(clinical, valueWithUnit(payload, "deepestPocketCm", "最大羊水池", "cm"));
+        addIfNotBlank(clinical, textWithLabel(payload, "placentaLocation", "胎盘位置", false));
+        addIfNotBlank(clinical, textWithLabel(payload, "placentaGrade", "胎盘成熟度", false));
+        addIfNotBlank(clinical, textWithLabel(payload, "fetalPresentation", "胎位", false));
+        addIfNotBlank(clinical, valueWithUnit(payload, "fetalHeartRateBpm", "胎心率", "bpm"));
+        addIfNotBlank(clinical, textWithLabel(payload, "fetalCount", "胎儿个数", false));
+        addIfNotBlank(clinical, textWithLabel(payload, "fetalMovement", "胎动", false));
+        addIfNotBlank(clinical, textWithLabel(payload, "umbilicalInsertion", "脐带插入处", false));
+        addIfNotBlank(clinical, valueWithUnit(payload, "cervicalLengthMm", "宫颈管长度", "mm"));
+        addIfNotBlank(clinical, valueWithUnit(payload, "crlMm", "CRL", "mm"));
+        addIfNotBlank(clinical, valueWithUnit(payload, "ntMm", "NT", "mm"));
+        addIfNotBlank(clinical, valueWithUnit(payload, "umbilicalSd", "脐血流 S/D", ""));
+        addIfNotBlank(clinical, valueWithUnit(payload, "umbilicalPi", "脐血流 PI", ""));
+        addIfNotBlank(clinical, valueWithUnit(payload, "umbilicalRi", "脐血流 RI", ""));
+        if (!clinical.isEmpty()) {
+            lines.add(join(clinical, "；"));
+        }
+
+        addIfNotBlank(lines, textWithLabel(payload, "diagnosisText", "超声诊断", false));
+        addIfNotBlank(lines, textWithLabel(payload, "clinicalDetails", "备注", false));
+        return lines;
+    }
+
+    private static List<String> maternalMetricLines(JSONObject payload) {
+        List<String> lines = new ArrayList<>();
+        List<String> metrics = new ArrayList<>();
+        addIfNotBlank(metrics, valueWithUnit(payload, "weightKg", "体重", "kg"));
+        addIfNotBlank(metrics, bloodPressure(payload));
+        String glucose = valueWithUnit(payload, "glucoseMmolL", "血糖", "mmol/L");
+        if (!isBlank(glucose)) {
+            String context = BabyLogFormatters.maternalGlucoseContextLabel(text(payload, "glucoseContext"));
+            metrics.add(isBlank(context) ? glucose : glucose.replace("血糖 ", "血糖（" + context + "）"));
+        }
+        if (!metrics.isEmpty()) {
+            lines.add(join(metrics, "；"));
+        }
+        addIfNotBlank(lines, textWithLabel(payload, "note", "备注", false));
+        return lines;
+    }
+
+    private static List<String> screeningLines(String eventType, JSONObject payload) {
+        List<String> lines = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        if ("screening_nt".equals(eventType)) {
+            addIfNotBlank(values, valueWithUnit(payload, "ntMm", "NT", "mm"));
+            addIfNotBlank(values, reportText(payload, "conclusion", "结论"));
+        } else if ("screening_serum".equals(eventType)) {
+            addIfNotBlank(values, reportText(payload, "riskLevel", "分级"));
+            addIfNotBlank(values, reportText(payload, "riskT21", "21 三体风险"));
+            addIfNotBlank(values, reportText(payload, "riskT18", "18 三体风险"));
+            addIfNotBlank(values, reportText(payload, "riskOntd", "开放性神经管风险"));
+        } else if ("screening_nipt".equals(eventType)) {
+            addIfNotBlank(values, reportText(payload, "t21Result", "T21"));
+            addIfNotBlank(values, reportText(payload, "t18Result", "T18"));
+            addIfNotBlank(values, reportText(payload, "t13Result", "T13"));
+            addIfNotBlank(values, reportText(payload, "sexChromosome", "性染色体"));
+            addIfNotBlank(values, reportText(payload, "conclusion", "结论"));
+        } else if ("screening_anomaly".equals(eventType)) {
+            addIfNotBlank(values, reportText(payload, "structureConclusion", "结构结论"));
+            addIfNotBlank(values, reportText(payload, "conclusion", "结论"));
+        } else if ("screening_ogtt".equals(eventType)) {
+            addIfNotBlank(values, valueWithUnit(payload, "fastingGlucoseMmolL", "空腹", "mmol/L"));
+            addIfNotBlank(values, valueWithUnit(payload, "oneHourGlucoseMmolL", "1h", "mmol/L"));
+            addIfNotBlank(values, valueWithUnit(payload, "twoHourGlucoseMmolL", "2h", "mmol/L"));
+            addIfNotBlank(values, reportText(payload, "abnormalFlag", "报告标注"));
+        } else if ("screening_gbs".equals(eventType)) {
+            addIfNotBlank(values, reportText(payload, "gbsResult", "GBS"));
+        } else if ("screening_nst".equals(eventType)) {
+            addIfNotBlank(values, reportText(payload, "nstResult", "胎心监护"));
+        }
+        if (!values.isEmpty()) {
+            lines.add(join(values, "；"));
+        }
+        addIfNotBlank(lines, textWithLabel(payload, "note", "备注", false));
+        addIfNotBlank(lines, textWithLabel(payload, "attachmentNote", "附件备注", false));
+        return lines;
+    }
+
+    private static List<String> fetalMovementLines(JSONObject payload) {
+        List<String> lines = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        addIfNotBlank(values, textWithLabel(payload, "movementWindow", "时段", false));
+        addIfNotBlank(values, valueWithUnit(payload, "movementCount", "胎动", "次"));
+        addIfNotBlank(values, textWithLabel(payload, "startedAt", "开始", false));
+        addIfNotBlank(values, textWithLabel(payload, "endedAt", "结束", false));
+        addIfNotBlank(values, valueWithUnit(payload, "durationMinutes", "持续", "分钟"));
+        addIfNotBlank(values, valueWithUnit(payload, "targetCount", "目标", "次"));
+        if (!values.isEmpty()) {
+            lines.add(join(values, "；"));
+        }
+        addIfNotBlank(lines, textWithLabel(payload, "note", "备注", false));
+        return lines;
+    }
+
+    private static List<String> contractionLines(JSONObject payload) {
+        List<String> lines = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        addIfNotBlank(values, textWithLabel(payload, "contractionStart", "开始", false));
+        addIfNotBlank(values, valueWithUnit(payload, "intervalMinutes", "间隔", "分钟"));
+        addIfNotBlank(values, valueWithUnit(payload, "durationSeconds", "持续", "秒"));
+        if (!values.isEmpty()) {
+            lines.add(join(values, "；"));
+        }
+        addIfNotBlank(lines, textWithLabel(payload, "note", "备注", false));
+        return lines;
+    }
+
+    private static String titleMeta(JSONObject payload, String eventType) {
+        List<String> meta = new ArrayList<>();
+        addIfNotBlank(meta, gestationalAge(payload));
+        if ("ultrasound".equals(eventType)) {
+            addIfNotBlank(meta, text(payload, "hospital"));
+        } else {
+            addIfNotBlank(meta, text(payload, "provider"));
+        }
+        return join(meta, " · ");
+    }
+
+    private static String gestationalAge(JSONObject payload) {
+        if (payload == null) {
+            return "";
+        }
+        if (payload.has("gestationalAgeDays")) {
+            return BabyLogFormatters.formatGestationalAge(payload.optInt("gestationalAgeDays"));
+        }
+        return text(payload, "gestationalAge");
+    }
+
+    private static String bloodPressure(JSONObject payload) {
+        String systolic = number(payload, "systolicBp");
+        String diastolic = number(payload, "diastolicBp");
+        if (isBlank(systolic) || isBlank(diastolic)) {
+            return "";
+        }
+        return "血压 " + systolic + "/" + diastolic + " mmHg";
+    }
+
+    private static String valueWithUnit(JSONObject payload, String key, String label, String unit) {
+        String value = number(payload, key);
+        if (isBlank(value)) {
+            return "";
+        }
+        return label + " " + value + (isBlank(unit) ? "" : " " + unit);
+    }
+
+    private static String reportText(JSONObject payload, String key, String label) {
+        return textWithLabel(payload, key, label, true);
+    }
+
+    private static String textWithLabel(JSONObject payload, String key, String label, boolean reportOriginal) {
+        String value = text(payload, key);
+        if (isBlank(value)) {
+            return "";
+        }
+        return label + " " + value + (reportOriginal ? "（报告原文）" : "");
+    }
+
+    private static String text(JSONObject payload, String key) {
+        if (payload == null || !payload.has(key) || payload.isNull(key)) {
+            return "";
+        }
+        String value = payload.optString(key, "").trim();
+        return isBlank(value) || "/".equals(value) || "-".equals(value) || "—".equals(value) ? "" : value;
+    }
+
+    private static String number(JSONObject payload, String key) {
+        if (payload == null || !payload.has(key) || payload.isNull(key)) {
+            return "";
+        }
+        Object value = payload.opt(key);
+        if (value instanceof Number) {
+            return BabyLogFormatters.formatNumber(((Number) value).doubleValue());
+        }
+        Double parsed = BabyLogFormatters.parseOptionalNumber(String.valueOf(value));
+        return parsed == null ? "" : BabyLogFormatters.formatNumber(parsed);
+    }
+
+    private static String eventDateToken(BabyLogDomain.BabyLogEvent event) {
+        String payloadDate = payloadDateToken(event);
+        if (!isBlank(payloadDate)) {
+            return payloadDate;
+        }
+        return dateToken(event == null ? "" : event.occurredAt);
+    }
+
+    private static String payloadDateToken(BabyLogDomain.BabyLogEvent event) {
+        if (event == null || event.payload == null) {
+            return "";
+        }
+        String[] keys = {"examDate", "checkupDate", "screeningDate"};
+        for (String key : keys) {
+            String value = dateToken(text(event.payload, key));
+            if (!isBlank(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private static String dateToken(String value) {
+        if (value == null || value.length() < 10) {
+            return "";
+        }
+        return value.substring(0, 10);
+    }
+
+    private static boolean inRange(String eventDate, String startDate, String endDate) {
+        if (!isBlank(startDate) && !isBlank(eventDate) && eventDate.compareTo(startDate) < 0) {
+            return false;
+        }
+        if (!isBlank(endDate) && !isBlank(eventDate) && eventDate.compareTo(endDate) > 0) {
+            return false;
+        }
+        return true;
+    }
+
+    private static String rangeLabel(String startDate, String endDate) {
+        if (!isBlank(startDate) && !isBlank(endDate)) {
+            return startDate + " 至 " + endDate;
+        }
+        if (!isBlank(startDate)) {
+            return startDate + " 起";
+        }
+        if (!isBlank(endDate)) {
+            return "截至 " + endDate;
+        }
+        return "全部记录";
+    }
+
+    private static int attachmentCount(BabyLogDomain.BabyLogEvent event, Map<String, BabyLogDomain.AttachmentRecord> attachments) {
+        if (event == null || event.attachmentIds == null || attachments == null || attachments.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (String id : event.attachmentIds) {
+            BabyLogDomain.AttachmentRecord attachment = attachments.get(id);
+            if (attachment != null && attachment.deletedAt == null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static Map<String, BabyLogDomain.AttachmentRecord> indexAttachments(List<BabyLogDomain.AttachmentRecord> attachments) {
+        Map<String, BabyLogDomain.AttachmentRecord> indexed = new HashMap<>();
+        if (attachments == null) {
+            return indexed;
+        }
+        for (BabyLogDomain.AttachmentRecord attachment : attachments) {
+            if (attachment != null) {
+                indexed.put(attachment.id, attachment);
+            }
+        }
+        return indexed;
+    }
+
+    private static void appendBullet(StringBuilder markdown, String line) {
+        if (!isBlank(line)) {
+            markdown.append("- ").append(line.trim()).append("\n");
+        }
+    }
+
+    private static void addIfNotBlank(List<String> target, String value) {
+        if (!isBlank(value)) {
+            target.add(value.trim());
+        }
+    }
+
+    private static String join(List<String> values, String separator) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (isBlank(value)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(separator);
+            }
+            builder.append(value.trim());
+        }
+        return builder.toString();
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+}

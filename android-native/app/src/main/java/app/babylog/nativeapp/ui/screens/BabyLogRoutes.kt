@@ -19,6 +19,7 @@ internal object BabyLogRoutes {
     const val SettingsDueDateCalc = "settings/duedate-calc"
     const val LibraryAttachments = "library/attachments"
     const val LibraryTrash = "library/trash"
+    const val LibraryVisitSummary = "library/visit-summary"
     const val AttachmentPreview = "attachment/preview"
     const val RecordDetail = "record/detail"
 
@@ -45,6 +46,7 @@ internal object BabyLogRoutes {
     fun isBrowseSubpage(route: String?): Boolean {
         return route == LibraryAttachments ||
             route == LibraryTrash ||
+            route == LibraryVisitSummary ||
             route == AttachmentPreview ||
             route == RecordDetail
     }

@@ -99,11 +99,30 @@ public final class BabyLogSmartTextClientSmokeTest {
                 BabyLogSmartTextClient.parseSmartEntryResponse(unknownType, forms, "fallback");
         assertEquals("", unknown.eventType);
         assertEquals(null, unknown.values.get("weightKg"));
+
+        String polishPrompt = BabyLogSmartTextClient.visitSummaryPolishSystemPrompt();
+        assertTrue(polishPrompt.contains("禁止添加任何诊断"));
+        assertTrue(polishPrompt.contains("禁止修改数值"));
+        assertTrue(polishPrompt.contains("保留顶部免责声明"));
+        String polishResponse = "{"
+                + "\"choices\":[{\"message\":{\"content\":\"```markdown\\n"
+                + "# BabyLog 复诊汇总\\n"
+                + "> 仅家庭记录摘要，未经医学判读。本应用非医疗器械。\\n"
+                + "- 血压 118/76 mmHg\\n"
+                + "```\"}}]}";
+        String polished = BabyLogSmartTextClient.parseVisitSummaryPolishResponse(polishResponse);
+        assertEquals("# BabyLog 复诊汇总\n> 仅家庭记录摘要，未经医学判读。本应用非医疗器械。\n- 血压 118/76 mmHg", polished);
     }
 
     private static void assertEquals(Object expected, Object actual) {
         if (expected == null ? actual != null : !expected.equals(actual)) {
             throw new AssertionError("expected " + expected + " but got " + actual);
+        }
+    }
+
+    private static void assertTrue(boolean value) {
+        if (!value) {
+            throw new AssertionError("expected true");
         }
     }
 }

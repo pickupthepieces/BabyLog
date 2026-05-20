@@ -1,6 +1,10 @@
 package app.babylog.nativeapp
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -142,6 +146,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var pickImageLauncher: ActivityResultLauncher<String>
     private lateinit var exportBackupLauncher: ActivityResultLauncher<String>
     private lateinit var importBackupLauncher: ActivityResultLauncher<Array<String>>
+    private lateinit var visitSummarySaveLauncher: ActivityResultLauncher<String>
 
     private var uiState by mutableStateOf(BabyLogUiState())
     private var pendingNavRoute by mutableStateOf<String?>(null)
@@ -187,6 +192,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var pendingCheckupAttachmentPath by mutableStateOf<String?>(null)
     private var pendingCheckupAttachmentName by mutableStateOf<String?>(null)
     private var pendingImageTarget by mutableStateOf(ImagePickTarget.Ultrasound)
+    private var pendingVisitSummaryText: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.AppTheme)
@@ -240,6 +246,9 @@ public final class ComposeMainActivity : ComponentActivity() {
                         attachmentListPageState = AttachmentListPageState(title, attachments)
                         pendingNavRoute = BabyLogRoutes.LibraryAttachments
                     },
+                    onOpenVisitSummary = {
+                        pendingNavRoute = BabyLogRoutes.LibraryVisitSummary
+                    },
                     onCloseAttachmentList = {
                         attachmentListPageState = null
                     },
@@ -250,6 +259,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onCloseAttachmentPreview = {
                         previewAttachment = null
                     },
+                    onCopyVisitSummary = ::copyVisitSummary,
+                    onShareVisitSummary = ::shareVisitSummary,
+                    onSaveVisitSummary = ::saveVisitSummary,
+                    onPolishVisitSummary = ::polishVisitSummary,
                     onSyncNow = ::syncNow,
                     onExportBackup = ::exportBackup,
                     onImportBackup = ::importBackup,
@@ -520,6 +533,13 @@ public final class ComposeMainActivity : ComponentActivity() {
             if (uri != null) {
                 contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 readBackup(uri)
+            }
+        }
+        visitSummarySaveLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+            if (uri != null) {
+                writeVisitSummary(uri)
+            } else {
+                pendingVisitSummaryText = null
             }
         }
     }
@@ -1188,6 +1208,86 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun copyVisitSummary(text: String) {
+        if (text.isBlank()) {
+            showToast("没有可复制的汇总内容")
+            return
+        }
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("BabyLog 复诊汇总", text))
+        showToast("已复制复诊汇总")
+    }
+
+    private fun shareVisitSummary(text: String) {
+        if (text.isBlank()) {
+            showToast("没有可分享的汇总内容")
+            return
+        }
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("text/markdown")
+            .putExtra(Intent.EXTRA_SUBJECT, "BabyLog 复诊汇总")
+            .putExtra(Intent.EXTRA_TEXT, text)
+        startActivity(Intent.createChooser(send, "分享复诊汇总"))
+    }
+
+    private fun saveVisitSummary(text: String) {
+        if (text.isBlank()) {
+            showToast("没有可保存的汇总内容")
+            return
+        }
+        pendingVisitSummaryText = text
+        val date = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+        visitSummarySaveLauncher.launch("babylog-visit-summary-$date.md")
+    }
+
+    private fun writeVisitSummary(uri: Uri) {
+        val text = pendingVisitSummaryText
+        pendingVisitSummaryText = null
+        if (text.isNullOrBlank()) {
+            showToast("没有可保存的汇总内容")
+            return
+        }
+        runInBackground {
+            try {
+                contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(text) }
+                    ?: throw IOException("无法打开导出文件")
+                showToast("复诊汇总已保存")
+            } catch (error: Exception) {
+                showInfo("保存失败", error.message ?: "无法保存复诊汇总")
+            }
+        }
+    }
+
+    private fun polishVisitSummary(text: String, onDone: (String?) -> Unit) {
+        if (text.isBlank()) {
+            showInfo("没有可润色内容", "请先生成或填写复诊汇总文本。")
+            onDone(null)
+            return
+        }
+        runInBackground {
+            try {
+                val config = smartConfigStore.load()
+                if (!config.isConfigured()) {
+                    runOnUiThread {
+                        showInfo("智能识别未配置", "请先在设置页填写模型 Base URL、模型和 API Key。未配置时仍可导出原始模板。")
+                        onDone(null)
+                    }
+                    return@runInBackground
+                }
+                val polished = smartTextClient.polishVisitSummary(text, config)
+                runOnUiThread {
+                    onDone(polished)
+                    showToast("润色完成，请核对后导出")
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    showInfo("润色失败", smartVisionErrorMessage(error))
+                    onDone(null)
+                }
+            }
+        }
+    }
+
     private fun exportBackup() {
         val date = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
         exportBackupLauncher.launch("babylog-backup-$date.json")
@@ -1826,9 +1926,14 @@ private fun BabyLogApp(
     attachmentListPageState: AttachmentListPageState?,
     previewAttachment: BabyLogDomain.AttachmentRecord?,
     onShowAttachments: (String, List<BabyLogDomain.AttachmentRecord>) -> Unit,
+    onOpenVisitSummary: () -> Unit,
     onCloseAttachmentList: () -> Unit,
     onPreviewAttachment: (BabyLogDomain.AttachmentRecord) -> Unit,
     onCloseAttachmentPreview: () -> Unit,
+    onCopyVisitSummary: (String) -> Unit,
+    onShareVisitSummary: (String) -> Unit,
+    onSaveVisitSummary: (String) -> Unit,
+    onPolishVisitSummary: (String, (String?) -> Unit) -> Unit,
     onSyncNow: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
@@ -1959,6 +2064,11 @@ private fun BabyLogApp(
     fun closeDueDateCalculator() {
         if (!navController.popBackStack()) {
             selectTopLevelTab(BabyLogRoutes.Settings)
+        }
+    }
+    fun closeBrowseSubpage() {
+        if (!navController.popBackStack()) {
+            selectTopLevelTab(BabyLogRoutes.Library)
         }
     }
     fun closeAttachmentList() {
@@ -2094,7 +2204,19 @@ private fun BabyLogApp(
                 LibraryRootScreen(
                     inner = inner,
                     state = state,
-                    onShowAttachments = onShowAttachments
+                    onShowAttachments = onShowAttachments,
+                    onOpenVisitSummary = onOpenVisitSummary
+                )
+            }
+            composable(BabyLogRoutes.LibraryVisitSummary) {
+                VisitSummaryScreen(
+                    events = state.timeline,
+                    attachments = state.attachments,
+                    onBack = ::closeBrowseSubpage,
+                    onCopy = onCopyVisitSummary,
+                    onShare = onShareVisitSummary,
+                    onSaveFile = onSaveVisitSummary,
+                    onPolish = onPolishVisitSummary
                 )
             }
             composable(BabyLogRoutes.LibraryAttachments) {
