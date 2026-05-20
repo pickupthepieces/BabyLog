@@ -169,6 +169,7 @@ public final class BabyLogService {
             throw new IllegalArgumentException("请至少记录一次宫缩");
         }
         List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
+        List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
         for (ContractionEntryInput entry : input.entries) {
             JSONObject payload = buildContractionSessionPayload(input.sessionId, entry);
             BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
@@ -178,9 +179,11 @@ public final class BabyLogService {
                     Collections.emptyList(),
                     "manual"
             );
-            repository.putEvent(event);
-            repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
             events.add(event);
+            changes.add(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        }
+        if (!repository.putEventsWithSyncChanges(events, changes)) {
+            throw new JSONException("保存宫缩会话失败");
         }
         return events;
     }

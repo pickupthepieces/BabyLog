@@ -36,19 +36,19 @@ internal fun ProfileSettingsScreen(
         return
     }
 
-    var nickname by rememberSaveable(state.title) { mutableStateOf(state.profile.nickname) }
-    var sex by rememberSaveable(state.title) {
+    var nickname by rememberSaveable(state.title, state.profile.nickname) { mutableStateOf(state.profile.nickname) }
+    var sex by rememberSaveable(state.title, state.profile.sex) {
         mutableStateOf(if (state.profile.sex == "unknown") "unknown" else state.profile.sex)
     }
-    var expectedDueDate by rememberSaveable(state.title) { mutableStateOf(state.profile.expectedDueDate) }
-    var birthDate by rememberSaveable(state.title) { mutableStateOf(state.profile.birthDate) }
-    var prePregnancyWeightKg by rememberSaveable(state.title) {
+    var expectedDueDate by rememberSaveable(state.title, state.profile.expectedDueDate) { mutableStateOf(state.profile.expectedDueDate) }
+    var birthDate by rememberSaveable(state.title, state.profile.birthDate) { mutableStateOf(state.profile.birthDate) }
+    var prePregnancyWeightKg by rememberSaveable(state.title, state.profile.prePregnancyWeightKg) {
         mutableStateOf(state.profile.prePregnancyWeightKg?.let { BabyLogFormatters.formatNumber(it) }.orEmpty())
     }
-    var heightCm by rememberSaveable(state.title) {
+    var heightCm by rememberSaveable(state.title, state.profile.heightCm) {
         mutableStateOf(state.profile.heightCm?.let { BabyLogFormatters.formatNumber(it) }.orEmpty())
     }
-    var stageOverride by rememberSaveable(state.title) { mutableStateOf(state.initialStage) }
+    var stageOverride by rememberSaveable(state.title, state.initialStage) { mutableStateOf(state.initialStage) }
 
     SettingsPageScaffold(
         title = state.title,

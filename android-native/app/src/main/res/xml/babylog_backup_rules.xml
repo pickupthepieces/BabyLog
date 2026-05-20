@@ -2,8 +2,23 @@
 <full-backup-content>
     <exclude
         domain="sharedpref"
+        path="babylog_native_repository_v1.xml" />
+    <exclude
+        domain="sharedpref"
+        path="babylog_native_meta_v1.xml" />
+    <exclude
+        domain="sharedpref"
         path="babylog_smart_config.xml" />
     <exclude
         domain="sharedpref"
         path="babylog_disclaimer_state.xml" />
+    <exclude
+        domain="file"
+        path="attachments" />
+    <exclude
+        domain="file"
+        path="camera-captures" />
+    <exclude
+        domain="file"
+        path="last-import-undo.json" />
 </full-backup-content>

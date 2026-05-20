@@ -623,7 +623,11 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 smartConfigStore.save(config)
-                runOnUiThread { refreshSmartConfigSummary() }
+                runOnUiThread {
+                    refreshSmartConfigSummary()
+                    smartSettingsConfig = null
+                    pendingNavRoute = BabyLogRoutes.Settings
+                }
                 showToast(if (config.isConfigured()) "已保存智能识别配置" else "已关闭智能识别")
             } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存智能识别配置")
@@ -653,7 +657,11 @@ public final class ComposeMainActivity : ComponentActivity() {
         runInBackground {
             try {
                 smartConfigStore.saveSpeechConfig(config)
-                runOnUiThread { refreshSmartConfigSummary() }
+                runOnUiThread {
+                    refreshSmartConfigSummary()
+                    speechSettingsConfig = null
+                    pendingNavRoute = BabyLogRoutes.Settings
+                }
                 showToast(if (config.isConfigured()) "已保存语音识别配置" else "已关闭语音识别")
             } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存语音配置")
@@ -1439,6 +1447,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             try {
                 repository.saveSyncSettings(BabyLogDomain.BackendConfig(backendBaseUrl.isNotEmpty(), backendBaseUrl, "cn", null))
                 showToast(if (backendBaseUrl.isEmpty()) "已关闭后端同步" else "已保存同步地址")
+                runOnUiThread { pendingNavRoute = BabyLogRoutes.Settings }
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存同步设置")
@@ -1814,7 +1823,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                 } else {
                     repository.saveChildProfile(child)
                 }
-                runOnUiThread { pendingNavRoute = BabyLogRoutes.Home }
+                runOnUiThread {
+                    profilePageState = null
+                    pendingNavRoute = BabyLogRoutes.Home
+                }
                 showToast("档案已保存")
                 reloadData()
             } catch (error: JSONException) {
@@ -2346,10 +2358,7 @@ private fun BabyLogApp(
                     state = profilePageState,
                     onBack = ::closeSettingsPage,
                     onOpenDueDateCalculator = onOpenDueDateCalculatorFromProfile,
-                    onSave = { input, firstRun ->
-                        closeSettingsPage()
-                        onSaveProfile(input, firstRun)
-                    }
+                    onSave = onSaveProfile
                 )
             }
             composable(BabyLogRoutes.SettingsDueDateCalc) {
@@ -2382,30 +2391,21 @@ private fun BabyLogApp(
                 SyncSettingsScreen(
                     config = state.syncConfig,
                     onBack = ::closeSettingsPage,
-                    onSave = { backendBaseUrl ->
-                        closeSettingsPage()
-                        onSaveSyncSettings(backendBaseUrl)
-                    }
+                    onSave = onSaveSyncSettings
                 )
             }
             composable(BabyLogRoutes.SettingsModel) {
                 SmartModelSettingsScreen(
                     config = smartSettingsConfig,
                     onBack = ::closeSettingsPage,
-                    onSave = { config ->
-                        closeSettingsPage()
-                        onSaveSmartSettings(config)
-                    }
+                    onSave = onSaveSmartSettings
                 )
             }
             composable(BabyLogRoutes.SettingsSpeech) {
                 SpeechSettingsScreen(
                     config = speechSettingsConfig,
                     onBack = ::closeSettingsPage,
-                    onSave = { config ->
-                        closeSettingsPage()
-                        onSaveSpeechSettings(config)
-                    }
+                    onSave = onSaveSpeechSettings
                 )
             }
             composable(BabyLogRoutes.SettingsDisclaimer) {

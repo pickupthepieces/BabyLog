@@ -21,9 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -47,7 +48,7 @@ internal fun ContractionSessionScreen(
     onSave: (BabyLogService.ContractionSessionInput) -> Unit
 ) {
     val sessionId = rememberSaveable { UUID.randomUUID().toString() }
-    val entries = remember { mutableStateListOf<ContractionSessionEntry>() }
+    val entries = rememberSaveable(saver = ContractionEntriesSaver) { mutableStateListOf<ContractionSessionEntry>() }
     var currentStartMs by rememberSaveable { mutableStateOf(0L) }
     var tickMs by rememberSaveable { mutableStateOf(0L) }
     var formError by rememberSaveable { mutableStateOf("") }
@@ -255,6 +256,36 @@ private data class ContractionSessionEntry(
     val endMs: Long,
     val durationMs: Long,
     val intervalFromPrevMs: Long?
+)
+
+private val ContractionEntriesSaver = Saver<SnapshotStateList<ContractionSessionEntry>, List<Long>>(
+    save = { entries ->
+        entries.flatMap { entry ->
+            listOf(
+                entry.startMs,
+                entry.endMs,
+                entry.durationMs,
+                entry.intervalFromPrevMs ?: -1L
+            )
+        }
+    },
+    restore = { saved ->
+        val restored = mutableStateListOf<ContractionSessionEntry>()
+        var index = 0
+        while (index + 3 < saved.size) {
+            val interval = saved[index + 3].takeIf { it >= 0L }
+            restored.add(
+                ContractionSessionEntry(
+                    startMs = saved[index],
+                    endMs = saved[index + 1],
+                    durationMs = saved[index + 2],
+                    intervalFromPrevMs = interval
+                )
+            )
+            index += 4
+        }
+        restored
+    }
 )
 
 private fun formatElapsed(elapsedMs: Long): String {

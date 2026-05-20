@@ -15,6 +15,7 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,7 +50,7 @@ internal fun SmartModelSettingsScreen(
     var enabled by rememberSaveable(config.isEnabled()) { mutableStateOf(config.isEnabled()) }
     var baseUrl by rememberSaveable(config.getBaseUrl()) { mutableStateOf(config.getBaseUrl()) }
     var model by rememberSaveable(config.getModel()) { mutableStateOf(config.getModel()) }
-    var apiKey by rememberSaveable(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
+    var apiKey by remember(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
 
     SettingsPageScaffold(
         title = "OCR / 智能解析模型",

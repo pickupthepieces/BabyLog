@@ -170,6 +170,32 @@ public final class BabyLogRepository {
         putJson(SYNC_CHANGES_KEY, change.id, change.toJson());
     }
 
+    public boolean putEventsWithSyncChanges(
+            List<BabyLogDomain.BabyLogEvent> events,
+            List<BabyLogDomain.SyncChange> changes
+    ) throws JSONException {
+        JSONArray updatedEvents = readArray(EVENTS_KEY);
+        JSONArray updatedChanges = readArray(SYNC_CHANGES_KEY);
+        if (events != null) {
+            for (BabyLogDomain.BabyLogEvent event : events) {
+                if (event != null) {
+                    updatedEvents = upsertJson(updatedEvents, event.id, event.toJson());
+                }
+            }
+        }
+        if (changes != null) {
+            for (BabyLogDomain.SyncChange change : changes) {
+                if (change != null) {
+                    updatedChanges = upsertJson(updatedChanges, change.id, change.toJson());
+                }
+            }
+        }
+        return preferences.edit()
+                .putString(EVENTS_KEY, updatedEvents.toString())
+                .putString(SYNC_CHANGES_KEY, updatedChanges.toString())
+                .commit();
+    }
+
     public List<BabyLogDomain.SyncChange> listSyncChanges() {
         JSONArray array = readArray(SYNC_CHANGES_KEY);
         List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
@@ -270,7 +296,11 @@ public final class BabyLogRepository {
     }
 
     private void putJson(String key, String id, JSONObject next) throws JSONException {
-        JSONArray array = readArray(key);
+        JSONArray updated = upsertJson(readArray(key), id, next);
+        preferences.edit().putString(key, updated.toString()).commit();
+    }
+
+    private JSONArray upsertJson(JSONArray array, String id, JSONObject next) throws JSONException {
         JSONArray updated = new JSONArray();
         boolean replaced = false;
         for (int i = 0; i < array.length(); i++) {
@@ -288,7 +318,7 @@ public final class BabyLogRepository {
         if (!replaced) {
             updated.put(next);
         }
-        preferences.edit().putString(key, updated.toString()).commit();
+        return updated;
     }
 
     private void hardDeleteJson(String key, String id) {
