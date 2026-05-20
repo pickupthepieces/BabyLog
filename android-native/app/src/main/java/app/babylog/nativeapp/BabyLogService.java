@@ -134,10 +134,14 @@ public final class BabyLogService {
         String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : existing.occurredAt;
+        JSONObject payload = buildPregnancyPayload(input);
+        if ("contraction".equals(input.eventType)) {
+            preserveContractionSessionFields(existing.payload, payload);
+        }
         BabyLogDomain.BabyLogEvent event = createEditedEvent(
                 existing,
                 input.eventType,
-                buildPregnancyPayload(input),
+                payload,
                 attachmentIds,
                 occurredAt
         );
@@ -158,6 +162,27 @@ public final class BabyLogService {
         repository.putEvent(event);
         repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
         return event;
+    }
+
+    public List<BabyLogDomain.BabyLogEvent> recordContractionSession(ContractionSessionInput input) throws JSONException {
+        if (input == null || input.entries.isEmpty()) {
+            throw new IllegalArgumentException("请至少记录一次宫缩");
+        }
+        List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
+        for (ContractionEntryInput entry : input.entries) {
+            JSONObject payload = buildContractionSessionPayload(input.sessionId, entry);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                    "contraction",
+                    isBlank(entry.endIso) ? BabyLogFormatters.nowIso() : entry.endIso,
+                    payload,
+                    Collections.emptyList(),
+                    "manual"
+            );
+            repository.putEvent(event);
+            repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+            events.add(event);
+        }
+        return events;
     }
 
     public BabyLogDomain.BabyLogEvent recordMaternalMetric(MaternalMetricInput input) throws JSONException {
@@ -398,6 +423,21 @@ public final class BabyLogService {
         return payload;
     }
 
+    public static JSONObject buildContractionSessionPayload(String sessionId, ContractionEntryInput input) throws JSONException {
+        JSONObject payload = new JSONObject();
+        payload.put("entryMode", "session");
+        putStringIfNotBlank(payload, "sessionId", sessionId);
+        putStringIfNotBlank(payload, "startIso", input.startIso);
+        putStringIfNotBlank(payload, "endIso", input.endIso);
+        putStringIfNotBlank(payload, "contractionStart", BabyLogFormatters.formatEventTime(input.startIso));
+        payload.put("durationSec", Math.max(0, input.durationSec));
+        if (input.intervalFromPrevSec != null && input.intervalFromPrevSec > 0) {
+            payload.put("intervalFromPrevSec", input.intervalFromPrevSec);
+        }
+        payload.put("summary", formatContractionSessionSummary(input));
+        return payload;
+    }
+
     public static JSONObject buildMaternalMetricPayload(MaternalMetricInput input) throws JSONException {
         JSONObject payload = new JSONObject();
         Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
@@ -528,6 +568,22 @@ public final class BabyLogService {
             appendSummary(summary, input.durationMinutes + " 分钟");
         }
         if (summary.toString().equals(BabyLogFormatters.eventLabel("fetal_movement"))) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
+    public static String formatContractionSessionSummary(ContractionEntryInput input) {
+        StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel("contraction"));
+        String window = formatSessionWindow(input.startIso, input.endIso);
+        appendSummary(summary, window);
+        if (input.durationSec > 0) {
+            appendSummary(summary, "持续 " + input.durationSec + " 秒");
+        }
+        if (input.intervalFromPrevSec != null && input.intervalFromPrevSec > 0) {
+            appendSummary(summary, "距上次 " + formatSecondsAsMinutes(input.intervalFromPrevSec));
+        }
+        if (summary.toString().equals(BabyLogFormatters.eventLabel("contraction"))) {
             summary.append(" · 待补充详情");
         }
         return summary.toString();
@@ -1318,6 +1374,41 @@ public final class BabyLogService {
         return start + "-" + end;
     }
 
+    private static String formatSecondsAsMinutes(int seconds) {
+        if (seconds <= 0) {
+            return "";
+        }
+        int minutes = seconds / 60;
+        int rest = seconds % 60;
+        if (rest == 0) {
+            return minutes + " 分钟";
+        }
+        if (minutes == 0) {
+            return rest + " 秒";
+        }
+        return minutes + " 分 " + rest + " 秒";
+    }
+
+    private static void preserveContractionSessionFields(JSONObject existingPayload, JSONObject newPayload) throws JSONException {
+        if (existingPayload == null || newPayload == null || isBlank(existingPayload.optString("sessionId"))) {
+            return;
+        }
+        putStringIfNotBlank(newPayload, "entryMode", existingPayload.optString("entryMode"));
+        putStringIfNotBlank(newPayload, "sessionId", existingPayload.optString("sessionId"));
+        putStringIfNotBlank(newPayload, "startIso", existingPayload.optString("startIso"));
+        putStringIfNotBlank(newPayload, "endIso", existingPayload.optString("endIso"));
+        Double duration = newPayload.has("durationSeconds")
+                ? newPayload.optDouble("durationSeconds")
+                : (existingPayload.has("durationSec") ? existingPayload.optDouble("durationSec") : null);
+        putNumberIfNotNull(newPayload, "durationSec", duration);
+        Double intervalMinutes = newPayload.has("intervalMinutes") ? newPayload.optDouble("intervalMinutes") : null;
+        if (intervalMinutes != null && !Double.isNaN(intervalMinutes) && !Double.isInfinite(intervalMinutes)) {
+            newPayload.put("intervalFromPrevSec", Math.max(0, Math.round(intervalMinutes * 60.0)));
+        } else if (existingPayload.has("intervalFromPrevSec")) {
+            newPayload.put("intervalFromPrevSec", existingPayload.optInt("intervalFromPrevSec"));
+        }
+    }
+
     private static void validateEvents(JSONArray events) throws JSONException {
         for (int i = 0; i < events.length(); i++) {
             JSONObject json = events.optJSONObject(i);
@@ -1847,6 +1938,38 @@ public final class BabyLogService {
                 String note
         ) {
             return new FetalMovementSessionInput(startedAtIso, endedAtIso, count, durationMinutes, targetCount, note);
+        }
+    }
+
+    public static final class ContractionSessionInput {
+        public final String sessionId;
+        public final List<ContractionEntryInput> entries;
+
+        private ContractionSessionInput(String sessionId, List<ContractionEntryInput> entries) {
+            this.sessionId = isBlank(sessionId) ? UUID.randomUUID().toString() : sessionId.trim();
+            this.entries = entries == null ? Collections.emptyList() : new ArrayList<>(entries);
+        }
+
+        public static ContractionSessionInput create(String sessionId, List<ContractionEntryInput> entries) {
+            return new ContractionSessionInput(sessionId, entries);
+        }
+    }
+
+    public static final class ContractionEntryInput {
+        public final String startIso;
+        public final String endIso;
+        public final int durationSec;
+        public final Integer intervalFromPrevSec;
+
+        private ContractionEntryInput(String startIso, String endIso, int durationSec, Integer intervalFromPrevSec) {
+            this.startIso = startIso == null ? "" : startIso.trim();
+            this.endIso = endIso == null ? "" : endIso.trim();
+            this.durationSec = Math.max(0, durationSec);
+            this.intervalFromPrevSec = intervalFromPrevSec == null ? null : Math.max(0, intervalFromPrevSec);
+        }
+
+        public static ContractionEntryInput create(String startIso, String endIso, int durationSec, Integer intervalFromPrevSec) {
+            return new ContractionEntryInput(startIso, endIso, durationSec, intervalFromPrevSec);
         }
     }
 

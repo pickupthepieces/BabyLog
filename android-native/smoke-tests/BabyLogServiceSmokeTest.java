@@ -165,6 +165,21 @@ public final class BabyLogServiceSmokeTest {
                         BabyLogService.PregnancyInput.contraction("22:10", "5", "40", "")
                 )
         );
+        BabyLogService.ContractionEntryInput contractionEntry = BabyLogService.ContractionEntryInput.create(
+                "2026-05-18T22:10:00.000+0800",
+                "2026-05-18T22:10:42.000+0800",
+                42,
+                300
+        );
+        JSONObject contractionPayload = BabyLogService.buildContractionSessionPayload("session-1", contractionEntry);
+        assertEquals("session", contractionPayload.optString("entryMode"));
+        assertEquals("session-1", contractionPayload.optString("sessionId"));
+        assertEquals(42, contractionPayload.optInt("durationSec"));
+        assertEquals(300, contractionPayload.optInt("intervalFromPrevSec"));
+        assertEquals(
+                "宫缩 · 22:10-22:10 · 持续 42 秒 · 距上次 5 分钟",
+                BabyLogService.formatContractionSessionSummary(contractionEntry)
+        );
         assertEquals(
                 "孕妈指标 · 体重 60.4 kg · 血压 118/76 mmHg · 血糖 空腹 5.2 mmol/L",
                 BabyLogService.formatMaternalMetricSummary(

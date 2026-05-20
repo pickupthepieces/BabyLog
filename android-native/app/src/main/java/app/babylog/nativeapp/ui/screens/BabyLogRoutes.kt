@@ -10,6 +10,7 @@ internal object BabyLogRoutes {
     const val RecordPregnancyEvent = "record/pregnancy-event"
     const val RecordMaternalMetric = "record/maternal-metric"
     const val RecordBabyCare = "record/baby-care"
+    const val RecordContractionSession = "record/contraction-session"
     const val SmartEntry = "smartEntry"
     const val SettingsProfile = "settings/profile"
     const val SettingsSync = "settings/sync"
@@ -31,7 +32,8 @@ internal object BabyLogRoutes {
         return route == RecordUltrasound ||
             route == RecordPregnancyEvent ||
             route == RecordMaternalMetric ||
-            route == RecordBabyCare
+            route == RecordBabyCare ||
+            route == RecordContractionSession
     }
 
     fun isSettingsSubpage(route: String?): Boolean {

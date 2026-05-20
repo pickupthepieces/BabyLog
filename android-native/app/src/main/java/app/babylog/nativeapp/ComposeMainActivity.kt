@@ -344,6 +344,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     },
                     onBabyCareSave = ::recordBabyCare,
                     onPregnancySave = ::recordPregnancy,
+                    onContractionSessionSave = ::recordContractionSession,
                     onMaternalMetricSave = ::recordMaternalMetric,
                     onUltrasoundSave = ::recordUltrasound,
                     onPickCheckupAttachment = { pickImage(ImagePickTarget.Checkup) },
@@ -753,6 +754,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             pendingNavRoute = BabyLogRoutes.RecordBabyCare
         } else if (action.eventType == "fetal_movement") {
             showFetalMovementSession = true
+        } else if (action.eventType == "contraction") {
+            pendingNavRoute = BabyLogRoutes.RecordContractionSession
         } else if (isPregnancyFormAction(action.eventType)) {
             pregnancyDraft = null
             pregnancyAction = action
@@ -829,6 +832,26 @@ public final class ComposeMainActivity : ComponentActivity() {
                 reloadData()
             } catch (error: JSONException) {
                 showInfo("保存失败", error.message ?: "无法保存胎动计数")
+            }
+        }
+    }
+
+    private fun recordContractionSession(input: BabyLogService.ContractionSessionInput) {
+        runInBackground {
+            try {
+                val events = service.recordContractionSession(input)
+                val lastEvent = events.lastOrNull()
+                runOnUiThread {
+                    if (lastEvent != null) {
+                        markRecordSaved(lastEvent)
+                    } else {
+                        pendingNavRoute = BabyLogRoutes.Home
+                    }
+                }
+                showToast("已保存宫缩会话：${events.size} 次")
+                reloadData()
+            } catch (error: Exception) {
+                showInfo("保存失败", error.message ?: "无法保存宫缩会话")
             }
         }
     }
@@ -2018,6 +2041,7 @@ private fun BabyLogApp(
     onUltrasoundCancel: () -> Unit,
     onBabyCareSave: (BabyLogService.BabyCareInput) -> Unit,
     onPregnancySave: (BabyLogService.PregnancyInput) -> Unit,
+    onContractionSessionSave: (BabyLogService.ContractionSessionInput) -> Unit,
     onMaternalMetricSave: (BabyLogService.MaternalMetricInput) -> Unit,
     onUltrasoundSave: (BabyLogService.UltrasoundInput) -> Unit,
     onPickCheckupAttachment: () -> Unit,
@@ -2383,6 +2407,16 @@ private fun BabyLogApp(
                     onLongTextVoiceStop = onLongTextVoiceStop,
                     onBack = { closeRecord(onPregnancyCancel) },
                     onSave = onPregnancySave
+                )
+            }
+            composable(BabyLogRoutes.RecordContractionSession) {
+                ContractionSessionScreen(
+                    onBack = {
+                        if (!navController.popBackStack()) {
+                            selectTopLevelTab(BabyLogRoutes.Home)
+                        }
+                    },
+                    onSave = onContractionSessionSave
                 )
             }
             composable(BabyLogRoutes.RecordMaternalMetric) {
@@ -3715,8 +3749,8 @@ private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEnt
         return SmartEntryDraft(
             values = smartFormFields(
                 "primary" to payload.optString("contractionStart").ifBlank { BabyLogFormatters.formatEventTime(event.occurredAt).takeUnless { it == "--:--" } },
-                "secondary" to payloadNumberText(payload, "intervalMinutes"),
-                "tertiary" to payloadNumberText(payload, "durationSeconds"),
+                "secondary" to payloadNumberText(payload, "intervalMinutes").ifBlank { intervalMinutesDraft(payload) },
+                "tertiary" to payloadNumberText(payload, "durationSeconds").ifBlank { payloadNumberText(payload, "durationSec") },
                 "note" to payload.optString("note")
             )
         )
@@ -3841,6 +3875,17 @@ private fun payloadNumberText(payload: JSONObject, key: String): String {
         return ""
     }
     return BabyLogFormatters.formatNumber(payload.optDouble(key))
+}
+
+private fun intervalMinutesDraft(payload: JSONObject): String {
+    if (!payload.has("intervalFromPrevSec") || payload.isNull("intervalFromPrevSec")) {
+        return ""
+    }
+    val seconds = payload.optDouble("intervalFromPrevSec")
+    if (seconds <= 0.0) {
+        return ""
+    }
+    return BabyLogFormatters.formatNumber(seconds / 60.0)
 }
 
 private fun gestationalAgeDraftValue(payload: JSONObject): String {

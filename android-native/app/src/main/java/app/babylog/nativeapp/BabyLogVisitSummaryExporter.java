@@ -5,6 +5,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -71,8 +72,16 @@ public final class BabyLogVisitSummaryExporter {
             return markdown.toString();
         }
 
+        Set<String> renderedContractionSessions = new HashSet<>();
         for (BabyLogDomain.BabyLogEvent event : included) {
-            appendEvent(markdown, event, attachmentCount(event, attachments));
+            String sessionId = contractionSessionId(event);
+            if (!sessionId.isEmpty()) {
+                if (renderedContractionSessions.add(sessionId)) {
+                    appendContractionSession(markdown, sessionId, contractionSessionEvents(included, sessionId));
+                }
+            } else {
+                appendEvent(markdown, event, attachmentCount(event, attachments));
+            }
         }
         return markdown.toString().trim() + "\n";
     }
@@ -132,6 +141,56 @@ public final class BabyLogVisitSummaryExporter {
         }
         if (attachmentCount > 0) {
             appendBullet(markdown, "附件 " + attachmentCount + " 张");
+        }
+    }
+
+    private static void appendContractionSession(
+            StringBuilder markdown,
+            String sessionId,
+            List<BabyLogDomain.BabyLogEvent> sessionEvents
+    ) {
+        if (sessionEvents.isEmpty()) {
+            return;
+        }
+        BabyLogDomain.BabyLogEvent first = sessionEvents.get(0);
+        markdown.append("\n## ").append(eventDateToken(first)).append(" · 宫缩会话\n");
+        List<Integer> durations = new ArrayList<>();
+        for (BabyLogDomain.BabyLogEvent event : sessionEvents) {
+            JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
+            if (payload.has("durationSec")) {
+                durations.add(payload.optInt("durationSec"));
+            } else if (payload.has("durationSeconds")) {
+                durations.add((int) Math.round(payload.optDouble("durationSeconds")));
+            }
+        }
+        if (!durations.isEmpty()) {
+            int min = Collections.min(durations);
+            int max = Collections.max(durations);
+            int sum = 0;
+            for (Integer duration : durations) {
+                sum += duration == null ? 0 : duration;
+            }
+            appendBullet(markdown, "共 " + sessionEvents.size() + " 次；平均持续 " + Math.round((double) sum / durations.size()) + " 秒；最短 " + min + " 秒；最长 " + max + " 秒");
+        } else {
+            appendBullet(markdown, "共 " + sessionEvents.size() + " 次");
+        }
+        for (int i = 0; i < sessionEvents.size(); i++) {
+            JSONObject payload = sessionEvents.get(i).payload == null ? new JSONObject() : sessionEvents.get(i).payload;
+            List<String> values = new ArrayList<>();
+            String start = BabyLogFormatters.formatEventTime(payload.optString("startIso"));
+            String end = BabyLogFormatters.formatEventTime(payload.optString("endIso"));
+            if (!"--:--".equals(start) || !"--:--".equals(end)) {
+                values.add("时间 " + start + ("--:--".equals(end) ? "" : "-" + end));
+            }
+            if (payload.has("durationSec")) {
+                values.add("持续 " + payload.optInt("durationSec") + " 秒");
+            }
+            if (payload.has("intervalFromPrevSec")) {
+                values.add("距上次 " + payload.optInt("intervalFromPrevSec") + " 秒");
+            }
+            if (!values.isEmpty()) {
+                appendBullet(markdown, "第 " + (i + 1) + " 次：" + join(values, "；"));
+            }
         }
     }
 
@@ -306,13 +365,55 @@ public final class BabyLogVisitSummaryExporter {
         List<String> lines = new ArrayList<>();
         List<String> values = new ArrayList<>();
         addIfNotBlank(values, textWithLabel(payload, "contractionStart", "开始", false));
+        addIfNotBlank(values, textWithLabel(payload, "startIso", "开始", false));
+        addIfNotBlank(values, textWithLabel(payload, "endIso", "结束", false));
         addIfNotBlank(values, valueWithUnit(payload, "intervalMinutes", "间隔", "分钟"));
+        addIfNotBlank(values, valueWithUnit(payload, "intervalFromPrevSec", "距上次", "秒"));
         addIfNotBlank(values, valueWithUnit(payload, "durationSeconds", "持续", "秒"));
+        addIfNotBlank(values, valueWithUnit(payload, "durationSec", "持续", "秒"));
         if (!values.isEmpty()) {
             lines.add(join(values, "；"));
         }
         addIfNotBlank(lines, textWithLabel(payload, "note", "备注", false));
         return lines;
+    }
+
+    private static String contractionSessionId(BabyLogDomain.BabyLogEvent event) {
+        if (event == null || !"contraction".equals(event.eventType) || event.payload == null) {
+            return "";
+        }
+        return text(event.payload, "sessionId");
+    }
+
+    private static List<BabyLogDomain.BabyLogEvent> contractionSessionEvents(
+            List<BabyLogDomain.BabyLogEvent> events,
+            String sessionId
+    ) {
+        List<BabyLogDomain.BabyLogEvent> result = new ArrayList<>();
+        if (isBlank(sessionId)) {
+            return result;
+        }
+        for (BabyLogDomain.BabyLogEvent event : events) {
+            if (sessionId.equals(contractionSessionId(event))) {
+                result.add(event);
+            }
+        }
+        Collections.sort(result, new Comparator<BabyLogDomain.BabyLogEvent>() {
+            @Override
+            public int compare(BabyLogDomain.BabyLogEvent left, BabyLogDomain.BabyLogEvent right) {
+                return Long.compare(contractionStartMillis(left), contractionStartMillis(right));
+            }
+        });
+        return result;
+    }
+
+    private static long contractionStartMillis(BabyLogDomain.BabyLogEvent event) {
+        if (event == null) {
+            return 0L;
+        }
+        JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
+        long start = BabyLogFormatters.parseIsoMillis(payload.optString("startIso"));
+        return start > 0L ? start : BabyLogFormatters.parseIsoMillis(event.occurredAt);
     }
 
     private static String titleMeta(JSONObject payload, String eventType) {
