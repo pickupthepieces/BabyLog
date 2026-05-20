@@ -16,7 +16,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/babylog_data_extraction_rules"
         android:fullBackupContent="@xml/babylog_backup_rules"
+        android:icon="@mipmap/ic_launcher"
         android:label="BabyLog"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/AppTheme">
         <activity
             android:name=".SplashActivity"
