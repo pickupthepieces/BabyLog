@@ -201,3 +201,37 @@
 - App 内 TopBrandBand 字符串保持现有"BabyLog",**本笔不动**。
 
 **MUST 不变**:applicationId `app.babylog.nativeapp` / 包名 / GitHub repo / import / smoke 等技术 ID 一切不动。Codex 把 splash 双名 + launcher label 改"栗记" + 删 backdrop + bg 同色 一起做成一笔 ui:。
+
+### Splash 字标改用 imagegen 设计字标（用户裁定）
+
+**用户决策:gpt-image-2 中文出图已可用,两个字标都做成设计款 PNG。** 取代之前 splash 用 Compose `Text` 渲染字标的方案;launcher label 仍是字符串"栗记"不变(Android 平台限制,桌面 label 只能是 strings.xml unicode)。
+
+**做法**:
+
+副线 imagegen 生成 2 张独立透明 wordmark PNG → staging `diagnostics/ui-x-stickers/`:
+
+| 文件 | 用途 | 尺寸建议 |
+|---|---|---|
+| `wordmark_babylog.png` | splash 主字标 "BabyLog" | ~1024×360,横向 wordmark 宽高比 |
+| `wordmark_lijji.png` | splash 辅字标 "栗记" | ~512×280,稍小,与 BabyLog 风格协调 |
+
+**统一 prompt 模板**(与之前贴纸批次同源风格,但目标是 wordmark 非物件):
+```
+Flat kawaii vector wordmark logotype, Japanese cute style with rounded letterforms,
+soft pastel palette (warm ink color on transparent background, optional subtle coral accent),
+single line of letters/characters, generous letter-spacing, no outline or very thin outline,
+slight cartoon flatness, transparent PNG background, friendly and warm pregnancy/family brand feel.
+Word: "<BabyLog | 栗记>".
+```
+
+**约束**:
+- 两张同 prompt 模板批量出,**风格必须成套**(同字重感、同色温、同圆度感、同 letterform 处理)。
+- 透明背景 PNG,字形清晰锐利;**中文必须字形正确**——任一字形错(如不是"栗记"两字)就 reroll。
+- 颜色用 Ink 偏暖深棕(与 splash bg 栗粉协调对比);**不带 tint 不带 shadow box**。
+- 出完两张 + 更新 `_contact_sheet.png` 一起提交副线 staging,发 Claude 看一致性 + 字形正确。
+
+**主线接线**(副线 PNG 通过 review 后做一笔 ui:):
+- 复制两张 wordmark PNG 到 `res/drawable-nodpi/`。
+- `SplashActivity.kt` 字标区从 `Text("BabyLog"…) + Text("栗记"…)` 改为 `Image(painterResource(R.drawable.wordmark_babylog), 适当宽度) + Spacer(8-12dp) + Image(painterResource(R.drawable.wordmark_lijji), 较小宽度)`。
+- launcher `android:label` / `strings.xml app_name` = `栗记`(Unicode 字符串,**保持**,不改)。
+- 不动技术 ID/包名/repo/import。assemble+lint+smoke 绿。
