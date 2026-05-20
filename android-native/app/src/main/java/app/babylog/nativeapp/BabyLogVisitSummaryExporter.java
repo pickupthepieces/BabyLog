@@ -353,7 +353,6 @@ public final class BabyLogVisitSummaryExporter {
         addIfNotBlank(values, textWithLabel(payload, "startedAt", "开始", false));
         addIfNotBlank(values, textWithLabel(payload, "endedAt", "结束", false));
         addIfNotBlank(values, valueWithUnit(payload, "durationMinutes", "持续", "分钟"));
-        addIfNotBlank(values, valueWithUnit(payload, "targetCount", "目标", "次"));
         if (!values.isEmpty()) {
             lines.add(join(values, "；"));
         }

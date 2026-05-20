@@ -1847,7 +1847,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 BabyLogService.QuickAction("糖耐", "空腹 / 1h / 2h", ChestnutPalette.VioletArgb, "screening_ogtt"),
                 BabyLogService.QuickAction("GBS", "阴性 / 阳性", ChestnutPalette.VioletArgb, "screening_gbs"),
                 BabyLogService.QuickAction("胎监", "反应型 / 备注", ChestnutPalette.VioletArgb, "screening_nst"),
-                BabyLogService.QuickAction("胎动", "会话计数 / 10 次目标", ChestnutPalette.GreenArgb, "fetal_movement"),
+                BabyLogService.QuickAction("胎动", "会话计数 / 规律观察", ChestnutPalette.GreenArgb, "fetal_movement"),
                 BabyLogService.QuickAction("宫缩", "开始 / 间隔 / 持续", ChestnutPalette.PeachArgb, "contraction"),
                 BabyLogService.QuickAction("孕妈指标", "体重 / 血压 / 血糖", ChestnutPalette.BlueArgb, "maternal_metric")
             )
@@ -2286,6 +2286,7 @@ private fun BabyLogApp(
                     ?: state.trashEvents.firstOrNull { it.id == recordDetailEventId }
                 RecordDetailScreen(
                     event = event,
+                    allEvents = state.timeline,
                     attachments = state.attachments,
                     onBack = ::closeRecordDetail,
                     onPreviewAttachment = onPreviewAttachment,

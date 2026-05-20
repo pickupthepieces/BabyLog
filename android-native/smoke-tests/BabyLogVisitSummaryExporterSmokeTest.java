@@ -62,6 +62,22 @@ public final class BabyLogVisitSummaryExporterSmokeTest {
                 "manual"
         );
 
+        JSONObject fetalMovementPayload = new JSONObject()
+                .put("entryMode", "session")
+                .put("startedAt", "2026-05-19T20:00:00+0800")
+                .put("endedAt", "2026-05-19T20:18:00+0800")
+                .put("movementCount", 8)
+                .put("durationMinutes", 18)
+                .put("targetCount", 10)
+                .put("summary", "胎动 · 20:00-20:18 · 8 次 · 18 分钟");
+        BabyLogDomain.BabyLogEvent fetalMovement = BabyLogDomain.createEvent(
+                "fetal_movement",
+                "2026-05-19T20:18:00+0800",
+                fetalMovementPayload,
+                Collections.emptyList(),
+                "manual"
+        );
+
         JSONObject contractionOnePayload = new JSONObject()
                 .put("entryMode", "session")
                 .put("sessionId", "contraction-session-1")
@@ -92,7 +108,7 @@ public final class BabyLogVisitSummaryExporterSmokeTest {
                 "manual"
         );
 
-        List<BabyLogDomain.BabyLogEvent> events = Arrays.asList(ultrasound, screening, checkup, contractionOne, contractionTwo);
+        List<BabyLogDomain.BabyLogEvent> events = Arrays.asList(ultrasound, screening, checkup, fetalMovement, contractionOne, contractionTwo);
         String markdown = BabyLogVisitSummaryExporter.buildMarkdown(
                 events,
                 Collections.singletonList(attachment),
@@ -108,10 +124,13 @@ public final class BabyLogVisitSummaryExporterSmokeTest {
         assertContains(markdown, "附件 1 张");
         assertContains(markdown, "分级 低风险（报告原文）");
         assertContains(markdown, "21 三体风险 1:1000（报告原文）");
+        assertContains(markdown, "## 2026-05-19 · 胎动");
+        assertContains(markdown, "胎动 8 次；开始 2026-05-19T20:00:00+0800；结束 2026-05-19T20:18:00+0800；持续 18 分钟");
         assertContains(markdown, "## 2026-05-19 · 宫缩会话");
         assertContains(markdown, "共 2 次；平均持续 45 秒；最短 40 秒；最长 50 秒");
         assertContains(markdown, "第 2 次：时间 22:15-22:15；持续 50 秒；距上次 300 秒");
         assertNotContains(markdown, "腹围");
+        assertNotContains(markdown, "目标");
 
         String filtered = BabyLogVisitSummaryExporter.buildMarkdown(
                 events,

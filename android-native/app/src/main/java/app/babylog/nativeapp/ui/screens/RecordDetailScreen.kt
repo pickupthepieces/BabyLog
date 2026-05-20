@@ -1,9 +1,11 @@
 package app.babylog.nativeapp
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -12,6 +14,7 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +25,7 @@ import org.json.JSONObject
 @Composable
 internal fun RecordDetailScreen(
     event: BabyLogDomain.BabyLogEvent?,
+    allEvents: List<BabyLogDomain.BabyLogEvent>,
     attachments: List<BabyLogDomain.AttachmentRecord>,
     onBack: () -> Unit,
     onPreviewAttachment: (BabyLogDomain.AttachmentRecord) -> Unit,
@@ -56,6 +60,12 @@ internal fun RecordDetailScreen(
                         DetailField(field.label, field.value)
                     }
                 }
+            }
+        }
+        if (event.eventType == "fetal_movement") {
+            item {
+                val pattern = remember(allEvents) { fetalMovementPatternPoints(allEvents) }
+                FetalMovementPatternPanel(pattern)
             }
         }
         item {
@@ -148,6 +158,9 @@ private fun payloadFields(payload: JSONObject?): List<RecordDetailField> {
         keys.add(iterator.next())
     }
     keys.sorted().forEach { key ->
+        if (key == "targetCount") {
+            return@forEach
+        }
         val value = payload.opt(key)
         val text = formatPayloadValue(value)
         if (text.isNotBlank()) {
@@ -239,7 +252,6 @@ private fun payloadLabel(key: String): String {
         "startedAt" -> "开始时间"
         "endedAt" -> "结束时间"
         "durationMinutes" -> "持续分钟"
-        "targetCount" -> "目标次数"
         "contractionStart" -> "宫缩开始"
         "intervalMinutes" -> "间隔分钟"
         "durationSeconds" -> "持续秒"
@@ -269,4 +281,111 @@ private fun payloadLabel(key: String): String {
         "warningText" -> "提示"
         else -> key
     }
+}
+
+private data class FetalMovementPatternPoint(
+    val dayLabel: String,
+    val count: Int,
+    val durationMinutes: Int
+)
+
+@Composable
+private fun FetalMovementPatternPanel(points: List<FetalMovementPatternPoint>) {
+    SettingsPanel("胎动规律观察") {
+        DetailField("说明", "记录本次会话用时与次数，与你以往模式比较。")
+        DetailField("通用提示", "胎动规律有改变、明显变少或停止时，请立即联系产科或助产士。")
+        if (points.isEmpty()) {
+            DetailField("历史模式", "保存几次会话后显示趋势。")
+            return@SettingsPanel
+        }
+        FetalMovementPatternChart(points)
+        points.takeLast(5).reversed().forEach { point ->
+            DetailField(
+                point.dayLabel,
+                listOf(
+                    "${point.count} 次",
+                    if (point.durationMinutes > 0) "${point.durationMinutes} 分钟" else ""
+                ).filter { it.isNotBlank() }.joinToString(" · ")
+            )
+        }
+    }
+}
+
+@Composable
+private fun FetalMovementPatternChart(points: List<FetalMovementPatternPoint>) {
+    val countColor = ChestnutPalette.Primary
+    val durationColor = ChestnutPalette.Green
+    val axisColor = ChestnutPalette.Border
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(148.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        if (points.isEmpty()) return@Canvas
+        val left = 8f
+        val right = size.width - 8f
+        val top = 12f
+        val bottom = size.height - 18f
+        val chartWidth = right - left
+        val chartHeight = bottom - top
+        drawLine(axisColor, Offset(left, bottom), Offset(right, bottom), strokeWidth = 2f)
+        drawLine(axisColor, Offset(left, top), Offset(left, bottom), strokeWidth = 2f)
+        fun xAt(index: Int): Float {
+            return if (points.size == 1) left + chartWidth / 2f else left + chartWidth * index / (points.size - 1)
+        }
+        fun yAt(value: Int, max: Int): Float {
+            val safeMax = max.coerceAtLeast(1)
+            return bottom - chartHeight * value.coerceAtLeast(0) / safeMax
+        }
+        val maxCount = points.maxOf { it.count }.coerceAtLeast(1)
+        val maxDuration = points.maxOf { it.durationMinutes }.coerceAtLeast(1)
+        fun drawSeries(valueAt: (FetalMovementPatternPoint) -> Int, max: Int, color: Color) {
+            points.forEachIndexed { index, point ->
+                val current = Offset(xAt(index), yAt(valueAt(point), max))
+                if (index > 0) {
+                    val previousPoint = points[index - 1]
+                    drawLine(
+                        color,
+                        Offset(xAt(index - 1), yAt(valueAt(previousPoint), max)),
+                        current,
+                        strokeWidth = 4f
+                    )
+                }
+                drawCircle(color, radius = 5f, center = current)
+            }
+        }
+        drawSeries({ it.durationMinutes }, maxDuration, durationColor)
+        drawSeries({ it.count }, maxCount, countColor)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("次数", color = ChestnutPalette.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text("用时", color = ChestnutPalette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun fetalMovementPatternPoints(events: List<BabyLogDomain.BabyLogEvent>): List<FetalMovementPatternPoint> {
+    return events
+        .filter { it.deletedAt == null && it.eventType == "fetal_movement" }
+        .sortedBy { it.occurredAt }
+        .mapNotNull { event ->
+            val payload = event.payload ?: return@mapNotNull null
+            val count = payload.optInt("movementCount", 0)
+            val duration = payload.optInt("durationMinutes", 0)
+            if (count <= 0 && duration <= 0) {
+                null
+            } else {
+                FetalMovementPatternPoint(
+                    BabyLogFormatters.formatEventDay(event.occurredAt),
+                    count.coerceAtLeast(0),
+                    duration.coerceAtLeast(0)
+                )
+            }
+        }
+        .takeLast(14)
 }

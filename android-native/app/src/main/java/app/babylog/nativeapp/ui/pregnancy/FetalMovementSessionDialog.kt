@@ -54,7 +54,6 @@ internal fun FetalMovementSessionDialog(
     val running = startedAtMs > 0L
     val now = if (tickMs > 0L) tickMs else System.currentTimeMillis()
     val elapsedMs = if (running) max(0L, now - startedAtMs) else 0L
-    val reachedTarget = count >= FETAL_MOVEMENT_TARGET
     val reachedLimit = elapsedMs >= FETAL_MOVEMENT_LIMIT_MS
 
     LaunchedEffect(running, startedAtMs) {
@@ -129,14 +128,13 @@ internal fun FetalMovementSessionDialog(
                 }
                 Text(
                     text = when {
-                        reachedTarget -> "已达到默认目标 10 次，可以保存本次计数。"
-                        reachedLimit -> "已满 1 小时，可以保存本次计数。"
-                        running -> "默认数到 10 次；也可以满 1 小时后保存。"
+                        reachedLimit -> "已满 1 小时，可以保存本次观察。"
+                        running -> "记录每次感受到的胎动，保存后可和以往会话比较。"
                         else -> "点开始或直接点 +1 开始计时。"
                     },
-                    color = if (reachedTarget || reachedLimit) ChestnutPalette.Green else ChestnutPalette.Text3,
+                    color = if (reachedLimit) ChestnutPalette.Green else ChestnutPalette.Text3,
                     fontSize = 12.sp,
-                    fontWeight = if (reachedTarget || reachedLimit) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if (reachedLimit) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(12.dp))
