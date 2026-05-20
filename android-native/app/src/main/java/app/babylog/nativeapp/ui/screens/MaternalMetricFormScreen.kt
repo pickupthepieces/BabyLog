@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.sp
 internal fun MaternalMetricFormScreen(
     draft: SmartEntryDraft?,
     isEditing: Boolean = false,
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
     onBack: () -> Unit,
     onSave: (BabyLogService.MaternalMetricInput) -> Unit
 ) {
@@ -83,7 +86,16 @@ internal fun MaternalMetricFormScreen(
                 )
             }
         }
-        item { ChestnutLongTextField("备注，可空", note, { note = it }) }
+        item {
+            ChestnutLongTextField(
+                "备注，可空",
+                note,
+                { note = it },
+                voiceState = voiceState,
+                onVoiceStart = onLongTextVoiceStart,
+                onVoiceStop = onLongTextVoiceStop
+            )
+        }
         item {
             Text(
                 text = "血糖提示仅用于提醒复核，不构成诊断",

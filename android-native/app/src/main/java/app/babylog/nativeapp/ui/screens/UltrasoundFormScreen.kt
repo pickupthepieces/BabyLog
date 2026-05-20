@@ -54,6 +54,9 @@ internal fun UltrasoundFormScreen(
     onRecognizePhoto: () -> Unit,
     onCandidateDismiss: () -> Unit,
     onCandidateApplied: () -> Unit,
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
     onBack: () -> Unit,
     onSave: (BabyLogService.UltrasoundInput) -> Unit
 ) {
@@ -193,7 +196,7 @@ internal fun UltrasoundFormScreen(
             }
         }
         item(key = "efw") { UltrasoundEfwInput(formState) }
-        item(key = "diagnosis_text_core") { UltrasoundDiagnosisInput(formState) }
+        item(key = "diagnosis_text_core") { UltrasoundDiagnosisInput(formState, voiceState, onLongTextVoiceStart, onLongTextVoiceStop) }
         item(key = "soft_warnings") { UltrasoundSoftWarnings(formState) }
         item(key = "advanced_toggle") {
             OutlinedButton(
@@ -609,8 +612,22 @@ private fun UltrasoundReportTimeInput(state: UltrasoundFormState) {
 }
 
 @Composable
-private fun UltrasoundDiagnosisInput(state: UltrasoundFormState) {
-    ChestnutLongTextField("医生结论 / 提示", state.diagnosisText, state.updateDiagnosisText, minLines = 2, maxLines = 4)
+private fun UltrasoundDiagnosisInput(
+    state: UltrasoundFormState,
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit
+) {
+    ChestnutLongTextField(
+        "医生结论 / 提示",
+        state.diagnosisText,
+        state.updateDiagnosisText,
+        minLines = 2,
+        maxLines = 4,
+        voiceState = voiceState,
+        onVoiceStart = onLongTextVoiceStart,
+        onVoiceStop = onLongTextVoiceStop
+    )
 }
 
 @Composable

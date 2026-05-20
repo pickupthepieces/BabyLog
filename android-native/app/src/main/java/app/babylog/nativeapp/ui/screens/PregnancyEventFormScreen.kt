@@ -42,6 +42,9 @@ internal fun PregnancyEventFormScreen(
     onRecognizeAttachment: () -> Unit,
     onCandidateDismiss: () -> Unit,
     onCandidateApplied: () -> Unit,
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
     onBack: () -> Unit,
     onSave: (BabyLogService.PregnancyInput) -> Unit
 ) {
@@ -266,11 +269,11 @@ internal fun PregnancyEventFormScreen(
                 )
             }
             item { ChestnutTextField("尿常规摘要，可空", urineRoutine, { urineRoutine = it }, KeyboardType.Text) }
-            item { ChestnutLongTextField("高危因素 / 特殊情况，可空", highRiskFactors, { highRiskFactors = it }, minLines = 2, maxLines = 4) }
-            item { ChestnutLongTextField(labels.tertiary ?: "医生结论 / 建议", tertiary, { tertiary = it }, minLines = 2, maxLines = 5) }
-            item { ChestnutLongTextField("处理及建议，可空", treatmentAdvice, { treatmentAdvice = it }, minLines = 2, maxLines = 5) }
+            item { VoiceLongTextField("高危因素 / 特殊情况，可空", highRiskFactors, { highRiskFactors = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
+            item { VoiceLongTextField(labels.tertiary ?: "医生结论 / 建议", tertiary, { tertiary = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+            item { VoiceLongTextField("处理及建议，可空", treatmentAdvice, { treatmentAdvice = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
             item { DateInputRow("下次产检日期，可空", nextVisitDate, { nextVisitDate = it }) }
-            item { ChestnutLongTextField(labels.note ?: "备注", note, { note = it }, minLines = 2, maxLines = 4) }
+            item { VoiceLongTextField(labels.note ?: "备注", note, { note = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("检查单附件", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
@@ -370,7 +373,7 @@ internal fun PregnancyEventFormScreen(
             when (action.eventType) {
                 "screening_nt" -> {
                     item { UnitInputRow("NT", ntMm, { ntMm = it }, "mm") }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_serum" -> {
                     item { ChestnutTextField("21 三体风险值", riskT21, { riskT21 = it }, KeyboardType.Text) }
@@ -384,7 +387,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { riskLevel = it }
                         )
                     }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_nipt" -> {
                     item {
@@ -412,11 +415,11 @@ internal fun PregnancyEventFormScreen(
                         )
                     }
                     item { ChestnutTextField("性染色体结果，可空", sexChromosome, { sexChromosome = it }, KeyboardType.Text) }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_anomaly" -> {
-                    item { ChestnutLongTextField("结构结论 / 异常描述", structureConclusion, { structureConclusion = it }, minLines = 3, maxLines = 8) }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结构结论 / 异常描述", structureConclusion, { structureConclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 3, maxLines = 8) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_ogtt" -> {
                     item { UnitInputRow("空腹血糖", fastingGlucoseMmolL, { fastingGlucoseMmolL = it }, "mmol/L") }
@@ -434,7 +437,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { abnormalFlag = it }
                         )
                     }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_gbs" -> {
                     item {
@@ -445,7 +448,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { gbsResult = it }
                         )
                     }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_nst" -> {
                     item {
@@ -456,10 +459,10 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { nstResult = it }
                         )
                     }
-                    item { ChestnutLongTextField("结论文本，可空", conclusion, { conclusion = it }, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
             }
-            item { ChestnutLongTextField(labels.note ?: "备注", note, { note = it }, minLines = 2, maxLines = 4) }
+            item { VoiceLongTextField(labels.note ?: "备注", note, { note = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("检查单附件", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
@@ -538,10 +541,33 @@ internal fun PregnancyEventFormScreen(
                 item { ChestnutTextField(labels.tertiary, tertiary, { tertiary = it }, labels.tertiaryKeyboard) }
             }
             if (labels.note != null) {
-                item { ChestnutLongTextField(labels.note, note, { note = it }) }
+                item { VoiceLongTextField(labels.note, note, { note = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop) }
             }
         }
     }
+}
+
+@Composable
+private fun VoiceLongTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
+    minLines: Int = 3,
+    maxLines: Int = 7
+) {
+    ChestnutLongTextField(
+        label = label,
+        value = value,
+        onValueChange = onValueChange,
+        minLines = minLines,
+        maxLines = maxLines,
+        voiceState = voiceState,
+        onVoiceStart = onLongTextVoiceStart,
+        onVoiceStop = onLongTextVoiceStop
+    )
 }
 
 @Composable

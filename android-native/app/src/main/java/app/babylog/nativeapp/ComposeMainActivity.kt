@@ -169,6 +169,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var smartEntryRunning by mutableStateOf(false)
     private var smartVoiceState by mutableStateOf(SmartVoiceUiState())
     private var smartEntryCandidate by mutableStateOf<BabyLogSmartTextClient.SmartEntryCandidate?>(null)
+    private var longTextVoiceApply: ((String) -> Unit)? = null
     private var babyCareDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var pregnancyDraft by mutableStateOf<SmartEntryDraft?>(null)
     private var maternalMetricDraft by mutableStateOf<SmartEntryDraft?>(null)
@@ -372,6 +373,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     },
                     onSmartEntryVoiceStart = ::startSmartVoiceRecording,
                     onSmartEntryVoiceStop = ::finishSmartVoiceRecording,
+                    onLongTextVoiceStart = ::startLongTextVoiceRecording,
+                    onLongTextVoiceStop = ::finishLongTextVoiceRecording,
                     onSmartEntrySubmit = ::requestSmartEntry,
                     onSmartEntryCandidateConfirm = ::openSmartEntryCandidate,
                     onSmartEntryCandidateDismiss = { smartEntryCandidate = null }
@@ -383,6 +386,9 @@ public final class ComposeMainActivity : ComponentActivity() {
 
                 if (showFetalMovementSession) {
                     FetalMovementSessionDialog(
+                        voiceState = smartVoiceState,
+                        onLongTextVoiceStart = ::startLongTextVoiceRecording,
+                        onLongTextVoiceStop = ::finishLongTextVoiceRecording,
                         onDismiss = { showFetalMovementSession = false },
                         onSave = { input ->
                             showFetalMovementSession = false
@@ -1070,12 +1076,27 @@ public final class ComposeMainActivity : ComponentActivity() {
         finishSmartVoiceRecording()
     }
 
+    private fun startLongTextVoiceRecording(onTranscript: (String) -> Unit) {
+        longTextVoiceApply = onTranscript
+        startSmartVoiceRecording()
+        if (!smartVoiceState.isRecording) {
+            longTextVoiceApply = null
+        }
+    }
+
+    private fun finishLongTextVoiceRecording() {
+        finishSmartVoiceRecording()
+    }
+
     private fun finishSmartVoiceRecording() {
         val recorder = voiceRecorder ?: return
         voiceRecorder = null
+        val fieldApply = longTextVoiceApply
+        longTextVoiceApply = null
         val audioFile = try {
             recorder.stop()
         } catch (error: Exception) {
+            longTextVoiceApply = null
             smartVoiceState = SmartVoiceUiState(message = error.message ?: "录音失败")
             return
         }
@@ -1091,11 +1112,21 @@ public final class ComposeMainActivity : ComponentActivity() {
                 }
                 val result = speechClient.transcribePcm(audioFile, config)
                 runOnUiThread {
-                    smartVoiceState = SmartVoiceUiState(
-                        transcript = result.text,
-                        transcriptNonce = System.nanoTime(),
-                        message = "语音已转文字，请核对后再识别"
-                    )
+                    if (fieldApply != null) {
+                        val text = result.text.trim()
+                        if (text.isNotBlank()) {
+                            fieldApply(text)
+                            smartVoiceState = SmartVoiceUiState(message = "语音已填入当前字段，请核对后保存")
+                        } else {
+                            smartVoiceState = SmartVoiceUiState(message = "语音识别未返回文字，可继续手动输入")
+                        }
+                    } else {
+                        smartVoiceState = SmartVoiceUiState(
+                            transcript = result.text,
+                            transcriptNonce = System.nanoTime(),
+                            message = "语音已转文字，请核对后再识别"
+                        )
+                    }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
@@ -1112,6 +1143,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun cancelSmartVoiceRecording() {
         voiceRecorder?.cancel()
         voiceRecorder = null
+        longTextVoiceApply = null
         if (smartVoiceState.isRecording) {
             smartVoiceState = SmartVoiceUiState()
         }
@@ -2004,6 +2036,8 @@ private fun BabyLogApp(
     onSmartEntryBack: () -> Unit,
     onSmartEntryVoiceStart: () -> Unit,
     onSmartEntryVoiceStop: () -> Unit,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
     onSmartEntrySubmit: (String) -> Unit,
     onSmartEntryCandidateConfirm: (BabyLogSmartTextClient.SmartEntryCandidate) -> Unit,
     onSmartEntryCandidateDismiss: () -> Unit
@@ -2322,6 +2356,9 @@ private fun BabyLogApp(
                     action = babyCareAction,
                     draft = babyCareDraft,
                     isEditing = editingEventType == babyCareAction?.eventType,
+                    voiceState = smartVoiceState,
+                    onLongTextVoiceStart = onLongTextVoiceStart,
+                    onLongTextVoiceStop = onLongTextVoiceStop,
                     onBack = { closeRecord(onBabyCareCancel) },
                     onSave = onBabyCareSave
                 )
@@ -2341,6 +2378,9 @@ private fun BabyLogApp(
                     onRecognizeAttachment = onRecognizeCheckupAttachment,
                     onCandidateDismiss = onDismissCheckupCandidate,
                     onCandidateApplied = onApplyCheckupCandidate,
+                    voiceState = smartVoiceState,
+                    onLongTextVoiceStart = onLongTextVoiceStart,
+                    onLongTextVoiceStop = onLongTextVoiceStop,
                     onBack = { closeRecord(onPregnancyCancel) },
                     onSave = onPregnancySave
                 )
@@ -2349,6 +2389,9 @@ private fun BabyLogApp(
                 MaternalMetricFormScreen(
                     draft = maternalMetricDraft,
                     isEditing = editingEventType == "maternal_metric",
+                    voiceState = smartVoiceState,
+                    onLongTextVoiceStart = onLongTextVoiceStart,
+                    onLongTextVoiceStop = onLongTextVoiceStop,
                     onBack = { closeRecord(onMaternalMetricCancel) },
                     onSave = onMaternalMetricSave
                 )
@@ -2368,6 +2411,9 @@ private fun BabyLogApp(
                     onRecognizePhoto = onRecognizeUltrasoundPhoto,
                     onCandidateDismiss = onDismissUltrasoundCandidate,
                     onCandidateApplied = onApplyUltrasoundCandidate,
+                    voiceState = smartVoiceState,
+                    onLongTextVoiceStart = onLongTextVoiceStart,
+                    onLongTextVoiceStop = onLongTextVoiceStop,
                     onBack = { closeRecord(onUltrasoundCancel) },
                     onSave = onUltrasoundSave
                 )

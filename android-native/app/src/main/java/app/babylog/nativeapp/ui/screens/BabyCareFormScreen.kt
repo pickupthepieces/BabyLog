@@ -14,6 +14,9 @@ internal fun BabyCareFormScreen(
     action: BabyLogService.QuickAction?,
     draft: SmartEntryDraft?,
     isEditing: Boolean = false,
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
     onBack: () -> Unit,
     onSave: (BabyLogService.BabyCareInput) -> Unit
 ) {
@@ -53,14 +56,32 @@ internal fun BabyCareFormScreen(
         if (labels.tertiary != null) {
             item {
                 if (action.eventType == "medication") {
-                    ChestnutLongTextField(labels.tertiary, tertiary, { tertiary = it }, minLines = 2, maxLines = 4)
+                    ChestnutLongTextField(
+                        labels.tertiary,
+                        tertiary,
+                        { tertiary = it },
+                        minLines = 2,
+                        maxLines = 4,
+                        voiceState = voiceState,
+                        onVoiceStart = onLongTextVoiceStart,
+                        onVoiceStop = onLongTextVoiceStop
+                    )
                 } else {
                     ChestnutTextField(labels.tertiary, tertiary, { tertiary = it }, KeyboardType.Text)
                 }
             }
         }
         if (labels.note != null) {
-            item { ChestnutLongTextField(labels.note, note, { note = it }) }
+            item {
+                ChestnutLongTextField(
+                    labels.note,
+                    note,
+                    { note = it },
+                    voiceState = voiceState,
+                    onVoiceStart = onLongTextVoiceStart,
+                    onVoiceStop = onLongTextVoiceStop
+                )
+            }
         }
     }
 }

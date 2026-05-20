@@ -40,7 +40,10 @@ private const val FETAL_MOVEMENT_TARGET = 10
 private const val FETAL_MOVEMENT_LIMIT_MS = 60L * 60L * 1000L
 
 @Composable
-fun FetalMovementSessionDialog(
+internal fun FetalMovementSessionDialog(
+    voiceState: SmartVoiceUiState,
+    onLongTextVoiceStart: LongTextVoiceStart,
+    onLongTextVoiceStop: () -> Unit,
     onDismiss: () -> Unit,
     onSave: (BabyLogService.FetalMovementSessionInput) -> Unit
 ) {
@@ -139,7 +142,14 @@ fun FetalMovementSessionDialog(
                         .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(12.dp))
                         .padding(10.dp)
                 )
-                ChestnutLongTextField("备注，可空", note, { note = it })
+                ChestnutLongTextField(
+                    "备注，可空",
+                    note,
+                    { note = it },
+                    voiceState = voiceState,
+                    onVoiceStart = onLongTextVoiceStart,
+                    onVoiceStop = onLongTextVoiceStop
+                )
             }
         },
         confirmButton = {

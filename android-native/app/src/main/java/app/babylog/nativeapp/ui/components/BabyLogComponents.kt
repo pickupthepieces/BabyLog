@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,11 +31,14 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,6 +51,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+
+internal typealias LongTextVoiceStart = ((String) -> Unit) -> Unit
 
 @Composable
 fun Panel(content: @Composable ColumnScope.() -> Unit) {
@@ -378,13 +384,15 @@ fun ChestnutTextField(
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else 6,
     placeholder: String? = null,
-    visualTransformation: VisualTransformation = VisualTransformation.None
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailingIcon: @Composable (() -> Unit)? = null
 ) {
     TextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
         placeholder = placeholder?.let { hint -> { Text(hint, color = ChestnutPalette.Text3) } },
+        trailingIcon = trailingIcon,
         modifier = modifier.fillMaxWidth(),
         singleLine = singleLine,
         minLines = if (singleLine) 1 else minLines,
@@ -404,14 +412,19 @@ fun ChestnutTextField(
 }
 
 @Composable
-fun ChestnutLongTextField(
+internal fun ChestnutLongTextField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     minLines: Int = 3,
-    maxLines: Int = 7
+    maxLines: Int = 7,
+    voiceState: SmartVoiceUiState? = null,
+    onVoiceStart: LongTextVoiceStart? = null,
+    onVoiceStop: (() -> Unit)? = null
 ) {
+    val currentValue by rememberUpdatedState(value)
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
     ChestnutTextField(
         label = label,
         value = value,
@@ -421,8 +434,85 @@ fun ChestnutLongTextField(
         singleLine = false,
         minLines = minLines,
         maxLines = maxLines,
-        placeholder = "可使用键盘语音输入，保存前请核对"
+        placeholder = "可使用键盘语音输入，保存前请核对",
+        trailingIcon = if (voiceState != null && onVoiceStart != null && onVoiceStop != null) {
+            {
+                LongTextVoiceButton(
+                    voiceState = voiceState,
+                    onVoiceStart = {
+                        onVoiceStart { transcript ->
+                            val merged = appendVoiceTranscript(currentValue, transcript)
+                            if (merged != currentValue) {
+                                currentOnValueChange(merged)
+                            }
+                        }
+                    },
+                    onVoiceStop = onVoiceStop
+                )
+            }
+        } else {
+            null
+        }
     )
+}
+
+private fun appendVoiceTranscript(current: String, transcript: String): String {
+    val clean = transcript.trim()
+    if (clean.isBlank()) return current
+    return if (current.isBlank()) {
+        clean
+    } else {
+        current.trimEnd() + "\n\n" + clean
+    }
+}
+
+@Composable
+private fun LongTextVoiceButton(
+    voiceState: SmartVoiceUiState,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit
+) {
+    val currentOnVoiceStart by rememberUpdatedState(onVoiceStart)
+    val currentOnVoiceStop by rememberUpdatedState(onVoiceStop)
+    val enabled = !voiceState.isTranscribing
+    val active = voiceState.isRecording
+    val bg = when {
+        active -> ChestnutPalette.Primary
+        voiceState.isTranscribing -> ChestnutPalette.Surface2
+        else -> ChestnutPalette.Primary.copy(alpha = 0.12f)
+    }
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .border(1.dp, ChestnutPalette.Primary.copy(alpha = if (active) 0.9f else 0.32f), CircleShape)
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                currentOnVoiceStart()
+                                try {
+                                    tryAwaitRelease()
+                                } finally {
+                                    currentOnVoiceStop()
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        BabyLogMaterialIcon(
+            icon = LineIcon.Voice,
+            tint = if (active) Color.White else ChestnutPalette.Primary,
+            modifier = Modifier.size(20.dp)
+        )
+    }
 }
 
 private fun calendarFromDate(value: String): Calendar {
