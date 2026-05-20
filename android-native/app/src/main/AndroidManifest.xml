@@ -17,7 +17,7 @@
         android:dataExtractionRules="@xml/babylog_data_extraction_rules"
         android:fullBackupContent="@xml/babylog_backup_rules"
         android:icon="@mipmap/ic_launcher"
-        android:label="BabyLog"
+        android:label="栗记"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/AppTheme">
         <activity
