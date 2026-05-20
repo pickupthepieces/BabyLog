@@ -10,6 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -1969,7 +1971,11 @@ private fun BabyLogApp(
     ) { inner ->
         NavHost(
             navController = navController,
-            startDestination = if (state.disclaimerAccepted) BabyLogRoutes.Home else BabyLogRoutes.Disclaimer
+            startDestination = if (state.disclaimerAccepted) BabyLogRoutes.Home else BabyLogRoutes.Disclaimer,
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
         ) {
             composable(BabyLogRoutes.Disclaimer) {
                 MedicalDisclaimerGateScreen(onAccept = onAcceptDisclaimer)
