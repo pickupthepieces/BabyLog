@@ -166,3 +166,20 @@
 4. window status/nav bar color 与 SplashBg 一致;保留 1.1s 跳主页。
 
 **约束不变**:不用 imagegen 重生 logo;不动 launcher mipmap / QuickRail / in-app 贴纸接线 / 其它视觉。assemble+lint+smoke 绿;装机一张 splash 截图给 Claude 验收。
+
+### Splash 终版补丁:中英双名(用户裁定)
+
+**用户终版口径**:显示名 = **"BabyLog · 栗记"**(英主中辅,栗记绑栗子 logo 提供中文识别);applicationId / 包名 / GitHub repo **保持不变**(技术 ID 不动)。
+
+**对终版 splash 的覆盖**:
+- 字标从 "BabyLog" 单行 改为 **双行**(更易读、更"成套"):
+  - 第一行 "BabyLog" SemiBold ~22sp,色 `ChestnutPalette.Ink`
+  - 第二行 "栗记" Normal/Medium ~14sp,色 `ChestnutPalette.Muted`(或低调灰)
+  - 两行间 `Spacer(4.dp)` 紧贴
+- 或单行 "BabyLog · 栗记"(用 `·` 间隔,SemiBold ~18sp,Ink)——Codex 自选,以视觉重心更稳的为准,**统一就行**。
+
+**同笔提交一起改**:
+- `AndroidManifest.xml` 的 `android:label` (或 `strings.xml` 的 `app_name`) → "BabyLog · 栗记"(launcher 桌面图标下文字也变)。
+- 任何用户可见处沿用同样双名(README/DISCLAIMER 标题区适度补副标,可后续 docs 跟进,不强求本笔)。
+
+**MUST 不变**:applicationId `app.babylog.nativeapp`、Kotlin/Java 包名、GitHub repo 路径、所有 import、smoke 测试等技术 ID 全部不动——本笔纯**显示名**变更。assemble+lint+smoke 绿,装机看 splash + 桌面 launcher label 都显双名。
