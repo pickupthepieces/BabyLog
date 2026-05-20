@@ -151,3 +151,62 @@
 - 任何"是否异常"自动判定(胎动/血压/血糖/筛查皆禁)
 - vendor-y 关怀文案/复孕鼓励/SNS 分享
 - 任何依赖云端的提醒(本地通知-only)
+
+---
+
+## 附:#1+#4 合并"本地提醒中心"架构详规
+
+合并理由:#4 是 reminder 基础设施,#1 是它的产检应用层。共一套数据模型与调度器,UI 分两层(产检卡 + 通用提醒)。
+
+### 数据模型
+
+新增独立 prefs 文件 `babylog_reminders.xml`(与既有事件/Smart 配置/Disclaimer 分离,清晰边界);**不进 JSON 导出/家庭同步**(本机偏好,跟设备)。也加入 `babylog_backup_rules.xml` / `babylog_data_extraction_rules.xml` 的 exclude 列。
+
+```
+Reminder:
+  id: UUID
+  kind: enum { CHECKUP_TODO, SCREENING_WINDOW, FETAL_OBSERVATION_HINT, BACKUP, USER_CUSTOM }
+  title: String (中性,用户自定义优先;系统生成的默认严格按 spec 文案)
+  noteOptional: String
+  dueAtIso: String (一次性)| 或 cronLite: String (轻量周期: weekly/monthly/byGestationalWeek)
+  source: enum { SYSTEM, USER }
+  enabled: Boolean
+  dismissedAt: String? (可一键忽略,不再触发)
+  completedAt: String? (用户标已做)
+  createdAt / updatedAt: String
+```
+
+### 调度
+
+- `WorkManager` 周期任务唤醒 + `AlarmManager` setExactAndAllowWhileIdle 单次提醒(Android 6+ Doze 兼容)。
+- Android 13+ POST_NOTIFICATIONS 运行时权限(可拒绝降级为页内 List 显示,**不阻塞**)。
+- 启动时调度器扫描所有 `enabled && dismissedAt==null && completedAt==null && dueAtIso<=now+window` 的提醒,排上 AlarmManager。
+- **#5 状态钩子**:`stageOverride ∈ {PREGNANCY_ENDED, PAUSED}` 时,**所有 SYSTEM 生成提醒静音**;USER_CUSTOM 不强制(由用户决定,可在提醒中心一键全部暂停)。
+
+### UI
+
+- 新增 `tools/reminder-center` 子页(NavCompose):列表 + 新建/编辑/启用禁用/忽略/标已做。
+- 首页加"下次产检卡"高亮显示最近 CHECKUP_TODO + 倒数。
+- 系统生成的"建议项"(按孕周触发,如 16w-20w 推荐做大排畸)是**默认开,用户可一键忽略**;不是强制清单。
+- 触发通知点击 → 跳对应提醒详情/相关记录。
+
+### 系统生成提醒规则(SYSTEM kind)
+
+- **CHECKUP_TODO**:根据 `nextVisitDate`(产检 payload)生成"X 天后产检"提醒(D-3 / D-1 / 当天上午 9 点)。
+- **SCREENING_WINDOW**:孕周到达某专项窗口期(如 24w 开 OGTT 窗口)生成中性建议项("如未做可与医生确认是否安排"——不催不预警)。
+- **FETAL_OBSERVATION_HINT**:每天上午 X 时(可关闭)中性提示"今天可以观察一下宝宝的活动模式";措辞 NHS 校准。
+- **BACKUP**:周期(默认每月)提示"可以做一次本地备份"。
+
+### 文案统一禁区
+
+- 不允许"过期/严重/必须立刻/异常/危险/医生紧急"等词
+- 不带评价/不分级危险
+- 不主动推送任何"医学建议性"内容(喝水/营养/禁忌)
+
+### 验收
+
+- 创建用户自定义提醒、产检触发后能收到本地通知
+- 拒绝通知权限不影响列表/页内展示
+- 切到 STAGE_PREGNANCY_ENDED 或 STAGE_PAUSED:所有 SYSTEM 提醒静音(已存 Reminder 仍可见但不触发)
+- 备份/同步排除 `babylog_reminders.xml`
+- assemble+lint+smoke 绿;装机验通知触发 + 静音 hook
