@@ -473,9 +473,9 @@ public final class ComposeMainActivity : ComponentActivity() {
                 smartVoiceState = smartVoiceState.copy(
                     isRecording = false,
                     isTranscribing = false,
-                    message = "麦克风权限被拒绝，可继续手动输入文本"
+                    message = "麦克风权限被拒绝；可在系统设置中重新授权，也可手动输入文本"
                 )
-                showToast("没有麦克风权限，可手动输入")
+                showToast("没有麦克风权限；可在系统设置中重新授权，也可手动输入")
             }
         }
         cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -1021,7 +1021,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            smartVoiceState = smartVoiceState.copy(message = "需要麦克风权限；拒绝后仍可手动输入")
+            smartVoiceState = smartVoiceState.copy(message = "需要麦克风权限；拒绝后可在系统设置中重新授权")
             return
         }
         try {
