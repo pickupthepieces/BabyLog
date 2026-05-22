@@ -2,6 +2,7 @@ package app.babylog.nativeapp;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class BabyLogRepository {
+    private static final String TAG = "BabyLog";
     private static final String PREFS_NAME = "babylog_native_repository_v1";
     private static final String EVENTS_KEY = "events";
     private static final String ATTACHMENTS_KEY = "attachments";
@@ -52,6 +54,7 @@ public final class BabyLogRepository {
         try {
             return BabyLogDomain.FamilyProfile.fromJson(new JSONObject(raw));
         } catch (JSONException ignored) {
+            Log.w(TAG, "Failed to parse family profile JSON", ignored);
             return null;
         }
     }
@@ -65,6 +68,7 @@ public final class BabyLogRepository {
             BabyLogDomain.ChildProfile profile = BabyLogDomain.ChildProfile.fromJson(new JSONObject(raw));
             return profile == null ? BabyLogDomain.ChildProfile.empty() : profile;
         } catch (JSONException ignored) {
+            Log.w(TAG, "Failed to parse child profile JSON", ignored);
             return BabyLogDomain.ChildProfile.empty();
         }
     }
@@ -78,6 +82,7 @@ public final class BabyLogRepository {
             BabyLogDomain.FamilyMember member = BabyLogDomain.FamilyMember.fromJson(new JSONObject(raw));
             return member == null ? BabyLogDomain.FamilyMember.localManager() : member;
         } catch (JSONException ignored) {
+            Log.w(TAG, "Failed to parse family member JSON", ignored);
             return BabyLogDomain.FamilyMember.localManager();
         }
     }
@@ -373,6 +378,7 @@ public final class BabyLogRepository {
         try {
             return new JSONArray(preferences.getString(key, "[]"));
         } catch (JSONException ignored) {
+            Log.w(TAG, "Failed to parse repository JSON array for key " + key, ignored);
             return new JSONArray();
         }
     }
