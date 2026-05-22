@@ -144,6 +144,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private val smartVisionClient = BabyLogSmartVisionClient()
     private val smartTextClient = BabyLogSmartTextClient()
     private val speechClient = BabyLogParaformerSpeechClient()
+    private val remoteSyncClient = BabyLogRemoteSyncClient()
     private lateinit var audioPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
@@ -187,6 +188,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
     private var syncConfirmState by mutableStateOf<SyncConfirmState?>(null)
     private var syncFamilyKeyConfigured by mutableStateOf(false)
+    private var syncCheckRunning by mutableStateOf(false)
+    private var syncCheckMessage by mutableStateOf("")
+    private var syncCheckOk by mutableStateOf<Boolean?>(null)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -292,11 +296,15 @@ public final class ComposeMainActivity : ComponentActivity() {
                     smartConfigSummary = smartConfigSummary,
                     speechConfigSummary = speechConfigSummary,
                     syncFamilyKeyConfigured = syncFamilyKeyConfigured,
+                    syncCheckRunning = syncCheckRunning,
+                    syncCheckMessage = syncCheckMessage,
+                    syncCheckOk = syncCheckOk,
                     onCloseSettingsPage = {
                         profilePageState = null
                         smartSettingsConfig = null
                         speechSettingsConfig = null
                     },
+                    onCheckSyncConnection = ::checkSyncConnection,
                     onSaveSyncSettings = ::saveSyncSettings,
                     onSaveSmartSettings = ::saveSmartSettings,
                     onSaveSpeechSettings = ::saveSpeechSettings,
@@ -1504,6 +1512,42 @@ public final class ComposeMainActivity : ComponentActivity() {
         persistSyncSettings(normalized, "")
     }
 
+    private fun checkSyncConnection(backendBaseUrl: String, familyKey: String) {
+        if (syncCheckRunning) {
+            return
+        }
+        val normalized = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl)
+        if (normalized.isEmpty()) {
+            syncCheckOk = false
+            syncCheckMessage = "请先填写服务器地址"
+            return
+        }
+        syncCheckRunning = true
+        syncCheckOk = null
+        syncCheckMessage = "正在检测服务器和家庭密钥..."
+        runInBackground {
+            try {
+                val key = if (BabyLogSyncSecretStore.hasUsableFamilyKey(familyKey)) {
+                    familyKey
+                } else {
+                    syncSecretStore.loadFamilyKey()
+                }
+                val result = remoteSyncClient.checkConnection(normalized, key)
+                runOnUiThread {
+                    syncCheckRunning = false
+                    syncCheckOk = result.ok
+                    syncCheckMessage = result.message
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    syncCheckRunning = false
+                    syncCheckOk = false
+                    syncCheckMessage = "连接检测失败：${error.message ?: "网络不可用"}"
+                }
+            }
+        }
+    }
+
     private fun persistSyncSettings(backendBaseUrl: String, familyKey: String) {
         runInBackground {
             try {
@@ -2240,7 +2284,11 @@ private fun BabyLogApp(
     smartConfigSummary: String,
     speechConfigSummary: String,
     syncFamilyKeyConfigured: Boolean,
+    syncCheckRunning: Boolean,
+    syncCheckMessage: String,
+    syncCheckOk: Boolean?,
     onCloseSettingsPage: () -> Unit,
+    onCheckSyncConnection: (String, String) -> Unit,
     onSaveSyncSettings: (String, String) -> Unit,
     onSaveSmartSettings: (BabyLogSmartConfigStore.Config) -> Unit,
     onSaveSpeechSettings: (BabyLogSmartConfigStore.SpeechConfig) -> Unit,
@@ -2634,7 +2682,11 @@ private fun BabyLogApp(
                 SyncSettingsScreen(
                     config = state.syncConfig,
                     familyKeyConfigured = syncFamilyKeyConfigured,
+                    checkingConnection = syncCheckRunning,
+                    connectionMessage = syncCheckMessage,
+                    connectionOk = syncCheckOk,
                     onBack = ::closeSettingsPage,
+                    onCheckConnection = onCheckSyncConnection,
                     onSave = onSaveSyncSettings
                 )
             }

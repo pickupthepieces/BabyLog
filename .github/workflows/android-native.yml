@@ -65,6 +65,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogSpeechToTextProtocol.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncProtocol.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncSecretStore.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogRemoteSyncClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
@@ -84,6 +85,7 @@ jobs:
             smoke-tests/BabyLogSpeechToTextProtocolSmokeTest.java \
             smoke-tests/BabyLogSyncProtocolSmokeTest.java \
             smoke-tests/BabyLogSyncSecretStoreSmokeTest.java \
+            smoke-tests/BabyLogRemoteSyncClientSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDisclaimerPolicySmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartConfigStoreSmokeTest
@@ -101,6 +103,7 @@ jobs:
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSpeechToTextProtocolSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncProtocolSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncSecretStoreSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRemoteSyncClientSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogServiceSmokeTest
 
       - name: Assemble debug

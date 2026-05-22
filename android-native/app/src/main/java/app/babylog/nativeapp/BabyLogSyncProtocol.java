@@ -3,10 +3,15 @@ package app.babylog.nativeapp;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 public final class BabyLogSyncProtocol {
     public static final String HEADER_FAMILY_KEY = "X-BabyLog-Family-Key";
     public static final String HEADER_CLIENT_SCHEMA = "X-BabyLog-Schema-Version";
 
+    public static final String COLLECTION_FAMILIES = "families";
     public static final String ENTITY_FAMILY_PROFILE = "familyProfile";
     public static final String ENTITY_CHILD_PROFILE = "childProfile";
     public static final String ENTITY_FAMILY_MEMBER = "familyMember";
@@ -90,5 +95,23 @@ public final class BabyLogSyncProtocol {
 
     public static String normalizeFamilyKeyForTransport(String familyKey) {
         return familyKey == null ? "" : familyKey.trim();
+    }
+
+    public static String hashFamilyKeyForLookup(String familyKey) {
+        String normalized = normalizeFamilyKeyForTransport(familyKey);
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(normalized.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(bytes.length * 2);
+            for (byte value : bytes) {
+                builder.append(String.format("%02x", value & 0xff));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 is unavailable", error);
+        }
     }
 }
