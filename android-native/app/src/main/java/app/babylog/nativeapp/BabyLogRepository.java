@@ -206,6 +206,15 @@ public final class BabyLogRepository {
             List<BabyLogDomain.AttachmentRecord> attachments,
             List<BabyLogDomain.SyncChange> changes
     ) throws JSONException {
+        return putEventProfileAttachmentsAndSyncChanges(event, null, attachments, changes);
+    }
+
+    public boolean putEventProfileAttachmentsAndSyncChanges(
+            BabyLogDomain.BabyLogEvent event,
+            BabyLogDomain.ChildProfile childProfile,
+            List<BabyLogDomain.AttachmentRecord> attachments,
+            List<BabyLogDomain.SyncChange> changes
+    ) throws JSONException {
         JSONArray updatedEvents = readArray(EVENTS_KEY);
         JSONArray updatedAttachments = readArray(ATTACHMENTS_KEY);
         JSONArray updatedChanges = readArray(SYNC_CHANGES_KEY);
@@ -226,11 +235,14 @@ public final class BabyLogRepository {
                 }
             }
         }
-        return preferences.edit()
+        SharedPreferences.Editor editor = preferences.edit()
                 .putString(EVENTS_KEY, updatedEvents.toString())
                 .putString(ATTACHMENTS_KEY, updatedAttachments.toString())
-                .putString(SYNC_CHANGES_KEY, updatedChanges.toString())
-                .commit();
+                .putString(SYNC_CHANGES_KEY, updatedChanges.toString());
+        if (childProfile != null) {
+            editor.putString(CHILD_PROFILE_KEY, childProfile.toJson().toString());
+        }
+        return editor.commit();
     }
 
     public List<BabyLogDomain.SyncChange> listSyncChanges() {

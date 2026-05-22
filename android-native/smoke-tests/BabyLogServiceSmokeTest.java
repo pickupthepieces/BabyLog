@@ -10,6 +10,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -254,6 +255,7 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(original.createdAt, movedDate.createdAt);
 
         assertRepositorySupportsAtomicEventAttachmentSyncWrites(original);
+        assertCreateEventPlansSyncChange(original);
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -376,6 +378,26 @@ public final class BabyLogServiceSmokeTest {
             if (committed) {
                 throw new AssertionError("compile-time API guard should never execute");
             }
+        }
+    }
+
+    private static void assertCreateEventPlansSyncChange(BabyLogDomain.BabyLogEvent event) {
+        List<BabyLogDomain.SyncChange> changes = BabyLogService.createSyncChangesForEventUpsert(
+                event,
+                Collections.emptyList(),
+                null
+        );
+        boolean found = false;
+        for (BabyLogDomain.SyncChange change : changes) {
+            if ("event".equals(change.entityType)
+                    && event.id.equals(change.entityId)
+                    && "upsert".equals(change.operation)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            throw new AssertionError("created event must produce an upsert sync change");
         }
     }
 

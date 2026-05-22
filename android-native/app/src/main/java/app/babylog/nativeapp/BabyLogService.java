@@ -52,11 +52,10 @@ public final class BabyLogService {
                 Collections.emptyList(),
                 "manual"
         );
-        repository.putEvent(event);
-        if ("birth".equals(event.eventType)) {
-            saveChildProfileWithSync(withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt));
-        }
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        BabyLogDomain.ChildProfile profileUpdate = "birth".equals(event.eventType)
+                ? withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt)
+                : null;
+        saveEventWithAttachmentsAndOptionalChildProfile(event, Collections.emptyList(), profileUpdate);
         return event;
     }
 
@@ -82,8 +81,7 @@ public final class BabyLogService {
                 Collections.emptyList(),
                 "manual"
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithSyncChange(event);
         return event;
     }
 
@@ -98,8 +96,7 @@ public final class BabyLogService {
                 buildBabyCarePayload(input),
                 existing.attachmentIds
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithSyncChange(event);
         return event;
     }
 
@@ -111,16 +108,15 @@ public final class BabyLogService {
         String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : BabyLogFormatters.nowIso();
-        List<String> attachmentIds = createPregnancyAttachmentIds(input);
+        List<BabyLogDomain.AttachmentRecord> attachments = createPregnancyAttachments(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 input.eventType,
                 occurredAt,
                 payload,
-                attachmentIds,
+                attachmentIdsFromRecords(attachments),
                 "manual"
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithAttachmentsAndSyncChanges(event, attachments);
         return event;
     }
 
@@ -130,7 +126,8 @@ public final class BabyLogService {
         }
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
-        attachmentIds.addAll(createPregnancyAttachmentIds(input));
+        List<BabyLogDomain.AttachmentRecord> attachments = createPregnancyAttachments(input);
+        attachmentIds.addAll(attachmentIdsFromRecords(attachments));
         String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : existing.occurredAt;
@@ -145,8 +142,7 @@ public final class BabyLogService {
                 attachmentIds,
                 occurredAt
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithAttachmentsAndSyncChanges(event, attachments);
         return event;
     }
 
@@ -159,8 +155,7 @@ public final class BabyLogService {
                 Collections.emptyList(),
                 "manual"
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithSyncChange(event);
         return event;
     }
 
@@ -200,8 +195,7 @@ public final class BabyLogService {
                 Collections.emptyList(),
                 "manual"
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithSyncChange(event);
         return event;
     }
 
@@ -216,8 +210,7 @@ public final class BabyLogService {
                 buildMaternalMetricPayload(input),
                 existing.attachmentIds
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithSyncChange(event);
         return event;
     }
 
@@ -239,11 +232,13 @@ public final class BabyLogService {
             attachments.add(attachment.withDeletedAt(deletedAt));
             changes.add(BabyLogDomain.createSyncChange("attachment", attachment.id, "delete"));
         }
-        if (!repository.putEventWithAttachmentsAndSyncChanges(deleted, attachments, changes)) {
-            throw new JSONException("删除记录失败");
-        }
+        BabyLogDomain.ChildProfile profileUpdate = null;
         if ("birth".equals(event.eventType)) {
-            saveChildProfileWithSync(repository.loadChildProfile().withBirthDate(""));
+            profileUpdate = repository.loadChildProfile().withBirthDate("");
+            changes.add(BabyLogDomain.createSyncChange("childProfile", profileUpdate.id, "upsert"));
+        }
+        if (!repository.putEventProfileAttachmentsAndSyncChanges(deleted, profileUpdate, attachments, changes)) {
+            throw new JSONException("删除记录失败");
         }
         return deleted;
     }
@@ -266,11 +261,13 @@ public final class BabyLogService {
             attachments.add(attachment.withRestoredAt(restoredAt));
             changes.add(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
         }
-        if (!repository.putEventWithAttachmentsAndSyncChanges(restored, attachments, changes)) {
-            throw new JSONException("恢复记录失败");
-        }
+        BabyLogDomain.ChildProfile profileUpdate = null;
         if ("birth".equals(restored.eventType)) {
-            saveChildProfileWithSync(withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt));
+            profileUpdate = withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt);
+            changes.add(BabyLogDomain.createSyncChange("childProfile", profileUpdate.id, "upsert"));
+        }
+        if (!repository.putEventProfileAttachmentsAndSyncChanges(restored, profileUpdate, attachments, changes)) {
+            throw new JSONException("恢复记录失败");
         }
         return restored;
     }
@@ -279,6 +276,53 @@ public final class BabyLogService {
         BabyLogDomain.ChildProfile next = profile == null ? BabyLogDomain.ChildProfile.empty() : profile;
         repository.saveChildProfile(next);
         repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", next.id, "upsert"));
+    }
+
+    public boolean saveEventWithSyncChange(BabyLogDomain.BabyLogEvent event) throws JSONException {
+        return saveEventWithAttachmentsAndSyncChanges(event, Collections.emptyList());
+    }
+
+    private boolean saveEventWithAttachmentsAndSyncChanges(
+            BabyLogDomain.BabyLogEvent event,
+            List<BabyLogDomain.AttachmentRecord> attachments
+    ) throws JSONException {
+        return saveEventWithAttachmentsAndOptionalChildProfile(event, attachments, null);
+    }
+
+    private boolean saveEventWithAttachmentsAndOptionalChildProfile(
+            BabyLogDomain.BabyLogEvent event,
+            List<BabyLogDomain.AttachmentRecord> attachments,
+            BabyLogDomain.ChildProfile childProfile
+    ) throws JSONException {
+        if (event == null) {
+            throw new JSONException("记录不能为空");
+        }
+        List<BabyLogDomain.SyncChange> changes = createSyncChangesForEventUpsert(event, attachments, childProfile);
+        boolean ok = repository.putEventProfileAttachmentsAndSyncChanges(event, childProfile, attachments, changes);
+        if (!ok) {
+            throw new JSONException("保存记录失败");
+        }
+        return true;
+    }
+
+    public static List<BabyLogDomain.SyncChange> createSyncChangesForEventUpsert(
+            BabyLogDomain.BabyLogEvent event,
+            List<BabyLogDomain.AttachmentRecord> attachments,
+            BabyLogDomain.ChildProfile childProfile
+    ) {
+        List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
+        changes.add(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        if (childProfile != null) {
+            changes.add(BabyLogDomain.createSyncChange("childProfile", childProfile.id, "upsert"));
+        }
+        if (attachments != null) {
+            for (BabyLogDomain.AttachmentRecord attachment : attachments) {
+                if (attachment != null) {
+                    changes.add(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
+                }
+            }
+        }
+        return changes;
     }
 
     public int purgeExpiredTrash() {
@@ -819,16 +863,15 @@ public final class BabyLogService {
         if (!hasUltrasoundMinimumContent(input)) {
             throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
-        List<String> attachmentIds = createUltrasoundAttachmentIds(input);
+        List<BabyLogDomain.AttachmentRecord> attachments = createUltrasoundAttachments(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 "ultrasound",
                 BabyLogFormatters.createOccurredAtFromDate(input.examDate),
                 buildUltrasoundPayload(input),
-                attachmentIds,
+                attachmentIdsFromRecords(attachments),
                 "manual"
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithAttachmentsAndSyncChanges(event, attachments);
         return event;
     }
 
@@ -838,7 +881,8 @@ public final class BabyLogService {
             throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
-        attachmentIds.addAll(createUltrasoundAttachmentIds(input));
+        List<BabyLogDomain.AttachmentRecord> attachments = createUltrasoundAttachments(input);
+        attachmentIds.addAll(attachmentIdsFromRecords(attachments));
         String occurredAt = BabyLogFormatters.isValidDateInput(input.examDate)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.examDate)
                 : existing.occurredAt;
@@ -849,8 +893,7 @@ public final class BabyLogService {
                 attachmentIds,
                 occurredAt
         );
-        repository.putEvent(event);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+        saveEventWithAttachmentsAndSyncChanges(event, attachments);
         return event;
     }
 
@@ -904,10 +947,10 @@ public final class BabyLogService {
         return existing;
     }
 
-    private List<String> createPregnancyAttachmentIds(PregnancyInput input) throws JSONException {
-        List<String> attachmentIds = new ArrayList<>();
+    private List<BabyLogDomain.AttachmentRecord> createPregnancyAttachments(PregnancyInput input) throws JSONException {
+        List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
         if (!isPregnancyDocumentEvent(input.eventType) || isBlank(input.attachmentPath)) {
-            return attachmentIds;
+            return attachments;
         }
         File image = new File(input.attachmentPath);
         if (image.exists() && image.length() > 0) {
@@ -918,15 +961,13 @@ public final class BabyLogService {
                     image.length(),
                     input.attachmentPath
             );
-            repository.putAttachment(attachment);
-            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
-            attachmentIds.add(attachment.id);
+            attachments.add(attachment);
         }
-        return attachmentIds;
+        return attachments;
     }
 
-    private List<String> createUltrasoundAttachmentIds(UltrasoundInput input) throws JSONException {
-        List<String> attachmentIds = new ArrayList<>();
+    private List<BabyLogDomain.AttachmentRecord> createUltrasoundAttachments(UltrasoundInput input) throws JSONException {
+        List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
         if (input.photoPath != null && !input.photoPath.isEmpty()) {
             File image = new File(input.photoPath);
             if (image.exists() && image.length() > 0) {
@@ -937,12 +978,23 @@ public final class BabyLogService {
                         image.length(),
                         input.photoPath
                 );
-                repository.putAttachment(attachment);
-                repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
-                attachmentIds.add(attachment.id);
+                attachments.add(attachment);
             }
         }
-        return attachmentIds;
+        return attachments;
+    }
+
+    private static List<String> attachmentIdsFromRecords(List<BabyLogDomain.AttachmentRecord> attachments) {
+        List<String> ids = new ArrayList<>();
+        if (attachments == null) {
+            return ids;
+        }
+        for (BabyLogDomain.AttachmentRecord attachment : attachments) {
+            if (attachment != null) {
+                ids.add(attachment.id);
+            }
+        }
+        return ids;
     }
 
     private static JSONObject buildUltrasoundPayload(UltrasoundInput input) throws JSONException {

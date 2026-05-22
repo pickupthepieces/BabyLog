@@ -27,7 +27,7 @@ public final class BabyLogRemoteSyncClient {
             return ConnectionResult.failed("请先填写家庭密钥");
         }
 
-        ConnectionResult health = checkHealth(normalizedUrl);
+        ConnectionResult health = checkHealth(normalizedUrl, familyKey);
         if (!health.ok) {
             return health;
         }
@@ -35,7 +35,11 @@ public final class BabyLogRemoteSyncClient {
     }
 
     public ConnectionResult checkHealth(String backendBaseUrl) throws IOException {
-        HttpResponse response = get(healthUrl(backendBaseUrl), "");
+        return checkHealth(backendBaseUrl, "");
+    }
+
+    public ConnectionResult checkHealth(String backendBaseUrl, String familyKey) throws IOException {
+        HttpResponse response = get(healthUrl(backendBaseUrl), familyKey);
         if (response.statusCode >= 200 && response.statusCode < 300) {
             return ConnectionResult.ok("服务器可达");
         }
@@ -81,7 +85,7 @@ public final class BabyLogRemoteSyncClient {
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA, String.valueOf(BabyLogDomain.SCHEMA_VERSION));
         if (BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
-            connection.setRequestProperty(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.normalizeFamilyKeyForTransport(familyKey));
+            connection.setRequestProperty(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey));
         }
         int statusCode = connection.getResponseCode();
         String body = readLimited(statusCode >= 400 ? connection.getErrorStream() : connection.getInputStream());

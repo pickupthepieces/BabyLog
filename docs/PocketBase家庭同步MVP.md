@@ -41,7 +41,7 @@
 3. App 调 `GET /api/collections/families/records?filter=familyKeyHash="..."`。
 4. 返回 `items.length > 0` 才认为家庭可连接。
 
-注意：URL 里只出现 hash，不出现明文家庭密钥；请求 header 仍带 `X-BabyLog-Family-Key`，给后续 PocketBase hook / middleware 使用。
+注意：URL 和请求 header 都只出现 `sha256(trim(familyKey))` 的 64 位 hex，不传明文家庭密钥；`X-BabyLog-Family-Key` header 仅作为后续 PocketBase hook / middleware 的 hash 凭据。
 
 ### family_profiles
 
@@ -127,7 +127,7 @@
 
 - `families` 仅允许带 `familyKeyHash` filter 的 list，用于连接检测。
 - 其它集合在真实推拉接入前先关闭 public create/update/delete。
-- 正式推拉前再加 PocketBase hook：校验 `X-BabyLog-Family-Key` 的 SHA-256 是否匹配目标 family。
+- 正式推拉前再加 PocketBase hook：校验 `X-BabyLog-Family-Key` header 中的 64 位 hash 是否匹配目标 family。
 
 ## App 侧现状
 
@@ -144,4 +144,3 @@
 - 拉取合并远端记录。
 - 附件文件上传 / 下载。
 - 家庭密钥轮换。
-
