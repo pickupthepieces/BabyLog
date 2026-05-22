@@ -196,6 +196,38 @@ public final class BabyLogRepository {
                 .commit();
     }
 
+    public boolean putEventWithAttachmentsAndSyncChanges(
+            BabyLogDomain.BabyLogEvent event,
+            List<BabyLogDomain.AttachmentRecord> attachments,
+            List<BabyLogDomain.SyncChange> changes
+    ) throws JSONException {
+        JSONArray updatedEvents = readArray(EVENTS_KEY);
+        JSONArray updatedAttachments = readArray(ATTACHMENTS_KEY);
+        JSONArray updatedChanges = readArray(SYNC_CHANGES_KEY);
+        if (event != null) {
+            updatedEvents = upsertJson(updatedEvents, event.id, event.toJson());
+        }
+        if (attachments != null) {
+            for (BabyLogDomain.AttachmentRecord attachment : attachments) {
+                if (attachment != null) {
+                    updatedAttachments = upsertJson(updatedAttachments, attachment.id, attachment.toJson());
+                }
+            }
+        }
+        if (changes != null) {
+            for (BabyLogDomain.SyncChange change : changes) {
+                if (change != null) {
+                    updatedChanges = upsertJson(updatedChanges, change.id, change.toJson());
+                }
+            }
+        }
+        return preferences.edit()
+                .putString(EVENTS_KEY, updatedEvents.toString())
+                .putString(ATTACHMENTS_KEY, updatedAttachments.toString())
+                .putString(SYNC_CHANGES_KEY, updatedChanges.toString())
+                .commit();
+    }
+
     public List<BabyLogDomain.SyncChange> listSyncChanges() {
         JSONArray array = readArray(SYNC_CHANGES_KEY);
         List<BabyLogDomain.SyncChange> changes = new ArrayList<>();

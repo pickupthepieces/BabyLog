@@ -228,15 +228,19 @@ public final class BabyLogService {
         }
         String deletedAt = BabyLogFormatters.nowIso();
         BabyLogDomain.BabyLogEvent deleted = event.withDeletedAt(deletedAt);
-        repository.putEvent(deleted);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", deleted.id, "delete"));
+        List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
+        List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
+        changes.add(BabyLogDomain.createSyncChange("event", deleted.id, "delete"));
         for (String attachmentId : event.attachmentIds) {
             BabyLogDomain.AttachmentRecord attachment = repository.findAttachmentById(attachmentId);
             if (attachment == null || attachment.deletedAt != null) {
                 continue;
             }
-            repository.putAttachment(attachment.withDeletedAt(deletedAt));
-            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "delete"));
+            attachments.add(attachment.withDeletedAt(deletedAt));
+            changes.add(BabyLogDomain.createSyncChange("attachment", attachment.id, "delete"));
+        }
+        if (!repository.putEventWithAttachmentsAndSyncChanges(deleted, attachments, changes)) {
+            throw new JSONException("删除记录失败");
         }
         if ("birth".equals(event.eventType)) {
             saveChildProfileWithSync(repository.loadChildProfile().withBirthDate(""));
@@ -251,15 +255,19 @@ public final class BabyLogService {
         }
         String restoredAt = BabyLogFormatters.nowIso();
         BabyLogDomain.BabyLogEvent restored = event.withRestoredAt(restoredAt);
-        repository.putEvent(restored);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("event", restored.id, "upsert"));
+        List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
+        List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
+        changes.add(BabyLogDomain.createSyncChange("event", restored.id, "upsert"));
         for (String attachmentId : event.attachmentIds) {
             BabyLogDomain.AttachmentRecord attachment = repository.findAttachmentById(attachmentId);
             if (attachment == null || attachment.deletedAt == null) {
                 continue;
             }
-            repository.putAttachment(attachment.withRestoredAt(restoredAt));
-            repository.putSyncChange(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
+            attachments.add(attachment.withRestoredAt(restoredAt));
+            changes.add(BabyLogDomain.createSyncChange("attachment", attachment.id, "upsert"));
+        }
+        if (!repository.putEventWithAttachmentsAndSyncChanges(restored, attachments, changes)) {
+            throw new JSONException("恢复记录失败");
         }
         if ("birth".equals(restored.eventType)) {
             saveChildProfileWithSync(withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt));

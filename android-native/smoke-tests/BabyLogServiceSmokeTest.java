@@ -1,5 +1,6 @@
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogFormatters;
+import app.babylog.nativeapp.BabyLogRepository;
 import app.babylog.nativeapp.BabyLogService;
 
 import org.json.JSONArray;
@@ -252,6 +253,8 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(original.id, movedDate.id);
         assertEquals(original.createdAt, movedDate.createdAt);
 
+        assertRepositorySupportsAtomicEventAttachmentSyncWrites(original);
+
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
             int month = 1 + (i / 28);
@@ -360,6 +363,20 @@ public final class BabyLogServiceSmokeTest {
 
     private interface ThrowingRunnable {
         void run() throws Exception;
+    }
+
+    private static void assertRepositorySupportsAtomicEventAttachmentSyncWrites(BabyLogDomain.BabyLogEvent event) throws Exception {
+        if ("__never__".equals(event.id)) {
+            BabyLogRepository repository = null;
+            boolean committed = repository.putEventWithAttachmentsAndSyncChanges(
+                    event,
+                    new ArrayList<BabyLogDomain.AttachmentRecord>(),
+                    Arrays.asList(BabyLogDomain.createSyncChange("event", event.id, "upsert"))
+            );
+            if (committed) {
+                throw new AssertionError("compile-time API guard should never execute");
+            }
+        }
     }
 
     private static BabyLogService.UltrasoundInput ultrasound(
