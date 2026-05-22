@@ -137,6 +137,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var repository: BabyLogRepository
     private lateinit var service: BabyLogService
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
+    private lateinit var syncSecretStore: BabyLogSyncSecretStore
     private lateinit var disclaimerStore: BabyLogDisclaimerStore
     private lateinit var preVisitQuestionStore: BabyLogPreVisitQuestionStore
     private lateinit var reminderStore: BabyLogReminderStore
@@ -184,7 +185,8 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var undoImportConfirm by mutableStateOf(false)
     private var profilePageState by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
-    private var syncConfirmUrl by mutableStateOf<String?>(null)
+    private var syncConfirmState by mutableStateOf<SyncConfirmState?>(null)
+    private var syncFamilyKeyConfigured by mutableStateOf(false)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -208,10 +210,12 @@ public final class ComposeMainActivity : ComponentActivity() {
         repository = BabyLogRepository(this)
         service = BabyLogService(this, repository)
         smartConfigStore = BabyLogSmartConfigStore(this)
+        syncSecretStore = BabyLogSyncSecretStore(this)
         disclaimerStore = BabyLogDisclaimerStore(this)
         preVisitQuestionStore = BabyLogPreVisitQuestionStore(this)
         reminderStore = BabyLogReminderStore(this)
         uiState = uiState.copy(disclaimerAccepted = disclaimerStore.hasAcceptedCurrentVersion())
+        syncFamilyKeyConfigured = syncSecretStore.hasFamilyKey()
         registerLaunchers()
         refreshSmartConfigSummary()
         handleNavigationIntent(intent)
@@ -287,6 +291,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     speechSettingsConfig = speechSettingsConfig,
                     smartConfigSummary = smartConfigSummary,
                     speechConfigSummary = speechConfigSummary,
+                    syncFamilyKeyConfigured = syncFamilyKeyConfigured,
                     onCloseSettingsPage = {
                         profilePageState = null
                         smartSettingsConfig = null
@@ -432,16 +437,16 @@ public final class ComposeMainActivity : ComponentActivity() {
                     )
                 }
 
-                syncConfirmUrl?.let { backendBaseUrl ->
+                syncConfirmState?.let { confirm ->
                     ConfirmDialog(
                         title = "确认启用同步",
-                        message = "启用后会按你配置的地址尝试上传；当前后端仍未就绪，记录会保留在本机待同步队列中。请确认服务器地址、地域和医疗数据跨设备风险都已知晓。",
+                        message = "启用后会按你配置的地址和家庭密钥尝试同步。家庭密钥仅保存在本机加密存储中，不会进入导出、备份或家庭同步；当前真实推拉仍在接入中，记录会保留在本机待同步队列中。请确认服务器地址、家庭密钥和医疗数据跨设备风险都已知晓。",
                         confirmText = "我已知晓并保存",
                         destructive = false,
-                        onDismiss = { syncConfirmUrl = null },
+                        onDismiss = { syncConfirmState = null },
                         onConfirm = {
-                            syncConfirmUrl = null
-                            persistSyncSettings(backendBaseUrl)
+                            syncConfirmState = null
+                            persistSyncSettings(confirm.backendBaseUrl, confirm.familyKey)
                         }
                     )
                 }
@@ -1486,23 +1491,35 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun saveSyncSettings(backendBaseUrl: String) {
+    private fun saveSyncSettings(backendBaseUrl: String, familyKey: String) {
         val normalized = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl)
         if (normalized.isNotEmpty()) {
-            syncConfirmUrl = normalized
+            if (!syncFamilyKeyConfigured && !BabyLogSyncSecretStore.hasUsableFamilyKey(familyKey)) {
+                showInfo("配置不完整", "启用家庭同步前，请填写家庭密钥。密钥只保存在本机加密存储中。")
+                return
+            }
+            syncConfirmState = SyncConfirmState(normalized, familyKey)
             return
         }
-        persistSyncSettings(normalized)
+        persistSyncSettings(normalized, "")
     }
 
-    private fun persistSyncSettings(backendBaseUrl: String) {
+    private fun persistSyncSettings(backendBaseUrl: String, familyKey: String) {
         runInBackground {
             try {
                 repository.saveSyncSettings(BabyLogDomain.BackendConfig(backendBaseUrl.isNotEmpty(), backendBaseUrl, "cn", null))
+                if (backendBaseUrl.isEmpty()) {
+                    syncSecretStore.clearFamilyKey()
+                } else if (BabyLogSyncSecretStore.hasUsableFamilyKey(familyKey)) {
+                    syncSecretStore.saveFamilyKey(familyKey)
+                }
                 showToast(if (backendBaseUrl.isEmpty()) "已关闭后端同步" else "已保存同步地址")
-                runOnUiThread { pendingNavRoute = BabyLogRoutes.Settings }
+                runOnUiThread {
+                    syncFamilyKeyConfigured = syncSecretStore.hasFamilyKey()
+                    pendingNavRoute = BabyLogRoutes.Settings
+                }
                 reloadData()
-            } catch (error: JSONException) {
+            } catch (error: Exception) {
                 showInfo("保存失败", error.message ?: "无法保存同步设置")
             }
         }
@@ -1511,7 +1528,15 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun clearLocalData() {
         runInBackground {
             service.clearLocalData()
-            runOnUiThread { pendingNavRoute = BabyLogRoutes.Home }
+            try {
+                syncSecretStore.clearFamilyKey()
+            } catch (ignored: IOException) {
+                // Clearing local app data should still continue if the encrypted key was already absent.
+            }
+            runOnUiThread {
+                syncFamilyKeyConfigured = false
+                pendingNavRoute = BabyLogRoutes.Home
+            }
             showToast("本机数据已清空")
             reloadData()
         }
@@ -2137,6 +2162,11 @@ private data class ImportConfirmState(
     val profileLabel: String
 )
 
+private data class SyncConfirmState(
+    val backendBaseUrl: String,
+    val familyKey: String
+)
+
 internal data class AttachmentListPageState(
     val title: String,
     val attachments: List<BabyLogDomain.AttachmentRecord>
@@ -2209,8 +2239,9 @@ private fun BabyLogApp(
     speechSettingsConfig: BabyLogSmartConfigStore.SpeechConfig?,
     smartConfigSummary: String,
     speechConfigSummary: String,
+    syncFamilyKeyConfigured: Boolean,
     onCloseSettingsPage: () -> Unit,
-    onSaveSyncSettings: (String) -> Unit,
+    onSaveSyncSettings: (String, String) -> Unit,
     onSaveSmartSettings: (BabyLogSmartConfigStore.Config) -> Unit,
     onSaveSpeechSettings: (BabyLogSmartConfigStore.SpeechConfig) -> Unit,
     onSaveProfile: (ProfileInput, Boolean) -> Unit,
@@ -2602,6 +2633,7 @@ private fun BabyLogApp(
             composable(BabyLogRoutes.SettingsSync) {
                 SyncSettingsScreen(
                     config = state.syncConfig,
+                    familyKeyConfigured = syncFamilyKeyConfigured,
                     onBack = ::closeSettingsPage,
                     onSave = onSaveSyncSettings
                 )
