@@ -1,4 +1,4 @@
-# PocketBase 家庭同步 MVP（S4 E2EE Push / Pull）
+# PocketBase 家庭同步 MVP（S5 E2EE + 附件文件）
 
 ## 目标
 
@@ -8,13 +8,14 @@
 - 不同步模型 API Key、语音 Key、免责声明确认状态、提醒本地状态。
 - AI / OCR / STT 只生成候选，用户手动保存后才进入同步队列。
 - 首轮只做家庭密钥式轻量同步，不做复杂 RBAC。
-- S4 已覆盖本机加密推送、自动拉取、静默 LWW 合并和防回路；附件文件上传、密钥轮换和 realtime 后置。
+- S5 已覆盖本机加密推送、自动拉取、静默 LWW 合并、防回路，以及附件文件加密上传 / 按需下载；密钥轮换和 realtime 后置。
 
 ## 核心安全边界
 
 - 服务端只见 `familyKeyHash`、同步游标和密文。
 - 服务端不见明文家庭密钥。
 - 服务端不见 `entityType` / `eventType` / `occurredAt` / `attachmentIds` / `payload` 内任何字段。
+- 服务端不见附件文件明文。附件文件使用独立 `attachmentKey` 加密后写入 PocketBase `file` 字段。
 - 所有业务实体统一进入 `encrypted_records`，明文多 collection 已废弃。
 
 ## PocketBase 基础端点
@@ -23,6 +24,8 @@
 - 家庭检测：`GET /api/collections/families/records?filter=familyKeyHash="..."`。
 - 加密记录上行：`POST /api/collections/encrypted_records/records`。
 - 加密记录拉取：`GET /api/collections/encrypted_records/records?filter=familyKeyHash="..."&sort=updatedAtClient&page=...&perPage=...`。
+- 附件密文上传：`PATCH /api/collections/encrypted_records/records/{recordId}`，`multipart/form-data`。
+- 附件密文下载：`GET /api/files/encrypted_records/{recordId}/{filename}`。
 
 ## Collection 规划
 
@@ -66,8 +69,10 @@
 | `cipherVersion` | number | no | 当前 = 1 |
 | `nonce` | text | no | base64(12 字节 AES-GCM nonce) |
 | `ciphertext` | text | no | base64(AES-GCM ciphertext + tag) |
-| `updatedAtClient` | text | yes | ISO8601，S4 pull 游标用 |
+| `updatedAtClient` | text | yes | ISO8601，pull 游标用 |
 | `deletedFlag` | number | yes | 0 / 1 |
+| `attachmentFile` | file | no | 可空；仅 attachment 实体使用；单文件，建议 maxSize 5MB，accept `application/octet-stream` |
+| `attachmentFileVersion` | text | no | 客户端写入，等于本机附件 `contentHash` 或文件 SHA-256，用于跳过重复下载 |
 
 加密前 plaintext 形态：
 
@@ -81,11 +86,11 @@
 }
 ```
 
-`entityType`、`eventType`、`occurredAt`、`attachmentIds`、`childId`、`familyId`、`payload` 都不再作为 collection 明文字段存在。
+`entityType`、`eventType`、`occurredAt`、`attachmentIds`、`childId`、`familyId`、`payload` 都不再作为 collection 明文字段存在。服务端不知道哪一行是 attachment；`attachmentFile` 是 optional file，由客户端决定何时填写。
 
 ## Collection Rules 建议
 
-首轮仍以私有 VPS + 足够长家庭密钥为边界，PocketBase rules 保持最小开放。S4 需要 `encrypted_records` 开放 list / view；客户端只通过追加密文行表达更新和软删，服务端 hard delete 始终关闭。
+首轮仍以私有 VPS + 足够长家庭密钥为边界，PocketBase rules 保持最小开放。客户端需要 `encrypted_records` 开放 list / view；业务更新和软删通过追加密文行表达，服务端 hard delete 始终关闭。
 
 建议：
 
@@ -93,10 +98,21 @@
 - `encrypted_records`：
   - list / view：`familyKeyHash = @request.headers.x_babylog_family_key`。
   - create：请求 body 的 `familyKeyHash` 必须等于 `X-BabyLog-Family-Key` header。
-  - update：如需开放，仅允许同一 `familyKeyHash` 下改 `deletedFlag` / `nonce` / `ciphertext` / `updatedAtClient` 等密文字段；当前 App 正常同步不依赖 update。
+  - update：S5 需要允许同一 `familyKeyHash` 下对已创建行补写 `attachmentFile` / `attachmentFileVersion`；其它业务更新仍通过追加新密文行表达。
   - delete：关闭。删除记录走新增一条 `deletedFlag=1` 的密文变更，客户端拉取后本地软删。
 
 建议在 PocketBase hook 中额外校验 header hash 与目标行一致。
+
+### S5 后台配置清单
+
+在 `encrypted_records` collection 增加两个 optional 字段：
+
+| 字段 | 类型 | 规则 |
+|---|---|---|
+| `attachmentFile` | file | 单文件，maxSize 5MB，建议 accept `application/octet-stream` |
+| `attachmentFileVersion` | text | 可空 |
+
+List / View rule MUST 保持 `familyKeyHash = @request.headers.x_babylog_family_key`，因为 `/api/files/...` 下载同样依赖记录可见性。Update rule MUST 至少允许同一家庭 hash 下补写 `attachmentFile` / `attachmentFileVersion`。
 
 ## S4 拉取与合并
 
@@ -119,7 +135,7 @@
 
 ### 拉取
 
-S4 客户端会在以下时机拉取：
+客户端会在以下时机拉取：
 
 - App 前台恢复时立即拉一次。
 - 前台运行时每 2 分钟静默拉一次。
@@ -144,9 +160,68 @@ S4 客户端会在以下时机拉取：
 同步设置页展示：
 
 - 待同步 / 已推送 / 失败
+- 附件待上传数量 / 字节数
+- 附件待下载数量
 - 上次拉取时间
 - 本轮新拉取数量
 - 立即推送 / 立即拉取
+
+## S5 附件文件同步
+
+### 密钥与文件格式
+
+附件 metadata 仍走 S3/S4 的 `dataKey` 加密链。附件文件本体 MUST 使用同一家庭密钥派生出的独立 `attachmentKey`：
+
+```text
+attachmentKey = HKDF(familyKey, info = "attachment/v1")
+```
+
+上传到 PocketBase 的文件内容 MUST 是：
+
+```text
+[12-byte nonce][AES-GCM ciphertext + tag]
+```
+
+AES-GCM AAD MUST 为：
+
+```text
+attachmentId + "|" + cipherVersion + "|" + familyKeyHash
+```
+
+### 上传
+
+附件上传分两阶段：
+
+1. 先按普通 entity 将 attachment metadata 加密后 `POST /api/collections/encrypted_records/records`。
+2. 拿到 PocketBase 返回的 server-side `id` 后，再 `PATCH /api/collections/encrypted_records/records/{id}` 上传 `attachmentFile` 和 `attachmentFileVersion`。
+
+客户端 MUST 限流：单次 push 最多上传 3 个附件文件，总明文字节数最多 10 MiB。文件上传失败时，metadata 可先保持已同步，`SyncChange.status` 保留为 `metadata_synced_file_pending`，下次 push 继续重试。
+
+### 拉取与下载
+
+拉取 `encrypted_records` 时，客户端解密 metadata 后如果发现：
+
+- `entityType = attachment`
+- 远端行带 `attachmentFile`
+- 本机没有对应 blob，或本机 `contentHash` 与 `attachmentFileVersion` 不一致
+
+则 MUST 把 `(attachmentId, remoteRecordId, filename, attachmentFileVersion)` 写入本机下载队列。
+
+下载 worker MUST：
+
+1. GET `/api/files/encrypted_records/{recordId}/{filename}`。
+2. 使用 `attachmentKey` + AAD 解密文件。
+3. 调 `BabyLogRepository.putAttachmentBlobFromRemote(...)` 写入本机。
+4. 成功后移除下载队列。
+
+远端附件落地 MUST NOT 写 `SyncChange`，否则会形成拉取→写入→再推送的同步回路。
+
+### UI 行为
+
+- 附件列表中，缺少本机 blob 的条目显示“等待下载”占位。
+- 附件预览页中，缺少本机 blob 时显示下载中占位符，不显示破图。
+- 同步设置页展示“附件待上传：N 个 / X”和“附件待下载：N 个”。
+- 用户点“立即推送”或“立即上传附件”时走同一 push 编排。
 
 ## clientId 语义与 row 膨胀
 
@@ -161,7 +236,7 @@ S4 客户端会在以下时机拉取：
 
 元数据泄漏面：攻击者拿 server DB 能看到“发生过 N 次同步事件”，但看不到 entity 类型 / 时间分布（这些都在密文里）。可接受。
 
-S5+ 含义：附件文件如果走 PocketBase `file` 字段挂在同一 `encrypted_records` 行，每次 attachment metadata 改一次都会重传文件。S5 实现必须按 `(entityType=attachment, entityId)` 去重，**只上传最新版本对应的文件**，避免文件级膨胀。
+S5 含义：附件文件走 PocketBase `file` 字段挂在同一 `encrypted_records` 行。客户端按 `(entityType=attachment, entityId)` 去重，只下载最新版本对应的文件；上传侧每次 attachment metadata 有待同步时，会尝试补传该版本文件。
 
 ## App 侧现状
 
@@ -173,13 +248,13 @@ S5+ 含义：附件文件如果走 PocketBase `file` 字段挂在同一 `encrypt
 - PocketBase health + family lookup 连接检测。
 - 家庭密钥派生已切到 HKDF lookup hash；旧裸 SHA-256 hash 失效，需要用户重新输入家庭密钥，让服务端 `families.familyKeyHash` 使用新值。
 
-S3 / S4 已完成：
+S3 / S4 / S5 已完成：
 
 - S3：加密封装本机 pending sync changes 并推送到 `encrypted_records`。
 - S4：自动拉取、前台轮询、后台 worker、下拉刷新、静默 LWW 合并、防回路写入路径和同步信息条。
+- S5：附件文件独立加密上传、按需下载、下载落地不产生 SyncChange、同步设置附件计数、缺本机 blob 的附件占位。
 
 仍未完成：
 
-- 附件文件上传 / 下载。
 - 家庭密钥轮换。
 - PocketBase realtime。
