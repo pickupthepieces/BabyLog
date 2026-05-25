@@ -18,7 +18,25 @@
 - 应用打开拉取摘要时**绝不**触发任何 SyncChange（防回路与 S5 一致）
 - 留在 `codex/stage-mainline-refactor` 分支
 - 每笔后 `:app:assembleDebug` + `:app:lintDebug` + `:app:detekt` + 全量 JVM smoke 必过
-- detekt 闸值：Service 余 < 267 行，Repository 余 < 167 行，CMA 余 < 91 行，撞顶按 housekeeping spec §0.5 流程处理
+- detekt 闸值：Service 余 < 267 行，Repository 余 < 167 行，**CMA 已撞 4500 闸值上限**（e25e1a5 App 自动更新后），撞顶按 housekeeping spec §0.5 流程处理
+
+### 0.1 BB1 第一笔之前必须先做的 chore（CMA 已没缓冲）
+
+经 e25e1a5 自动更新接线后，`ComposeMainActivity.kt` 已经精确 = 4500 行（detekt 闸值上限）。`babyLogFileLengthCheck` 用 `> limit` 才报错，正好压线，**任何 BB1 业务接线再加 1 行都会撞顶**。
+
+BB1 §1 第一笔启动之前**必须先一笔独立 chore**：
+
+`chore: 拆 CMA chrome composable 释放 BB1 余量`
+
+建议抽取（参照 MainChrome.kt 模式）：
+
+- **首选**：抽 `ui/components/AppUpdateChrome.kt` — 把 `appUpdateCandidate` ConfirmDialog + `checkAppUpdate` / `downloadAndInstallAppUpdate` 私有方法挪出
+- **次选**：抽 `ui/components/SyncBannerChrome.kt` — 把 `syncConfirmState` / `syncPushConfirmState` / dismissRemoteUpdateBanner 等相关 dialog 集中
+- **目标**：CMA ≤ 4350，给 BB1 留 ≥150 行缓冲
+
+外部调用零改动，私有方法升 internal 跨文件，参照 MainChrome.kt 处理。验证：detekt + smoke + assembleDebug + lintDebug 全绿。
+
+**先做这一笔，再启 BB1 §1**。
 
 ## 1. B1 喂养字段补充
 
