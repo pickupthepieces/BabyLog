@@ -9,7 +9,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class BabyLogRepository {
     private static final String TAG = "BabyLog";
@@ -21,11 +23,21 @@ public final class BabyLogRepository {
     private static final String FAMILY_PROFILE_KEY = "familyProfile";
     private static final String CHILD_PROFILE_KEY = "childProfile";
     private static final String CURRENT_MEMBER_KEY = "currentMember";
+    private static final String SYNC_LAST_PULLED_AT_KEY = "syncLastPulledAt";
+    private static final String REMOTE_UPDATE_BANNER_COUNT_KEY = "remoteUpdateBannerCount";
 
-    private final SharedPreferences preferences;
+    private final StringStore store;
 
     public BabyLogRepository(Context context) {
-        preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        store = new SharedPreferencesStringStore(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE));
+    }
+
+    private BabyLogRepository(StringStore store) {
+        this.store = store;
+    }
+
+    public static BabyLogRepository forSmokeTest() {
+        return new BabyLogRepository(new MemoryStringStore());
     }
 
     public void putEvent(BabyLogDomain.BabyLogEvent event) throws JSONException {
@@ -47,7 +59,7 @@ public final class BabyLogRepository {
     }
 
     public BabyLogDomain.FamilyProfile loadFamilyProfile() {
-        String raw = preferences.getString(FAMILY_PROFILE_KEY, "");
+        String raw = store.getString(FAMILY_PROFILE_KEY, "");
         if (raw == null || raw.trim().isEmpty()) {
             return null;
         }
@@ -60,7 +72,7 @@ public final class BabyLogRepository {
     }
 
     public BabyLogDomain.ChildProfile loadChildProfile() {
-        String raw = preferences.getString(CHILD_PROFILE_KEY, "");
+        String raw = store.getString(CHILD_PROFILE_KEY, "");
         if (raw == null || raw.trim().isEmpty()) {
             return BabyLogDomain.ChildProfile.empty();
         }
@@ -74,7 +86,7 @@ public final class BabyLogRepository {
     }
 
     public BabyLogDomain.FamilyMember loadCurrentMember() {
-        String raw = preferences.getString(CURRENT_MEMBER_KEY, "");
+        String raw = store.getString(CURRENT_MEMBER_KEY, "");
         if (raw == null || raw.trim().isEmpty()) {
             return BabyLogDomain.FamilyMember.localManager();
         }
@@ -96,7 +108,7 @@ public final class BabyLogRepository {
             BabyLogDomain.ChildProfile child,
             BabyLogDomain.FamilyMember member
     ) throws JSONException {
-        preferences.edit()
+        store.edit()
                 .putString(FAMILY_PROFILE_KEY, (family == null ? BabyLogDomain.FamilyProfile.localDefault() : family).toJson().toString())
                 .putString(CHILD_PROFILE_KEY, (child == null ? BabyLogDomain.ChildProfile.empty() : child).toJson().toString())
                 .putString(CURRENT_MEMBER_KEY, (member == null ? BabyLogDomain.FamilyMember.localManager() : member).toJson().toString())
@@ -104,7 +116,7 @@ public final class BabyLogRepository {
     }
 
     public void saveChildProfile(BabyLogDomain.ChildProfile child) throws JSONException {
-        preferences.edit()
+        store.edit()
                 .putString(CHILD_PROFILE_KEY, (child == null ? BabyLogDomain.ChildProfile.empty() : child).toJson().toString())
                 .commit();
     }
@@ -195,7 +207,7 @@ public final class BabyLogRepository {
                 }
             }
         }
-        return preferences.edit()
+        return store.edit()
                 .putString(EVENTS_KEY, updatedEvents.toString())
                 .putString(SYNC_CHANGES_KEY, updatedChanges.toString())
                 .commit();
@@ -235,7 +247,7 @@ public final class BabyLogRepository {
                 }
             }
         }
-        SharedPreferences.Editor editor = preferences.edit()
+        StringStoreEditor editor = store.edit()
                 .putString(EVENTS_KEY, updatedEvents.toString())
                 .putString(ATTACHMENTS_KEY, updatedAttachments.toString())
                 .putString(SYNC_CHANGES_KEY, updatedChanges.toString());
@@ -257,12 +269,69 @@ public final class BabyLogRepository {
         return changes;
     }
 
+    public boolean putEntityFromRemote(String entityType, JSONObject entityJson, boolean softDelete) throws JSONException {
+        if (entityType == null || entityJson == null || entityJson.optString("id", "").trim().isEmpty()) {
+            return false;
+        }
+        if (softDelete && !entityJson.has("deletedAt")) {
+            entityJson.put("deletedAt", BabyLogFormatters.nowIso());
+        }
+        StringStoreEditor editor = store.edit();
+        if (BabyLogSyncProtocol.ENTITY_EVENT.equals(entityType)) {
+            JSONArray events = upsertJson(readArray(EVENTS_KEY), entityJson.optString("id"), entityJson);
+            return editor.putString(EVENTS_KEY, events.toString()).commit();
+        }
+        if (BabyLogSyncProtocol.ENTITY_ATTACHMENT.equals(entityType)) {
+            JSONArray attachments = upsertJson(readArray(ATTACHMENTS_KEY), entityJson.optString("id"), entityJson);
+            return editor.putString(ATTACHMENTS_KEY, attachments.toString()).commit();
+        }
+        if (BabyLogSyncProtocol.ENTITY_CHILD_PROFILE.equals(entityType)) {
+            return editor.putString(CHILD_PROFILE_KEY, entityJson.toString()).commit();
+        }
+        if (BabyLogSyncProtocol.ENTITY_FAMILY_PROFILE.equals(entityType)) {
+            return editor.putString(FAMILY_PROFILE_KEY, entityJson.toString()).commit();
+        }
+        if (BabyLogSyncProtocol.ENTITY_FAMILY_MEMBER.equals(entityType)) {
+            return editor.putString(CURRENT_MEMBER_KEY, entityJson.toString()).commit();
+        }
+        return false;
+    }
+
+    public String loadSyncLastPulledAt() {
+        return store.getString(SYNC_LAST_PULLED_AT_KEY, "");
+    }
+
+    public void saveSyncLastPulledAt(String cursor) {
+        store.edit().putString(SYNC_LAST_PULLED_AT_KEY, cursor == null ? "" : cursor).commit();
+    }
+
+    public int loadRemoteUpdateBannerCount() {
+        try {
+            return Integer.parseInt(store.getString(REMOTE_UPDATE_BANNER_COUNT_KEY, "0"));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    public void addRemoteUpdateBannerCount(int count) {
+        if (count <= 0) {
+            return;
+        }
+        store.edit()
+                .putString(REMOTE_UPDATE_BANNER_COUNT_KEY, String.valueOf(loadRemoteUpdateBannerCount() + count))
+                .commit();
+    }
+
+    public void dismissRemoteUpdateBanner() {
+        store.edit().putString(REMOTE_UPDATE_BANNER_COUNT_KEY, "0").commit();
+    }
+
     public BabyLogDomain.BackendConfig loadSyncSettings() {
-        return BabyLogDomain.BackendConfig.fromJson(preferences.getString(SETTINGS_KEY, ""));
+        return BabyLogDomain.BackendConfig.fromJson(store.getString(SETTINGS_KEY, ""));
     }
 
     public BabyLogDomain.BackendConfig saveSyncSettings(BabyLogDomain.BackendConfig config) throws JSONException {
-        preferences.edit().putString(SETTINGS_KEY, config.toJson().toString()).commit();
+        store.edit().putString(SETTINGS_KEY, config.toJson().toString()).commit();
         return config;
     }
 
@@ -312,7 +381,7 @@ public final class BabyLogRepository {
             JSONArray attachments,
             JSONArray syncChanges
     ) {
-        SharedPreferences.Editor editor = preferences.edit()
+        StringStoreEditor editor = store.edit()
                 .putString(EVENTS_KEY, events == null ? "[]" : events.toString())
                 .putString(ATTACHMENTS_KEY, attachments == null ? "[]" : attachments.toString())
                 .putString(SYNC_CHANGES_KEY, syncChanges == null ? "[]" : syncChanges.toString());
@@ -323,7 +392,7 @@ public final class BabyLogRepository {
     }
 
     public void clearLocalData() {
-        preferences.edit()
+        store.edit()
                 .putString(EVENTS_KEY, "[]")
                 .putString(ATTACHMENTS_KEY, "[]")
                 .putString(SYNC_CHANGES_KEY, "[]")
@@ -335,18 +404,18 @@ public final class BabyLogRepository {
 
     public long estimateLocalBytes() {
         long bytes = 0;
-        bytes += preferences.getString(EVENTS_KEY, "[]").length();
-        bytes += preferences.getString(ATTACHMENTS_KEY, "[]").length();
-        bytes += preferences.getString(SYNC_CHANGES_KEY, "[]").length();
-        bytes += preferences.getString(FAMILY_PROFILE_KEY, "").length();
-        bytes += preferences.getString(CHILD_PROFILE_KEY, "").length();
-        bytes += preferences.getString(CURRENT_MEMBER_KEY, "").length();
+        bytes += store.getString(EVENTS_KEY, "[]").length();
+        bytes += store.getString(ATTACHMENTS_KEY, "[]").length();
+        bytes += store.getString(SYNC_CHANGES_KEY, "[]").length();
+        bytes += store.getString(FAMILY_PROFILE_KEY, "").length();
+        bytes += store.getString(CHILD_PROFILE_KEY, "").length();
+        bytes += store.getString(CURRENT_MEMBER_KEY, "").length();
         return bytes;
     }
 
     private void putJson(String key, String id, JSONObject next) throws JSONException {
         JSONArray updated = upsertJson(readArray(key), id, next);
-        preferences.edit().putString(key, updated.toString()).commit();
+        store.edit().putString(key, updated.toString()).commit();
     }
 
     private JSONArray upsertJson(JSONArray array, String id, JSONObject next) throws JSONException {
@@ -383,19 +452,19 @@ public final class BabyLogRepository {
             }
             updated.put(current);
         }
-        preferences.edit().putString(key, updated.toString()).commit();
+        store.edit().putString(key, updated.toString()).commit();
     }
 
     private JSONArray readArray(String key) {
         try {
-            return new JSONArray(preferences.getString(key, "[]"));
+            return new JSONArray(store.getString(key, "[]"));
         } catch (JSONException ignored) {
             Log.w(TAG, "Failed to parse repository JSON array for key " + key, ignored);
             return new JSONArray();
         }
     }
 
-    private void putFirstObjectOrRemove(SharedPreferences.Editor editor, String key, JSONArray array) {
+    private void putFirstObjectOrRemove(StringStoreEditor editor, String key, JSONArray array) {
         JSONObject first = array == null ? null : array.optJSONObject(0);
         if (first == null) {
             editor.remove(key);
@@ -403,4 +472,110 @@ public final class BabyLogRepository {
             editor.putString(key, first.toString());
         }
     }
+
+    private interface StringStore {
+        String getString(String key, String defaultValue);
+
+        StringStoreEditor edit();
+    }
+
+    private interface StringStoreEditor {
+        StringStoreEditor putString(String key, String value);
+
+        StringStoreEditor remove(String key);
+
+        boolean commit();
+    }
+
+    private static final class SharedPreferencesStringStore implements StringStore {
+        private final SharedPreferences preferences;
+
+        SharedPreferencesStringStore(SharedPreferences preferences) {
+            this.preferences = preferences;
+        }
+
+        @Override
+        public String getString(String key, String defaultValue) {
+            return preferences.getString(key, defaultValue);
+        }
+
+        @Override
+        public StringStoreEditor edit() {
+            return new SharedPreferencesStringStoreEditor(preferences.edit());
+        }
+    }
+
+    private static final class SharedPreferencesStringStoreEditor implements StringStoreEditor {
+        private final SharedPreferences.Editor editor;
+
+        SharedPreferencesStringStoreEditor(SharedPreferences.Editor editor) {
+            this.editor = editor;
+        }
+
+        @Override
+        public StringStoreEditor putString(String key, String value) {
+            editor.putString(key, value);
+            return this;
+        }
+
+        @Override
+        public StringStoreEditor remove(String key) {
+            editor.remove(key);
+            return this;
+        }
+
+        @Override
+        public boolean commit() {
+            return editor.commit();
+        }
+    }
+
+    private static final class MemoryStringStore implements StringStore {
+        private final Map<String, String> values = new LinkedHashMap<>();
+
+        @Override
+        public String getString(String key, String defaultValue) {
+            String value = values.get(key);
+            return value == null ? defaultValue : value;
+        }
+
+        @Override
+        public StringStoreEditor edit() {
+            return new MemoryStringStoreEditor(values);
+        }
+    }
+
+    private static final class MemoryStringStoreEditor implements StringStoreEditor {
+        private final Map<String, String> values;
+        private final Map<String, String> pending = new LinkedHashMap<>();
+        private final List<String> removals = new ArrayList<>();
+
+        MemoryStringStoreEditor(Map<String, String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public StringStoreEditor putString(String key, String value) {
+            pending.put(key, value);
+            removals.remove(key);
+            return this;
+        }
+
+        @Override
+        public StringStoreEditor remove(String key) {
+            removals.add(key);
+            pending.remove(key);
+            return this;
+        }
+
+        @Override
+        public boolean commit() {
+            for (String key : removals) {
+                values.remove(key);
+            }
+            values.putAll(pending);
+            return true;
+        }
+    }
 }
+

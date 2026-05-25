@@ -19,7 +19,7 @@ import java.util.List;
 public final class BabyLogRemoteSyncClient {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 15_000;
-    private static final int MAX_BODY_CHARS = 4096;
+    private static final int MAX_BODY_CHARS = 1024 * 1024;
 
     public ConnectionResult checkConnection(String backendBaseUrl, String familyKey) throws IOException {
         String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
