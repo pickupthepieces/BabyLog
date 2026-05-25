@@ -485,7 +485,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 syncPushConfirmState?.let { confirm ->
                     ConfirmDialog(
                         title = "确认推送",
-                        message = "将把 ${confirm.pendingCount} 条本机记录加密上传到 ${confirm.backendBaseUrl}。家庭密钥仅本机保存，服务器仅看到密文。",
+                        message = "将把 ${confirm.pendingCount} 条本机记录加密上传到 ${confirm.backendBaseUrl}，其中可能包含附件文件。家庭密钥仅本机保存，服务器仅看到密文。",
                         confirmText = "加密推送",
                         destructive = false,
                         onDismiss = { syncPushConfirmState = null },
@@ -1573,11 +1573,14 @@ public final class ComposeMainActivity : ComponentActivity() {
                 )
                 runOnUiThread {
                     syncPushRunning = false
-                    syncPushMessage = "上次推送：刚刚，成功 ${summary.pushed}、失败 ${summary.failed}"
+                    syncPushMessage = "上次推送：刚刚，成功 ${summary.pushed}、失败 ${summary.failed}；文件上传 ${summary.filesUploaded} 个 / ${BabyLogFormatters.formatByteSize(summary.bytesUploaded)}"
+                    if (summary.filesPending > 0) {
+                        syncPushMessage += "；附件待重试 ${summary.filesPending} 个"
+                    }
                     if (summary.failed > 0 && summary.lastError.isNotBlank()) {
                         syncPushMessage += "；失败原因：${formatSyncError(summary.lastError)}"
                     }
-                    showToast(if (summary.failed == 0) "已加密推送 ${summary.pushed} 条" else "推送完成，失败 ${summary.failed} 条")
+                    showToast(if (summary.failed == 0) "已加密推送 ${summary.pushed} 条，文件 ${summary.filesUploaded} 个" else "推送完成，失败 ${summary.failed} 条")
                 }
                 reloadData()
             } catch (error: Exception) {
@@ -2887,6 +2890,9 @@ private fun BabyLogApp(
                     pendingSyncCount = state.dashboard?.pendingSyncCount ?: 0,
                     syncedSyncCount = state.dashboard?.syncedSyncCount ?: 0,
                     failedSyncCount = state.dashboard?.failedSyncCount ?: 0,
+                    pendingAttachmentUploadCount = state.dashboard?.pendingAttachmentUploadCount ?: 0,
+                    pendingAttachmentUploadBytes = state.dashboard?.pendingAttachmentUploadBytes ?: 0L,
+                    pendingAttachmentDownloadCount = state.dashboard?.pendingAttachmentDownloadCount ?: 0,
                     pushingSync = syncPushRunning,
                     pushMessage = syncPushMessage,
                     pullingSync = syncPullRunning,

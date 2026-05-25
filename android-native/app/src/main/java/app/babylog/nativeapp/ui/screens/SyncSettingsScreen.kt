@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@Suppress("FunctionNaming", "LongMethod", "LongParameterList")
 @Composable
 internal fun SyncSettingsScreen(
     config: BabyLogDomain.BackendConfig,
@@ -27,6 +28,9 @@ internal fun SyncSettingsScreen(
     pendingSyncCount: Int,
     syncedSyncCount: Int,
     failedSyncCount: Int,
+    pendingAttachmentUploadCount: Int,
+    pendingAttachmentUploadBytes: Long,
+    pendingAttachmentDownloadCount: Int,
     pushingSync: Boolean,
     pushMessage: String,
     pullingSync: Boolean,
@@ -110,10 +114,21 @@ internal fun SyncSettingsScreen(
         }
         item {
             Text(
-                "待同步：$pendingSyncCount 条\n已推送：$syncedSyncCount 条\n失败：$failedSyncCount 条\n上次拉取：${formatLastPulledAt(lastPulledAt)}\n本轮新拉取：$remoteUpdateBannerCount 条",
+                "待同步：$pendingSyncCount 条\n已推送：$syncedSyncCount 条\n失败：$failedSyncCount 条\n附件待上传：$pendingAttachmentUploadCount 个 / ${BabyLogFormatters.formatByteSize(pendingAttachmentUploadBytes)}\n附件待下载：$pendingAttachmentDownloadCount 个\n上次拉取：${formatLastPulledAt(lastPulledAt)}\n本轮新拉取：$remoteUpdateBannerCount 条",
                 color = ChestnutPalette.Muted,
                 fontSize = 13.sp
             )
+        }
+        if (pendingAttachmentUploadCount > 0) {
+            item {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !pushingSync,
+                    onClick = onPushNow
+                ) {
+                    Text(if (pushingSync) "上传中..." else "立即上传附件", color = ChestnutPalette.Primary)
+                }
+            }
         }
         if (pullMessage.isNotBlank()) {
             item {

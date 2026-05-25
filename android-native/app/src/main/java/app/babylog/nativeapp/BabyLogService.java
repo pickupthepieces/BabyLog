@@ -1057,8 +1057,10 @@ public final class BabyLogService {
         int pending = 0;
         int failed = 0;
         int synced = 0;
+        int pendingAttachmentUploads = 0;
+        long pendingAttachmentBytes = 0;
         for (BabyLogDomain.SyncChange change : changes) {
-            if ("pending".equals(change.status) || "failed".equals(change.status)) {
+            if ("pending".equals(change.status) || "failed".equals(change.status) || "metadata_synced_file_pending".equals(change.status)) {
                 pending += 1;
             }
             if ("failed".equals(change.status)) {
@@ -1066,6 +1068,14 @@ public final class BabyLogService {
             }
             if ("synced".equals(change.status)) {
                 synced += 1;
+            }
+            if ("attachment".equals(change.entityType) && "upsert".equals(change.operation)
+                    && ("pending".equals(change.status) || "failed".equals(change.status) || "metadata_synced_file_pending".equals(change.status))) {
+                BabyLogDomain.AttachmentRecord attachment = repository.findAttachmentById(change.entityId);
+                if (attachment != null && attachment.deletedAt == null) {
+                    pendingAttachmentUploads += 1;
+                    pendingAttachmentBytes += Math.max(0L, attachment.byteSize);
+                }
             }
         }
         return new DashboardSnapshot(
@@ -1075,6 +1085,9 @@ public final class BabyLogService {
                 pending,
                 failed,
                 synced,
+                pendingAttachmentUploads,
+                pendingAttachmentBytes,
+                repository.listAttachmentDownloadQueue().size(),
                 repository.loadSyncLastPulledAt(),
                 repository.loadRemoteUpdateBannerCount(),
                 repository.estimateLocalBytes() + estimateAttachmentBytes(),
@@ -2133,6 +2146,9 @@ public final class BabyLogService {
         public final int pendingSyncCount;
         public final int failedSyncCount;
         public final int syncedSyncCount;
+        public final int pendingAttachmentUploadCount;
+        public final long pendingAttachmentUploadBytes;
+        public final int pendingAttachmentDownloadCount;
         public final String lastPulledAt;
         public final int remoteUpdateBannerCount;
         public final long localBytes;
@@ -2145,6 +2161,9 @@ public final class BabyLogService {
                 int pendingSyncCount,
                 int failedSyncCount,
                 int syncedSyncCount,
+                int pendingAttachmentUploadCount,
+                long pendingAttachmentUploadBytes,
+                int pendingAttachmentDownloadCount,
                 String lastPulledAt,
                 int remoteUpdateBannerCount,
                 long localBytes,
@@ -2156,6 +2175,9 @@ public final class BabyLogService {
             this.pendingSyncCount = pendingSyncCount;
             this.failedSyncCount = failedSyncCount;
             this.syncedSyncCount = syncedSyncCount;
+            this.pendingAttachmentUploadCount = pendingAttachmentUploadCount;
+            this.pendingAttachmentUploadBytes = pendingAttachmentUploadBytes;
+            this.pendingAttachmentDownloadCount = pendingAttachmentDownloadCount;
             this.lastPulledAt = lastPulledAt == null ? "" : lastPulledAt;
             this.remoteUpdateBannerCount = remoteUpdateBannerCount;
             this.localBytes = localBytes;

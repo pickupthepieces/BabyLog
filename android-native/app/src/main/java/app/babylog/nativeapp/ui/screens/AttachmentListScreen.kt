@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.io.File
 
 @Composable
 internal fun AttachmentListScreen(
@@ -55,6 +56,7 @@ private fun AttachmentListRow(
     attachment: BabyLogDomain.AttachmentRecord,
     onClick: () -> Unit
 ) {
+    val hasLocalFile = attachment.localPath.isNotBlank() && File(attachment.localPath).exists()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -73,7 +75,7 @@ private fun AttachmentListRow(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "文",
+                if (hasLocalFile) "文" else "下",
                 color = ChestnutPalette.Primary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
@@ -87,7 +89,7 @@ private fun AttachmentListRow(
         ) {
             Text(attachment.originalName, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
             Text(
-                "${BabyLogFormatters.formatDateTime(attachment.createdAt)} · ${BabyLogFormatters.formatByteSize(attachment.byteSize)}",
+                "${if (hasLocalFile) "已在本机" else "等待下载"} · ${BabyLogFormatters.formatDateTime(attachment.createdAt)} · ${BabyLogFormatters.formatByteSize(attachment.byteSize)}",
                 color = ChestnutPalette.Muted,
                 fontSize = 12.sp
             )
