@@ -438,6 +438,9 @@ public final class BabyLogService {
         } else if ("diaper".equals(input.eventType)) {
             putStringIfNotBlank(payload, "diaperType", input.primary);
             putStringIfNotBlank(payload, "diaperDetail", input.secondary);
+            putStringIfNotBlank(payload, "diaperObservation", input.tertiary);
+            putStringIfNotBlank(payload, "color", normalizeDiaperColor(input.tertiary));
+            putStringIfNotBlank(payload, "consistency", normalizeDiaperConsistency(input.tertiary));
             putStringIfNotBlank(payload, "note", input.note);
         } else if ("breastfeed".equals(input.eventType)) {
             Double leftMinutes = BabyLogFormatters.parseOptionalNumber(input.primary);
@@ -604,6 +607,7 @@ public final class BabyLogService {
         } else if ("diaper".equals(input.eventType)) {
             appendSummary(summary, input.primary);
             appendSummary(summary, input.secondary);
+            appendSummary(summary, input.tertiary);
         } else if ("breastfeed".equals(input.eventType)) {
             Double left = BabyLogFormatters.parseOptionalNumber(input.primary);
             Double right = BabyLogFormatters.parseOptionalNumber(input.secondary);
@@ -673,6 +677,8 @@ public final class BabyLogService {
         } else if ("diaper".equals(eventType)) {
             putDraftField(values, "primary", payload.optString("diaperType"));
             putDraftField(values, "secondary", payload.optString("diaperDetail"));
+            putDraftField(values, "tertiary", payload.optString("diaperObservation",
+                    joinNonBlank(payload.optString("color"), payload.optString("consistency"))));
             putDraftField(values, "note", payload.optString("note"));
         } else if ("temperature".equals(eventType)) {
             putDraftField(values, "primary", payloadNumberText(payload, "temperatureC"));
@@ -1406,6 +1412,47 @@ public final class BabyLogService {
         return raw.trim();
     }
 
+    private static String normalizeDiaperColor(String raw) {
+        if (isBlank(raw)) {
+            return "";
+        }
+        String normalized = raw.trim();
+        if (normalized.startsWith("黄")) return "黄";
+        if (normalized.startsWith("绿")) return "绿";
+        if (normalized.startsWith("黑")) return "黑";
+        if (normalized.startsWith("红")) return "红";
+        if (normalized.startsWith("白")) return "白";
+        if (normalized.startsWith("其它") || normalized.startsWith("其他")) return "其它";
+        return "";
+    }
+
+    private static String normalizeDiaperConsistency(String raw) {
+        if (isBlank(raw)) {
+            return "";
+        }
+        String normalized = raw.trim();
+        if (normalized.contains("水样")) return "水样";
+        if (normalized.contains("稀")) return "稀";
+        if (normalized.contains("软")) return "软便";
+        if (normalized.contains("成型")) return "成型";
+        return "";
+    }
+
+    private static String joinNonBlank(String first, String second) {
+        boolean hasFirst = !isBlank(first);
+        boolean hasSecond = !isBlank(second);
+        if (hasFirst && hasSecond) {
+            return first.trim() + " / " + second.trim();
+        }
+        if (hasFirst) {
+            return first.trim();
+        }
+        if (hasSecond) {
+            return second.trim();
+        }
+        return "";
+    }
+
     private static Integer parseClockMinute(String value) {
         if (isBlank(value)) {
             return null;
@@ -1704,6 +1751,10 @@ public final class BabyLogService {
 
         public static BabyCareInput diaper(String diaperType, String detail, String note) {
             return new BabyCareInput("diaper", diaperType, detail, "", note);
+        }
+
+        public static BabyCareInput diaper(String diaperType, String detail, String observation, String note) {
+            return new BabyCareInput("diaper", diaperType, detail, observation, note);
         }
 
         public static BabyCareInput breastfeed(String leftMinutes, String rightMinutes, String note) {

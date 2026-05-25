@@ -1857,7 +1857,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             )
             forms["diaper"] = smartFormFields(
                 "primary" to "尿布类型，例如 尿 / 便",
-                "secondary" to "性状 / 颜色 / 量",
+                "secondary" to "尿布详情，例如 尿量 / 便量",
+                "tertiary" to "颜色 / 性状（可选）",
                 "note" to "备注"
             )
             forms["pee"] = smartFormFields(
@@ -3727,7 +3728,7 @@ internal fun babyCareLabels(eventType: String): BabyCareLabels {
     return when (eventType) {
         "feed" -> BabyCareLabels("方式，例如 母乳 / 奶瓶 / 辅食", "奶量 ml，例如 120", "侧别 L / R / BOTH 或辅食食材", "备注", KeyboardType.Text, KeyboardType.Decimal)
         "sleep" -> BabyCareLabels("开始时间，例如 22:10", "结束时间，例如 01:20", "地点，例如 卧室", "备注")
-        "diaper" -> BabyCareLabels("类型，例如 尿 / 便 / 混合", "性状或备注", null, "备注")
+        "diaper" -> BabyCareLabels("类型，例如 尿 / 便 / 混合", "尿布详情，例如 尿量 / 便量", "颜色 / 性状（可选）", "备注")
         "temperature" -> BabyCareLabels("体温", "测量方式，例如 腋温", null, "备注", KeyboardType.Decimal, KeyboardType.Text)
         "medication" -> BabyCareLabels("药名", "剂量，例如 2 ml", "原因", null)
         "breastfeed" -> BabyCareLabels("左侧时长（分钟）", "右侧时长（分钟）", "备注", null, KeyboardType.Decimal, KeyboardType.Decimal)
@@ -3789,7 +3790,7 @@ internal fun buildBabyCareInput(
     return when (eventType) {
         "feed" -> BabyLogService.BabyCareInput.feed(primary, secondary, tertiary, note)
         "sleep" -> BabyLogService.BabyCareInput.sleep(primary, secondary, tertiary, note)
-        "diaper" -> BabyLogService.BabyCareInput.diaper(primary, secondary, note)
+        "diaper" -> BabyLogService.BabyCareInput.diaper(primary, secondary, tertiary, note)
         "temperature" -> BabyLogService.BabyCareInput.temperature(primary, secondary, note)
         "medication" -> BabyLogService.BabyCareInput.medication(primary, secondary, tertiary)
         "breastfeed" -> BabyLogService.BabyCareInput.breastfeed(primary, secondary, tertiary)

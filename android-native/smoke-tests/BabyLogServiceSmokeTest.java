@@ -53,6 +53,21 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.BabyCareInput.diaper("便", "黄色偏稀", "")
                 )
         );
+        JSONObject diaperPayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.diaper("便", "量多", "黄色偏稀", "晨起")
+        );
+        assertEquals("黄", diaperPayload.optString("color"));
+        assertEquals("稀", diaperPayload.optString("consistency"));
+        assertEquals("黄色偏稀", diaperPayload.optString("diaperObservation"));
+        assertTrue(diaperPayload.optString("summary").contains("黄色偏稀"));
+
+        JSONObject oldDiaperPayload = new JSONObject();
+        oldDiaperPayload.put("diaperType", "尿");
+        oldDiaperPayload.put("diaperDetail", "偏多");
+        Map<String, String> oldDiaperDraft = BabyLogService.babyCareDraftFields("diaper", oldDiaperPayload);
+        assertEquals("尿", oldDiaperDraft.get("primary"));
+        assertEquals("偏多", oldDiaperDraft.get("secondary"));
+        assertFalse(oldDiaperDraft.containsKey("tertiary"));
 
         assertEquals(
                 "体温 · 37.8 ℃ · 腋温",
