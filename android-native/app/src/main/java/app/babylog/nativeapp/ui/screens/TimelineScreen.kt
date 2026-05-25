@@ -23,7 +23,10 @@ internal fun TimelineScreen(
     state: BabyLogUiState,
     selectedFilter: String,
     highlightedEventId: String?,
+    syncPulling: Boolean,
     onFilterSelected: (String) -> Unit,
+    onPullSyncNow: () -> Unit,
+    onDismissSyncBanner: () -> Unit,
     onOpenDetail: (BabyLogDomain.BabyLogEvent) -> Unit,
     onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit
@@ -37,34 +40,48 @@ internal fun TimelineScreen(
                 eventMatchesTimelineSearch(event, keyword, startDate, endDate)
         }
     }
-    BabyLogScreenColumn(inner) {
-        item {
-            TimelineSearchPanel(
-                keyword = keyword,
-                onKeywordChange = { keyword = it },
-                startDate = startDate,
-                onStartDateChange = { startDate = it },
-                endDate = endDate,
-                onEndDateChange = { endDate = it }
-            )
-        }
-        item {
-            TimelineFilters(
-                selected = selectedFilter,
-                onSelect = onFilterSelected
-            )
-        }
-        if (events.isEmpty()) {
-            item { EmptyPanel("没有匹配的记录。") }
-        } else {
-            items(events, key = { it.id }) { event ->
-                TimelineRow(
-                    event,
-                    highlighted = event.id == highlightedEventId,
-                    onClick = { onOpenDetail(event) },
-                    onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                    onDelete = { onDeleteEvent(event) }
+    val remoteUpdateCount = state.dashboard?.remoteUpdateBannerCount ?: 0
+    BabyLogPullRefreshContainer(
+        refreshing = syncPulling,
+        onRefresh = onPullSyncNow
+    ) {
+        BabyLogScreenColumn(inner) {
+            if (remoteUpdateCount > 0) {
+                item {
+                    ChestnutSyncBanner(
+                        count = remoteUpdateCount,
+                        onDismiss = onDismissSyncBanner
+                    )
+                }
+            }
+            item {
+                TimelineSearchPanel(
+                    keyword = keyword,
+                    onKeywordChange = { keyword = it },
+                    startDate = startDate,
+                    onStartDateChange = { startDate = it },
+                    endDate = endDate,
+                    onEndDateChange = { endDate = it }
                 )
+            }
+            item {
+                TimelineFilters(
+                    selected = selectedFilter,
+                    onSelect = onFilterSelected
+                )
+            }
+            if (events.isEmpty()) {
+                item { EmptyPanel("没有匹配的记录。") }
+            } else {
+                items(events, key = { it.id }) { event ->
+                    TimelineRow(
+                        event,
+                        highlighted = event.id == highlightedEventId,
+                        onClick = { onOpenDetail(event) },
+                        onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
+                        onDelete = { onDeleteEvent(event) }
+                    )
+                }
             }
         }
     }

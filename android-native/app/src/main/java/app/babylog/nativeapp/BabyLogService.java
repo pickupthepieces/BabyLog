@@ -1075,9 +1075,15 @@ public final class BabyLogService {
                 pending,
                 failed,
                 synced,
+                repository.loadSyncLastPulledAt(),
+                repository.loadRemoteUpdateBannerCount(),
                 repository.estimateLocalBytes() + estimateAttachmentBytes(),
                 context.getFilesDir().getUsableSpace()
         );
+    }
+
+    public void dismissRemoteUpdateBanner() {
+        repository.dismissRemoteUpdateBanner();
     }
 
     public List<BabyLogDomain.BabyLogEvent> listRecentEvents(int limit) {
@@ -2146,6 +2152,8 @@ public final class BabyLogService {
         public final int pendingSyncCount;
         public final int failedSyncCount;
         public final int syncedSyncCount;
+        public final String lastPulledAt;
+        public final int remoteUpdateBannerCount;
         public final long localBytes;
         public final long freeBytes;
 
@@ -2156,6 +2164,8 @@ public final class BabyLogService {
                 int pendingSyncCount,
                 int failedSyncCount,
                 int syncedSyncCount,
+                String lastPulledAt,
+                int remoteUpdateBannerCount,
                 long localBytes,
                 long freeBytes
         ) {
@@ -2165,6 +2175,8 @@ public final class BabyLogService {
             this.pendingSyncCount = pendingSyncCount;
             this.failedSyncCount = failedSyncCount;
             this.syncedSyncCount = syncedSyncCount;
+            this.lastPulledAt = lastPulledAt == null ? "" : lastPulledAt;
+            this.remoteUpdateBannerCount = remoteUpdateBannerCount;
             this.localBytes = localBytes;
             this.freeBytes = freeBytes;
         }

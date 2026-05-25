@@ -1,5 +1,7 @@
 package app.babylog.nativeapp
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
@@ -12,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
@@ -26,9 +29,14 @@ internal fun SyncSettingsScreen(
     failedSyncCount: Int,
     pushingSync: Boolean,
     pushMessage: String,
+    pullingSync: Boolean,
+    pullMessage: String,
+    lastPulledAt: String,
+    remoteUpdateBannerCount: Int,
     onBack: () -> Unit,
     onCheckConnection: (String, String) -> Unit,
     onPushNow: () -> Unit,
+    onPullNow: () -> Unit,
     onSave: (String, String) -> Unit
 ) {
     var backendBaseUrl by rememberSaveable(config.backendBaseUrl) { mutableStateOf(config.backendBaseUrl) }
@@ -80,20 +88,37 @@ internal fun SyncSettingsScreen(
             }
         }
         item {
-            OutlinedButton(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !pushingSync,
-                onClick = onPushNow
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(if (pushingSync) "推送中..." else "立即推送本机记录", color = ChestnutPalette.Primary)
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = !pushingSync,
+                    onClick = onPushNow
+                ) {
+                    Text(if (pushingSync) "推送中..." else "立即推送", color = ChestnutPalette.Primary)
+                }
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = !pullingSync,
+                    onClick = onPullNow
+                ) {
+                    Text(if (pullingSync) "拉取中..." else "立即拉取", color = ChestnutPalette.Primary)
+                }
             }
         }
         item {
             Text(
-                "待同步：$pendingSyncCount 条\n已推送：$syncedSyncCount 条\n失败：$failedSyncCount 条",
+                "待同步：$pendingSyncCount 条\n已推送：$syncedSyncCount 条\n失败：$failedSyncCount 条\n上次拉取：${formatLastPulledAt(lastPulledAt)}\n本轮新拉取：$remoteUpdateBannerCount 条",
                 color = ChestnutPalette.Muted,
                 fontSize = 13.sp
             )
+        }
+        if (pullMessage.isNotBlank()) {
+            item {
+                Text(pullMessage, color = ChestnutPalette.Muted, fontSize = 13.sp)
+            }
         }
         if (pushMessage.isNotBlank()) {
             item {
@@ -101,4 +126,11 @@ internal fun SyncSettingsScreen(
             }
         }
     }
+}
+
+private fun formatLastPulledAt(value: String): String {
+    if (value.isBlank()) {
+        return "未拉取"
+    }
+    return "${BabyLogFormatters.formatEventDay(value)} ${BabyLogFormatters.formatEventTime(value)}"
 }

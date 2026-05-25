@@ -8,8 +8,10 @@ import app.babylog.nativeapp.BabyLogSyncPushOrchestrator;
 import com.sun.net.httpserver.HttpServer;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -32,24 +34,29 @@ public final class BabyLogSyncPullOrchestratorSmokeTest {
 
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/collections/encrypted_records/records", exchange -> {
-            String query = URLDecoder.decode(exchange.getRequestURI().getRawQuery(), "UTF-8");
-            String cursor = cursorFromQuery(query);
-            JSONArray items = new JSONArray();
-            for (BabyLogRemoteSyncClient.EncryptedRecord record : records) {
-                if (cursor.isEmpty() || record.updatedAtClient.compareTo(cursor) > 0) {
-                    items.put(record.toJson());
+            try {
+                String query = URLDecoder.decode(exchange.getRequestURI().getRawQuery(), "UTF-8");
+                String cursor = cursorFromQuery(query);
+                JSONArray items = new JSONArray();
+                for (BabyLogRemoteSyncClient.EncryptedRecord record : records) {
+                    if (cursor.isEmpty() || record.updatedAtClient.compareTo(cursor) > 0) {
+                        items.put(record.toJson());
+                    }
                 }
+                JSONObject body = new JSONObject()
+                        .put("page", 1)
+                        .put("perPage", 200)
+                        .put("totalItems", items.length())
+                        .put("totalPages", items.length() == 0 ? 0 : 1)
+                        .put("items", items);
+                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+            } catch (JSONException error) {
+                throw new IOException(error);
+            } finally {
+                exchange.close();
             }
-            JSONObject body = new JSONObject()
-                    .put("page", 1)
-                    .put("perPage", 200)
-                    .put("totalItems", items.length())
-                    .put("totalPages", items.length() == 0 ? 0 : 1)
-                    .put("items", items);
-            byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            exchange.getResponseBody().write(bytes);
-            exchange.close();
         });
         server.start();
         try {

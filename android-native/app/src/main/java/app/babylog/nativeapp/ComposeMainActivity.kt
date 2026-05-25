@@ -197,6 +197,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var syncPushMessage by mutableStateOf("")
     private var syncPushConfirmState by mutableStateOf<SyncPushConfirmState?>(null)
     private var syncPullRunning by mutableStateOf(false)
+    private var syncPullMessage by mutableStateOf("")
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -316,6 +317,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     syncCheckOk = syncCheckOk,
                     syncPushRunning = syncPushRunning,
                     syncPushMessage = syncPushMessage,
+                    syncPullRunning = syncPullRunning,
+                    syncPullMessage = syncPullMessage,
                     onCloseSettingsPage = {
                         profilePageState = null
                         smartSettingsConfig = null
@@ -323,6 +326,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                     },
                     onCheckSyncConnection = ::checkSyncConnection,
                     onPushSyncNow = ::requestPushSyncNow,
+                    onPullSyncNow = ::requestPullSyncNow,
+                    onDismissRemoteUpdateBanner = ::dismissRemoteUpdateBanner,
                     onSaveSyncSettings = ::saveSyncSettings,
                     onSaveSmartSettings = ::saveSmartSettings,
                     onSaveSpeechSettings = ::saveSpeechSettings,
@@ -1585,6 +1590,10 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun requestPullSyncNow() {
+        pullSyncNow(silent = false)
+    }
+
     private fun startForegroundPullLoop() {
         syncPullHandler.removeCallbacks(foregroundPullRunnable)
         if (shouldAutoPullSync()) {
@@ -1599,10 +1608,19 @@ public final class ComposeMainActivity : ComponentActivity() {
     }
 
     private fun pullSyncNow(silent: Boolean) {
-        if (syncPullRunning || !shouldAutoPullSync()) {
+        if (syncPullRunning) {
+            return
+        }
+        if (!shouldAutoPullSync()) {
+            if (!silent) {
+                showInfo("同步未配置", "请先在同步设置里填写家庭后端地址和家庭密钥。")
+            }
             return
         }
         syncPullRunning = true
+        if (!silent) {
+            syncPullMessage = "正在拉取家人更新..."
+        }
         runInBackground {
             try {
                 val summary = BabyLogSyncPullOrchestrator().pullOnce(
@@ -1613,21 +1631,42 @@ public final class ComposeMainActivity : ComponentActivity() {
                 )
                 runOnUiThread {
                     syncPullRunning = false
+                    if (!silent) {
+                        syncPullMessage = if (summary.lastError.isBlank()) {
+                            "上次拉取：刚刚，新增 ${summary.applied}、忽略 ${summary.skipped}"
+                        } else {
+                            "上次拉取失败：${formatSyncError(summary.lastError)}"
+                        }
+                    }
                 }
-                if (summary.applied > 0) {
+                if (summary.lastError.isBlank()) {
                     reloadData()
                 }
                 if (!silent) {
-                    showToast(if (summary.applied > 0) "已同步 ${summary.applied} 条家人更新" else "已是最新")
+                    if (summary.lastError.isBlank()) {
+                        showToast(if (summary.applied > 0) "已同步 ${summary.applied} 条家人更新" else "已是最新")
+                    } else {
+                        showToast("同步失败：${formatSyncError(summary.lastError)}")
+                    }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
                     syncPullRunning = false
+                    if (!silent) {
+                        syncPullMessage = "上次拉取失败：${error.message ?: "网络不可用"}"
+                    }
                 }
                 if (!silent) {
                     showToast("同步失败：${error.message ?: "网络不可用"}")
                 }
             }
+        }
+    }
+
+    private fun dismissRemoteUpdateBanner() {
+        runInBackground {
+            service.dismissRemoteUpdateBanner()
+            reloadData()
         }
     }
 
@@ -2289,6 +2328,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             "ENTITY_NOT_FOUND" -> "本机记录不存在"
             "ENCRYPT_FAILED" -> "加密失败"
             "PUSH_FAILED" -> "网络推送失败"
+            "PULL_FAILED" -> "网络拉取失败"
             "STATUS_UPDATE_FAILED" -> "状态更新失败"
             else -> code ?: "未知错误"
         }
@@ -2434,9 +2474,13 @@ private fun BabyLogApp(
     syncCheckOk: Boolean?,
     syncPushRunning: Boolean,
     syncPushMessage: String,
+    syncPullRunning: Boolean,
+    syncPullMessage: String,
     onCloseSettingsPage: () -> Unit,
     onCheckSyncConnection: (String, String) -> Unit,
     onPushSyncNow: () -> Unit,
+    onPullSyncNow: () -> Unit,
+    onDismissRemoteUpdateBanner: () -> Unit,
     onSaveSyncSettings: (String, String) -> Unit,
     onSaveSmartSettings: (BabyLogSmartConfigStore.Config) -> Unit,
     onSaveSpeechSettings: (BabyLogSmartConfigStore.SpeechConfig) -> Unit,
@@ -2671,6 +2715,9 @@ private fun BabyLogApp(
                         onDeleteEvent = onDeleteEvent,
                         onOpenWeightGain = { navController.navigate(BabyLogRoutes.ToolsWeightGain) },
                         onOpenReminderCenter = onOpenReminderCenter,
+                        syncPulling = syncPullRunning,
+                        onPullSyncNow = onPullSyncNow,
+                        onDismissSyncBanner = onDismissRemoteUpdateBanner,
                         onQuickRailVisibilityChange = { visible ->
                             if (quickRailVisible != visible) {
                                 quickRailVisible = visible
@@ -2686,7 +2733,10 @@ private fun BabyLogApp(
                     state = state,
                     selectedFilter = timelineFilter,
                     highlightedEventId = highlightedEventId,
+                    syncPulling = syncPullRunning,
                     onFilterSelected = onTimelineFilterSelected,
+                    onPullSyncNow = onPullSyncNow,
+                    onDismissSyncBanner = onDismissRemoteUpdateBanner,
                     onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Timeline) },
                     onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Timeline) },
                     onDeleteEvent = onDeleteEvent
@@ -2838,9 +2888,14 @@ private fun BabyLogApp(
                     failedSyncCount = state.dashboard?.failedSyncCount ?: 0,
                     pushingSync = syncPushRunning,
                     pushMessage = syncPushMessage,
+                    pullingSync = syncPullRunning,
+                    pullMessage = syncPullMessage,
+                    lastPulledAt = state.dashboard?.lastPulledAt ?: "",
+                    remoteUpdateBannerCount = state.dashboard?.remoteUpdateBannerCount ?: 0,
                     onBack = ::closeSettingsPage,
                     onCheckConnection = onCheckSyncConnection,
                     onPushNow = onPushSyncNow,
+                    onPullNow = onPullSyncNow,
                     onSave = onSaveSyncSettings
                 )
             }

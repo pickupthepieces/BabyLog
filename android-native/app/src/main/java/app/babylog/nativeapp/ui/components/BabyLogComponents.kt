@@ -26,10 +26,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.Icon
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -187,6 +195,75 @@ fun EmptyPanel(text: String) {
             color = ChestnutPalette.Text3,
             fontSize = 13.sp,
             textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun ChestnutSyncBanner(
+    count: Int,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (count <= 0) {
+        return
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(ChestnutPalette.PrimarySoft)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Sync,
+            contentDescription = null,
+            tint = ChestnutPalette.Primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "已同步 $count 条家人更新",
+            color = ChestnutPalette.Ink,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = "关闭同步提示",
+                tint = ChestnutPalette.Muted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
+fun BabyLogPullRefreshContainer(
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val pullState = rememberPullRefreshState(refreshing = refreshing, onRefresh = onRefresh)
+    Box(modifier = modifier.pullRefresh(pullState)) {
+        content()
+        PullRefreshIndicator(
+            refreshing = refreshing,
+            state = pullState,
+            modifier = Modifier.align(Alignment.TopCenter),
+            backgroundColor = ChestnutPalette.Surface,
+            contentColor = ChestnutPalette.Primary
         )
     }
 }

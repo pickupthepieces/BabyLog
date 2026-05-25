@@ -36,10 +36,14 @@ internal fun HomeScreen(
     onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onOpenWeightGain: () -> Unit,
     onOpenReminderCenter: () -> Unit,
+    syncPulling: Boolean,
+    onPullSyncNow: () -> Unit,
+    onDismissSyncBanner: () -> Unit,
     onQuickRailVisibilityChange: (Boolean) -> Unit
 ) {
     val stage = currentCareStage(state.childProfile)
     val pregnancyDerivedUiMuted = BabyLogFormatters.shouldMutePregnancyDerivedUi(stage)
+    val remoteUpdateCount = state.dashboard?.remoteUpdateBannerCount ?: 0
     val listState = rememberLazyListState()
     val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
     val railTargetVisible = remember { mutableStateOf(true) }
@@ -69,89 +73,102 @@ internal fun HomeScreen(
             }
         }
     }
-    BabyLogScreenColumn(
-        inner = inner,
-        modifier = Modifier.nestedScroll(railNestedScroll),
-        listState = listState
+    BabyLogPullRefreshContainer(
+        refreshing = syncPulling,
+        onRefresh = onPullSyncNow
     ) {
-        item {
+        BabyLogScreenColumn(
+            inner = inner,
+            modifier = Modifier.nestedScroll(railNestedScroll),
+            listState = listState
+        ) {
+            if (remoteUpdateCount > 0) {
+                item {
+                    ChestnutSyncBanner(
+                        count = remoteUpdateCount,
+                        onDismiss = onDismissSyncBanner
+                    )
+                }
+            }
+            item {
+                if (stage == BabyLogDomain.STAGE_BABY) {
+                    BabyDayCard(
+                        profile = state.childProfile,
+                        selectedDay = selectedBabyDay,
+                        onPreviousDay = {
+                            onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, -1))
+                        },
+                        onToday = { onBabyDaySelected(BabyLogFormatters.todayDateInput()) },
+                        onNextDay = {
+                            onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, 1))
+                        }
+                    )
+                } else if (pregnancyDerivedUiMuted) {
+                    PregnancyQuietCard(stage)
+                } else {
+                    WeekCard(state.childProfile)
+                }
+            }
             if (stage == BabyLogDomain.STAGE_BABY) {
-                BabyDayCard(
-                    profile = state.childProfile,
-                    selectedDay = selectedBabyDay,
-                    onPreviousDay = {
-                        onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, -1))
-                    },
-                    onToday = { onBabyDaySelected(BabyLogFormatters.todayDateInput()) },
-                    onNextDay = {
-                        onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, 1))
+                val dayEvents = state.timeline.filter {
+                    BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
+                }
+                item { BabyDaySummary(dayEvents, selectedBabyDay) }
+                item {
+                    SectionHeader(
+                        title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录"
+                    )
+                }
+                if (dayEvents.isEmpty()) {
+                    item { EmptyPanel("这一天还没有记录") }
+                } else {
+                    items(dayEvents, key = { it.id }) { event ->
+                        TimelineRow(
+                            event,
+                            highlighted = event.id == highlightedEventId,
+                            onClick = { onOpenDetail(event) },
+                            onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
+                            onDelete = { onDeleteEvent(event) }
+                        )
                     }
-                )
-            } else if (pregnancyDerivedUiMuted) {
-                PregnancyQuietCard(stage)
-            } else {
-                WeekCard(state.childProfile)
-            }
-        }
-        if (stage == BabyLogDomain.STAGE_BABY) {
-            val dayEvents = state.timeline.filter {
-                BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
-            }
-            item { BabyDaySummary(dayEvents, selectedBabyDay) }
-            item {
-                SectionHeader(
-                    title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录"
-                )
-            }
-            if (dayEvents.isEmpty()) {
-                item { EmptyPanel("这一天还没有记录") }
-            } else {
-                items(dayEvents, key = { it.id }) { event ->
-                    TimelineRow(
-                        event,
-                        highlighted = event.id == highlightedEventId,
-                        onClick = { onOpenDetail(event) },
-                        onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                        onDelete = { onDeleteEvent(event) }
-                    )
                 }
             }
-        }
-        if (stage == BabyLogDomain.STAGE_PREGNANCY) {
-            item { PregnancySummaryPanel(state.timeline, onOpenWeightGain) }
-            item { NextCheckupReminderPanel(state.reminders, onOpenReminderCenter) }
-            item { PrenatalScreeningTodoPanel(state.childProfile, state.timeline) }
-        }
-        if (stage != BabyLogDomain.STAGE_BABY) {
-            item {
-                SectionHeader(
-                    title = "最近记录",
-                    action = "全部记录",
-                    onAction = onShowTimeline
-                )
+            if (stage == BabyLogDomain.STAGE_PREGNANCY) {
+                item { PregnancySummaryPanel(state.timeline, onOpenWeightGain) }
+                item { NextCheckupReminderPanel(state.reminders, onOpenReminderCenter) }
+                item { PrenatalScreeningTodoPanel(state.childProfile, state.timeline) }
             }
-            val recent = state.dashboard?.recentEvents.orEmpty()
-                .filter { isEventVisibleInHome(it, stage) }
-                .take(4)
-            if (recent.isEmpty()) {
-                item { EmptyPanel("还没有记录") }
-            } else {
-                items(recent, key = { it.id }) { event ->
-                    TimelineRow(
-                        event,
-                        highlighted = event.id == highlightedEventId,
-                        onClick = { onOpenDetail(event) },
-                        onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                        onDelete = { onDeleteEvent(event) }
+            if (stage != BabyLogDomain.STAGE_BABY) {
+                item {
+                    SectionHeader(
+                        title = "最近记录",
+                        action = "全部记录",
+                        onAction = onShowTimeline
                     )
                 }
+                val recent = state.dashboard?.recentEvents.orEmpty()
+                    .filter { isEventVisibleInHome(it, stage) }
+                    .take(4)
+                if (recent.isEmpty()) {
+                    item { EmptyPanel("还没有记录") }
+                } else {
+                    items(recent, key = { it.id }) { event ->
+                        TimelineRow(
+                            event,
+                            highlighted = event.id == highlightedEventId,
+                            onClick = { onOpenDetail(event) },
+                            onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
+                            onDelete = { onDeleteEvent(event) }
+                        )
+                    }
+                }
             }
-        }
-        if (stage == BabyLogDomain.STAGE_PREGNANCY) {
-            item { FetalGrowthPanel(state.timeline) }
-        } else if (!pregnancyDerivedUiMuted) {
-            item { SectionHeader(title = "趋势") }
-            item { TrendPanel(state.timeline, stage) }
+            if (stage == BabyLogDomain.STAGE_PREGNANCY) {
+                item { FetalGrowthPanel(state.timeline) }
+            } else if (!pregnancyDerivedUiMuted) {
+                item { SectionHeader(title = "趋势") }
+                item { TrendPanel(state.timeline, stage) }
+            }
         }
     }
 }
