@@ -61,6 +61,9 @@ public final class BabyLogFileProvider extends ContentProvider {
         if (name != null && name.toLowerCase().endsWith(".png")) {
             return "image/png";
         }
+        if (name != null && name.toLowerCase().endsWith(".apk")) {
+            return "application/vnd.android.package-archive";
+        }
         return "image/jpeg";
     }
 

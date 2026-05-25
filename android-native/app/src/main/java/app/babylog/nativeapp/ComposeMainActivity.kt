@@ -198,6 +198,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var syncPushConfirmState by mutableStateOf<SyncPushConfirmState?>(null)
     private var syncPullRunning by mutableStateOf(false)
     private var syncPullMessage by mutableStateOf("")
+    private var appUpdateRunning by mutableStateOf(false)
+    private var appUpdateStatus by mutableStateOf("未检查")
+    private var appUpdateCandidate by mutableStateOf<BabyLogAppUpdateManager.UpdateInfo?>(null)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -337,6 +340,10 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onOpenDisclaimer = { pendingNavRoute = BabyLogRoutes.SettingsDisclaimer },
                     onOpenDueDateCalculator = { pendingNavRoute = BabyLogRoutes.SettingsDueDateCalc },
                     onOpenWeightGain = { pendingNavRoute = BabyLogRoutes.ToolsWeightGain },
+                    appVersionLabel = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    appUpdateStatus = appUpdateStatus,
+                    appUpdateRunning = appUpdateRunning,
+                    onCheckAppUpdate = ::checkAppUpdate,
                     onSavePreVisitQuestion = ::savePreVisitQuestion,
                     onDeletePreVisitQuestion = ::deletePreVisitQuestion,
                     onOpenReminderCenter = { pendingNavRoute = BabyLogRoutes.ReminderCenter },
@@ -535,6 +542,19 @@ public final class ComposeMainActivity : ComponentActivity() {
                             val eventId = event.id
                             deleteEventConfirm = null
                             deleteEvent(eventId)
+                        }
+                    )
+                }
+                appUpdateCandidate?.let { update ->
+                    ConfirmDialog(
+                        title = "发现新版本 ${update.versionName}",
+                        message = "当前版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})，可更新到 ${update.versionName} (${update.versionCode})。\n\n${update.notes.ifBlank { "本次更新未填写说明。" }}\n\n下载后会打开系统安装器，需要你手动确认安装。",
+                        confirmText = "下载更新",
+                        destructive = false,
+                        onDismiss = { appUpdateCandidate = null },
+                        onConfirm = {
+                            appUpdateCandidate = null
+                            downloadAndInstallAppUpdate(update)
                         }
                     )
                 }
@@ -1680,6 +1700,55 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun checkAppUpdate() {
+        if (appUpdateRunning) return
+        appUpdateRunning = true
+        appUpdateStatus = "正在检查更新..."
+        runInBackground {
+            try {
+                val update = BabyLogAppUpdateManager.fetchLatest(BabyLogAppUpdateManager.DEFAULT_MANIFEST_URL, BuildConfig.VERSION_CODE)
+                runOnUiThread {
+                    appUpdateRunning = false
+                    if (update == null) {
+                        appUpdateStatus = "当前已是最新版本"
+                        showToast("已是最新版本")
+                    } else {
+                        appUpdateStatus = "发现新版本 ${update.versionName}"
+                        appUpdateCandidate = update
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    appUpdateRunning = false
+                    appUpdateStatus = "检查失败：${error.message ?: "网络不可用"}"
+                    showInfo("检查更新失败", error.message ?: "无法读取更新信息")
+                }
+            }
+        }
+    }
+
+    private fun downloadAndInstallAppUpdate(update: BabyLogAppUpdateManager.UpdateInfo) {
+        appUpdateRunning = true
+        appUpdateStatus = "正在下载 ${update.versionName}..."
+        runInBackground {
+            try {
+                val target = File(File(filesDir, "app-updates"), "BabyLog-${update.versionCode}.apk")
+                val apk = BabyLogAppUpdateManager.downloadApk(update, target)
+                runOnUiThread {
+                    appUpdateRunning = false
+                    appUpdateStatus = "下载完成，等待安装"
+                    BabyLogApkInstaller.install(this, apk, ::showInfo)
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    appUpdateRunning = false
+                    appUpdateStatus = "下载失败：${error.message ?: "网络不可用"}"
+                    showInfo("下载更新失败", error.message ?: "无法下载或校验更新包")
+                }
+            }
+        }
+    }
+
     private fun saveSyncSettings(backendBaseUrl: String, familyKey: String) {
         val normalized = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl)
         if (normalized.isNotEmpty()) {
@@ -2434,6 +2503,7 @@ internal data class SmartVoiceUiState(
     val message: String = ""
 )
 
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod", "FunctionNaming")
 @Composable
 private fun BabyLogApp(
     state: BabyLogUiState,
@@ -2500,6 +2570,10 @@ private fun BabyLogApp(
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
+    appVersionLabel: String,
+    appUpdateStatus: String,
+    appUpdateRunning: Boolean,
+    onCheckAppUpdate: () -> Unit,
     onSavePreVisitQuestion: (String?, String, String, () -> Unit) -> Unit,
     onDeletePreVisitQuestion: (BabyLogPreVisitQuestionStore.Question) -> Unit,
     onOpenReminderCenter: () -> Unit,
@@ -2818,6 +2892,10 @@ private fun BabyLogApp(
                     onOpenDisclaimer = onOpenDisclaimer,
                     onOpenDueDateCalculator = onOpenDueDateCalculator,
                     onOpenWeightGain = onOpenWeightGain,
+                    appVersionLabel = appVersionLabel,
+                    appUpdateStatus = appUpdateStatus,
+                    appUpdateRunning = appUpdateRunning,
+                    onCheckAppUpdate = onCheckAppUpdate,
                     onOpenPreVisitQuestions = onOpenPreVisitQuestions,
                     onOpenReminderCenter = onOpenReminderCenter,
                     onEditProfile = onEditProfile
@@ -3443,6 +3521,7 @@ internal fun LibraryScreen(
     }
 }
 
+@Suppress("LongParameterList", "LongMethod", "FunctionNaming")
 @Composable
 internal fun SettingsScreen(
     state: BabyLogUiState,
@@ -3460,6 +3539,10 @@ internal fun SettingsScreen(
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
+    appVersionLabel: String,
+    appUpdateStatus: String,
+    appUpdateRunning: Boolean,
+    onCheckAppUpdate: () -> Unit,
     onOpenPreVisitQuestions: () -> Unit,
     onOpenReminderCenter: () -> Unit,
     onEditProfile: () -> Unit
@@ -3574,6 +3657,14 @@ internal fun SettingsScreen(
                 action = "撤销",
                 actionColor = ChestnutPalette.Danger,
                 onClick = if (state.hasImportUndoSnapshot) onUndoImport else null
+            )
+        }
+        SettingsPanel("应用") {
+            ActionRow(
+                title = "应用更新",
+                subtitle = "当前版本 $appVersionLabel · $appUpdateStatus",
+                action = if (appUpdateRunning) "检查中" else "检查",
+                onClick = if (appUpdateRunning) null else onCheckAppUpdate
             )
         }
         SettingsPanel("本机") {

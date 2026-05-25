@@ -3,6 +3,7 @@ package app.babylog.nativeapp
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 
+@Suppress("LongParameterList", "FunctionNaming")
 @Composable
 internal fun SettingsRootScreen(
     inner: PaddingValues,
@@ -21,6 +22,10 @@ internal fun SettingsRootScreen(
     onOpenDisclaimer: () -> Unit,
     onOpenDueDateCalculator: () -> Unit,
     onOpenWeightGain: () -> Unit,
+    appVersionLabel: String,
+    appUpdateStatus: String,
+    appUpdateRunning: Boolean,
+    onCheckAppUpdate: () -> Unit,
     onOpenPreVisitQuestions: () -> Unit,
     onOpenReminderCenter: () -> Unit,
     onEditProfile: () -> Unit
@@ -43,6 +48,10 @@ internal fun SettingsRootScreen(
                 onOpenDisclaimer = onOpenDisclaimer,
                 onOpenDueDateCalculator = onOpenDueDateCalculator,
                 onOpenWeightGain = onOpenWeightGain,
+                appVersionLabel = appVersionLabel,
+                appUpdateStatus = appUpdateStatus,
+                appUpdateRunning = appUpdateRunning,
+                onCheckAppUpdate = onCheckAppUpdate,
                 onOpenPreVisitQuestions = onOpenPreVisitQuestions,
                 onOpenReminderCenter = onOpenReminderCenter,
                 onEditProfile = onEditProfile

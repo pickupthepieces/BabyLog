@@ -81,6 +81,47 @@ CI 使用 `.github/workflows/android-native.yml`。配置
 `BABYLOG_RELEASE_KEY_ALIAS`、`BABYLOG_RELEASE_KEY_PASSWORD` 后会额外构建 signed release；
 未配置时只跑 smoke tests 和 debug 构建。
 
+## APK 半自动更新
+
+非应用商店安装的 APK 不能静默替换自身。BabyLog 的自更新流程是：设置页手动“检查更新” →
+读取 GitHub Releases 的更新清单 → 下载 signed release APK → 校验 SHA-256 → 打开系统安装器，
+由用户手动确认安装。
+
+默认更新清单地址：
+
+```text
+https://github.com/pickupthepieces/BabyLog/releases/latest/download/babylog-update.json
+```
+
+Release 发布时需要：
+
+1. `versionCode` 递增，`versionName` 更新。
+2. 用同一 release keystore 构建 `app-release.apk`。
+3. 计算 APK SHA-256。
+4. 在 GitHub Release 上传 APK 和 `babylog-update.json`。
+
+`babylog-update.json` 格式：
+
+```json
+{
+  "versionCode": 2,
+  "versionName": "0.1.1",
+  "apkUrl": "https://github.com/pickupthepieces/BabyLog/releases/download/v0.1.1/babylog-release.apk",
+  "sha256": "64位小写hex",
+  "notes": "本次更新说明"
+}
+```
+
+PowerShell 计算 SHA-256：
+
+```powershell
+(Get-FileHash .\app\build\outputs\apk\release\app-release.apk -Algorithm SHA256).Hash.ToLower()
+```
+
+如果手机当前安装的是 debug APK，signed release APK 无法直接覆盖，因为签名不同。正式投入使用前建议先在
+App 内导出备份，卸载 debug 版，安装 signed release 版，再导入备份；之后更新都必须使用同一 release
+keystore 签名。
+
 ## 本地文件
 
 `local.properties`、`.gradle/`、`build/`、`app/build/` 都不提交。服务器 IP、SDK 绝对路径、调试产物不要进入 Git。
