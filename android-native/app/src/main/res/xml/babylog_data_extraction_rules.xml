@@ -15,6 +15,9 @@
             path="babylog_sync_secrets.xml" />
         <exclude
             domain="sharedpref"
+            path="babylog_attachment_blobs.xml" />
+        <exclude
+            domain="sharedpref"
             path="babylog_disclaimer_state.xml" />
         <exclude
             domain="sharedpref"
@@ -48,6 +51,9 @@
         <exclude
             domain="sharedpref"
             path="babylog_sync_secrets.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_attachment_blobs.xml" />
         <exclude
             domain="sharedpref"
             path="babylog_disclaimer_state.xml" />

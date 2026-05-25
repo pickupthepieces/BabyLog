@@ -8,15 +8,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class BabyLogRepository {
     private static final String TAG = "BabyLog";
@@ -30,23 +23,23 @@ public final class BabyLogRepository {
     private static final String CURRENT_MEMBER_KEY = "currentMember";
     private static final String SYNC_LAST_PULLED_AT_KEY = "syncLastPulledAt";
     private static final String REMOTE_UPDATE_BANNER_COUNT_KEY = "remoteUpdateBannerCount";
-    private static final String ATTACHMENT_DOWNLOAD_QUEUE_KEY = "attachmentDownloadQueue";
 
-    private final StringStore store;
-    private final File attachmentBlobDir;
+    private final BabyLogRepositoryStringStore.Store store;
+    private final BabyLogAttachmentBlobStore attachmentBlobStore;
 
     public BabyLogRepository(Context context) {
-        store = new SharedPreferencesStringStore(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE));
-        attachmentBlobDir = new File(context.getFilesDir(), "attachments");
+        SharedPreferences preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        store = BabyLogRepositoryStringStore.fromSharedPreferences(preferences);
+        attachmentBlobStore = new BabyLogAttachmentBlobStore(context, preferences);
     }
 
-    private BabyLogRepository(StringStore store) {
+    private BabyLogRepository(BabyLogRepositoryStringStore.Store store) {
         this.store = store;
-        attachmentBlobDir = new File(System.getProperty("java.io.tmpdir"), "babylog-repository-smoke-" + System.nanoTime());
+        attachmentBlobStore = BabyLogAttachmentBlobStore.forSmokeTest();
     }
 
     public static BabyLogRepository forSmokeTest() {
-        return new BabyLogRepository(new MemoryStringStore());
+        return new BabyLogRepository(BabyLogRepositoryStringStore.memory());
     }
 
     public void putEvent(BabyLogDomain.BabyLogEvent event) throws JSONException {
@@ -174,25 +167,7 @@ public final class BabyLogRepository {
 
     public byte[] findAttachmentBlobBytes(String attachmentId) {
         BabyLogDomain.AttachmentRecord attachment = findAttachmentById(attachmentId);
-        if (attachment == null || attachment.localPath == null || attachment.localPath.trim().isEmpty()) {
-            return null;
-        }
-        File file = new File(attachment.localPath);
-        if (!file.isFile()) {
-            return null;
-        }
-        try (FileInputStream input = new FileInputStream(file);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-            return output.toByteArray();
-        } catch (IOException error) {
-            Log.w(TAG, "Failed to read attachment blob", error);
-            return null;
-        }
+        return attachment == null ? null : attachmentBlobStore.findAttachmentBlobBytes(attachmentId, attachment.localPath);
     }
     public boolean hasAttachmentBlob(String attachmentId) {
         byte[] bytes = findAttachmentBlobBytes(attachmentId);
@@ -200,7 +175,10 @@ public final class BabyLogRepository {
     }
     public String attachmentBlobContentHash(String attachmentId) {
         BabyLogDomain.AttachmentRecord attachment = findAttachmentById(attachmentId);
-        return attachment == null || attachment.contentHash == null ? "" : attachment.contentHash;
+        if (attachment != null && attachment.contentHash != null && !attachment.contentHash.trim().isEmpty()) {
+            return attachment.contentHash;
+        }
+        return attachmentBlobStore.attachmentBlobContentHash(attachmentId);
     }
     public boolean putAttachmentBlobFromRemote(String attachmentId, byte[] bytes, String contentHash) throws JSONException {
         if (attachmentId == null || attachmentId.trim().isEmpty() || bytes == null) {
@@ -210,57 +188,26 @@ public final class BabyLogRepository {
         if (attachment == null) {
             return false;
         }
-        if (!attachmentBlobDir.exists() && !attachmentBlobDir.mkdirs()) {
+        if (!attachmentBlobStore.putAttachmentBlobFromRemote(attachmentId, bytes, contentHash)) {
             return false;
         }
-        File output = new File(attachmentBlobDir, safeFileName(attachmentId) + ".bin");
-        try (FileOutputStream stream = new FileOutputStream(output)) {
-            stream.write(bytes);
-        } catch (IOException error) {
-            Log.w(TAG, "Failed to write remote attachment blob", error);
-            return false;
-        }
+        String localPath = attachmentBlobStore.localPathForAttachment(attachmentId);
         JSONObject json = attachment.toJson()
-                .put("localPath", output.getAbsolutePath())
-                .put("localBlobKey", output.getAbsolutePath())
-                .put("byteSize", bytes.length)
+                .put("localPath", localPath)
+                .put("localBlobKey", localPath)
+                .put("byteSize", attachmentBlobStore.byteSizeForAttachment(attachmentId))
                 .put("contentHash", contentHash == null || contentHash.trim().isEmpty() ? JSONObject.NULL : contentHash);
         JSONArray updated = upsertJson(readArray(ATTACHMENTS_KEY), attachmentId, json);
         return store.edit().putString(ATTACHMENTS_KEY, updated.toString()).commit();
     }
     public void enqueueAttachmentDownload(String attachmentId, String remoteRecordId, String filename, String fileVersion) throws JSONException {
-        if (attachmentId == null || attachmentId.trim().isEmpty()
-                || remoteRecordId == null || remoteRecordId.trim().isEmpty()
-                || filename == null || filename.trim().isEmpty()) {
-            return;
-        }
-        JSONObject json = new JSONObject()
-                .put("id", attachmentId)
-                .put("attachmentId", attachmentId)
-                .put("remoteRecordId", remoteRecordId)
-                .put("filename", filename)
-                .put("fileVersion", fileVersion == null ? "" : fileVersion);
-        JSONArray updated = upsertJson(readArray(ATTACHMENT_DOWNLOAD_QUEUE_KEY), attachmentId, json);
-        store.edit().putString(ATTACHMENT_DOWNLOAD_QUEUE_KEY, updated.toString()).commit();
+        attachmentBlobStore.enqueueAttachmentDownload(attachmentId, remoteRecordId, filename, fileVersion);
     }
     public List<AttachmentDownloadRequest> listAttachmentDownloadQueue() {
-        JSONArray array = readArray(ATTACHMENT_DOWNLOAD_QUEUE_KEY);
-        List<AttachmentDownloadRequest> requests = new ArrayList<>();
-        for (int i = 0; i < array.length(); i += 1) {
-            JSONObject json = array.optJSONObject(i);
-            if (json != null) {
-                requests.add(new AttachmentDownloadRequest(
-                        json.optString("attachmentId", ""),
-                        json.optString("remoteRecordId", ""),
-                        json.optString("filename", ""),
-                        json.optString("fileVersion", "")
-                ));
-            }
-        }
-        return requests;
+        return attachmentBlobStore.listAttachmentDownloadQueue();
     }
     public void removeAttachmentDownload(String attachmentId) {
-        hardDeleteJson(ATTACHMENT_DOWNLOAD_QUEUE_KEY, attachmentId);
+        attachmentBlobStore.removeFromAttachmentDownloadQueue(attachmentId);
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachments() {
@@ -347,7 +294,7 @@ public final class BabyLogRepository {
                 }
             }
         }
-        StringStoreEditor editor = store.edit()
+        BabyLogRepositoryStringStore.Editor editor = store.edit()
                 .putString(EVENTS_KEY, updatedEvents.toString())
                 .putString(ATTACHMENTS_KEY, updatedAttachments.toString())
                 .putString(SYNC_CHANGES_KEY, updatedChanges.toString());
@@ -376,7 +323,7 @@ public final class BabyLogRepository {
         if (softDelete && !entityJson.has("deletedAt")) {
             entityJson.put("deletedAt", BabyLogFormatters.nowIso());
         }
-        StringStoreEditor editor = store.edit();
+        BabyLogRepositoryStringStore.Editor editor = store.edit();
         if (BabyLogSyncProtocol.ENTITY_EVENT.equals(entityType)) {
             JSONArray events = upsertJson(readArray(EVENTS_KEY), entityJson.optString("id"), entityJson);
             return editor.putString(EVENTS_KEY, events.toString()).commit();
@@ -481,7 +428,7 @@ public final class BabyLogRepository {
             JSONArray attachments,
             JSONArray syncChanges
     ) {
-        StringStoreEditor editor = store.edit()
+        BabyLogRepositoryStringStore.Editor editor = store.edit()
                 .putString(EVENTS_KEY, events == null ? "[]" : events.toString())
                 .putString(ATTACHMENTS_KEY, attachments == null ? "[]" : attachments.toString())
                 .putString(SYNC_CHANGES_KEY, syncChanges == null ? "[]" : syncChanges.toString());
@@ -539,11 +486,6 @@ public final class BabyLogRepository {
         return updated;
     }
 
-    private static String safeFileName(String value) {
-        String safe = value == null ? "" : value.replaceAll("[^A-Za-z0-9._-]", "_");
-        return safe.isEmpty() ? "attachment" : safe;
-    }
-
     public static final class AttachmentDownloadRequest {
         public final String attachmentId, remoteRecordId, filename, fileVersion;
         AttachmentDownloadRequest(String attachmentId, String remoteRecordId, String filename, String fileVersion) {
@@ -579,117 +521,12 @@ public final class BabyLogRepository {
         }
     }
 
-    private void putFirstObjectOrRemove(StringStoreEditor editor, String key, JSONArray array) {
+    private void putFirstObjectOrRemove(BabyLogRepositoryStringStore.Editor editor, String key, JSONArray array) {
         JSONObject first = array == null ? null : array.optJSONObject(0);
         if (first == null) {
             editor.remove(key);
         } else {
             editor.putString(key, first.toString());
-        }
-    }
-
-    private interface StringStore {
-        String getString(String key, String defaultValue);
-
-        StringStoreEditor edit();
-    }
-
-    private interface StringStoreEditor {
-        StringStoreEditor putString(String key, String value);
-
-        StringStoreEditor remove(String key);
-
-        boolean commit();
-    }
-
-    private static final class SharedPreferencesStringStore implements StringStore {
-        private final SharedPreferences preferences;
-
-        SharedPreferencesStringStore(SharedPreferences preferences) {
-            this.preferences = preferences;
-        }
-
-        @Override
-        public String getString(String key, String defaultValue) {
-            return preferences.getString(key, defaultValue);
-        }
-
-        @Override
-        public StringStoreEditor edit() {
-            return new SharedPreferencesStringStoreEditor(preferences.edit());
-        }
-    }
-
-    private static final class SharedPreferencesStringStoreEditor implements StringStoreEditor {
-        private final SharedPreferences.Editor editor;
-
-        SharedPreferencesStringStoreEditor(SharedPreferences.Editor editor) {
-            this.editor = editor;
-        }
-
-        @Override
-        public StringStoreEditor putString(String key, String value) {
-            editor.putString(key, value);
-            return this;
-        }
-
-        @Override
-        public StringStoreEditor remove(String key) {
-            editor.remove(key);
-            return this;
-        }
-
-        @Override
-        public boolean commit() {
-            return editor.commit();
-        }
-    }
-
-    private static final class MemoryStringStore implements StringStore {
-        private final Map<String, String> values = new LinkedHashMap<>();
-
-        @Override
-        public String getString(String key, String defaultValue) {
-            String value = values.get(key);
-            return value == null ? defaultValue : value;
-        }
-
-        @Override
-        public StringStoreEditor edit() {
-            return new MemoryStringStoreEditor(values);
-        }
-    }
-
-    private static final class MemoryStringStoreEditor implements StringStoreEditor {
-        private final Map<String, String> values;
-        private final Map<String, String> pending = new LinkedHashMap<>();
-        private final List<String> removals = new ArrayList<>();
-
-        MemoryStringStoreEditor(Map<String, String> values) {
-            this.values = values;
-        }
-
-        @Override
-        public StringStoreEditor putString(String key, String value) {
-            pending.put(key, value);
-            removals.remove(key);
-            return this;
-        }
-
-        @Override
-        public StringStoreEditor remove(String key) {
-            removals.add(key);
-            pending.remove(key);
-            return this;
-        }
-
-        @Override
-        public boolean commit() {
-            for (String key : removals) {
-                values.remove(key);
-            }
-            values.putAll(pending);
-            return true;
         }
     }
 }

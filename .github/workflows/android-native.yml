@@ -73,6 +73,8 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullOrchestrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncAttachmentDownloader.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryStringStore.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentBlobStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
             smoke-tests/BabyLogDisclaimerPolicySmokeTest.java \
@@ -95,6 +97,7 @@ jobs:
             smoke-tests/BabyLogAttachmentCipherSmokeTest.java \
             smoke-tests/BabyLogSyncSecretStoreSmokeTest.java \
             smoke-tests/BabyLogRemoteSyncClientSmokeTest.java \
+            smoke-tests/BabyLogAttachmentBlobStoreSmokeTest.java \
             smoke-tests/BabyLogSyncPushOrchestratorSmokeTest.java \
             smoke-tests/BabyLogSyncPullOrchestratorSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
@@ -118,6 +121,7 @@ jobs:
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentCipherSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncSecretStoreSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRemoteSyncClientSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentBlobStoreSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPushOrchestratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPullOrchestratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogServiceSmokeTest

@@ -311,7 +311,15 @@ public final class BabyLogService {
     }
 
     private void onSuccessfulWrite() {
-        BabyLogSyncPushWorker.enqueueIfConfigured(context);
+        if (context == null) {
+            return;
+        }
+        try {
+            Class<?> worker = Class.forName("app.babylog.nativeapp.BabyLogSyncPushWorker");
+            worker.getMethod("enqueueIfConfigured", Context.class).invoke(null, context);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // Auto sync must never break the local save path or JVM smoke compilation.
+        }
     }
 
     public static List<BabyLogDomain.SyncChange> createSyncChangesForEventUpsert(
