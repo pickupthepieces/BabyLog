@@ -64,7 +64,7 @@
 | 现在 | Android 原生 · 孕期主线 | 基本可用，持续打磨 |
 | 进行中 | 单 Activity → Navigation-Compose 多页面架构重构 | P0–P5 已完成，收尾中 |
 | 下一步 | 育儿期（出生后 0–3 岁）功能补全 | 骨架已在，待主线化 |
-| 之后 | PWA（跨端访问）、家庭密钥同步 | 接口与数据模型预留 |
+| 之后 | PWA（跨端访问）、附件跨设备同步 | 家庭密钥 E2EE push/pull 已接入，附件文件待后续 |
 
 ## 技术栈
 
@@ -75,7 +75,7 @@
 | 逻辑 | Java：Domain / Service / Repository / Formatters / FileProvider / ImageUtils（Compose 复用） |
 | 存储 | 本机 `SharedPreferences` JSON（后续视情况迁 Room） |
 | 识别 | 用户自带 OpenAI-compatible 多模态 / LLM API；语音用独立 STT 配置；Key 仅本机加密 |
-| 同步 | PocketBase（已定，后置）；按 `familyId` push/pull 为后续阶段，未配置时纯本机可用 |
+| 同步 | PocketBase 家庭密钥 E2EE push/pull；服务端只见密文，未配置时纯本机可用 |
 | CI | GitHub Actions：JVM smoke test + `assembleDebug` + 条件 signed release |
 
 ## 仓库结构
