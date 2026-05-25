@@ -64,8 +64,12 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartTextClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSpeechToTextProtocol.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncProtocol.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogFamilyKeyDeriver.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogPayloadCipher.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncSecretStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRemoteSyncClient.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogSyncPushOrchestrator.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullOrchestrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
@@ -84,8 +88,12 @@ jobs:
             smoke-tests/BabyLogSmartTextClientSmokeTest.java \
             smoke-tests/BabyLogSpeechToTextProtocolSmokeTest.java \
             smoke-tests/BabyLogSyncProtocolSmokeTest.java \
+            smoke-tests/BabyLogFamilyKeyDeriverSmokeTest.java \
+            smoke-tests/BabyLogPayloadCipherSmokeTest.java \
             smoke-tests/BabyLogSyncSecretStoreSmokeTest.java \
             smoke-tests/BabyLogRemoteSyncClientSmokeTest.java \
+            smoke-tests/BabyLogSyncPushOrchestratorSmokeTest.java \
+            smoke-tests/BabyLogSyncPullOrchestratorSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDisclaimerPolicySmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartConfigStoreSmokeTest
@@ -102,12 +110,22 @@ jobs:
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartTextClientSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSpeechToTextProtocolSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncProtocolSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFamilyKeyDeriverSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogPayloadCipherSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncSecretStoreSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRemoteSyncClientSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPushOrchestratorSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPullOrchestratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogServiceSmokeTest
 
       - name: Assemble debug
         run: cd android-native && ./gradlew :app:assembleDebug --console=plain
+
+      - name: Lint debug
+        run: cd android-native && ./gradlew :app:lintDebug --console=plain
+
+      - name: Detekt
+        run: cd android-native && ./gradlew :app:detekt --console=plain
 
       - name: Prepare release signing
         if: env.BABYLOG_RELEASE_KEYSTORE_BASE64 != ''

@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'io.gitlab.arturbosch.detekt'
 
 def signingProperties = new Properties()
 def signingPropertiesFile = rootProject.file('signing.properties')
@@ -66,6 +67,44 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+}
+
+detekt {
+    toolVersion = '1.23.7'
+    config.setFrom(files("$projectDir/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    buildUponDefaultConfig = true
+}
+
+def babyLogFileLineLimits = [
+        'src/main/java/app/babylog/nativeapp/ComposeMainActivity.kt': 4500,
+        'src/main/java/app/babylog/nativeapp/BabyLogService.java'    : 2200,
+        'src/main/java/app/babylog/nativeapp/BabyLogDomain.java'     : 1000,
+        'src/main/java/app/babylog/nativeapp/BabyLogRepository.java' : 700
+]
+
+tasks.register('babyLogFileLengthCheck') {
+    group = 'verification'
+    description = 'Fails when key BabyLog god files exceed agreed line-count ceilings.'
+    doLast {
+        def failures = []
+        babyLogFileLineLimits.each { relativePath, limit ->
+            def target = file(relativePath)
+            if (target.exists()) {
+                int lines = target.readLines('UTF-8').size()
+                if (lines > limit) {
+                    failures.add("${relativePath}: ${lines} > ${limit}")
+                }
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException("BabyLog file length limits exceeded:\n" + failures.join('\n'))
+        }
+    }
+}
+
+tasks.named('detekt') {
+    dependsOn tasks.named('babyLogFileLengthCheck')
 }
 
 dependencies {
