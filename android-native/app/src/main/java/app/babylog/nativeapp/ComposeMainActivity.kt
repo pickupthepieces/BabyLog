@@ -1573,14 +1573,19 @@ public final class ComposeMainActivity : ComponentActivity() {
                 )
                 runOnUiThread {
                     syncPushRunning = false
-                    syncPushMessage = "上次推送：刚刚，成功 ${summary.pushed}、失败 ${summary.failed}；文件上传 ${summary.filesUploaded} 个 / ${BabyLogFormatters.formatByteSize(summary.bytesUploaded)}"
+                    val noPushWork = summary.pushed == 0 && summary.failed == 0 && summary.filesUploaded == 0 && summary.filesPending == 0
+                    syncPushMessage = if (noPushWork) {
+                        "上次推送：刚刚，已是最新；没有待推送记录或附件"
+                    } else {
+                        "上次推送：刚刚，成功 ${summary.pushed}、失败 ${summary.failed}；文件上传 ${summary.filesUploaded} 个 / ${BabyLogFormatters.formatByteSize(summary.bytesUploaded)}"
+                    }
                     if (summary.filesPending > 0) {
                         syncPushMessage += "；附件待重试 ${summary.filesPending} 个"
                     }
                     if (summary.failed > 0 && summary.lastError.isNotBlank()) {
                         syncPushMessage += "；失败原因：${formatSyncError(summary.lastError)}"
                     }
-                    showToast(if (summary.failed == 0) "已加密推送 ${summary.pushed} 条，文件 ${summary.filesUploaded} 个" else "推送完成，失败 ${summary.failed} 条")
+                    showToast(if (noPushWork) "已是最新" else if (summary.failed == 0) "已加密推送 ${summary.pushed} 条，文件 ${summary.filesUploaded} 个" else "推送完成，失败 ${summary.failed} 条")
                 }
                 reloadData()
             } catch (error: Exception) {
