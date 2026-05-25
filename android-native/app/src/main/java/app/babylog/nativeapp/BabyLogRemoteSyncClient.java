@@ -5,16 +5,20 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.Socket;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.SSLSocketFactory;
 
 public final class BabyLogRemoteSyncClient {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -135,6 +139,36 @@ public final class BabyLogRemoteSyncClient {
         }
     }
 
+    public RecordPushResult uploadAttachmentFile(
+            String backendBaseUrl,
+            String familyKey,
+            String recordId,
+            byte[] sealedBytes,
+            String contentHashVersion
+    ) throws IOException {
+        String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
+        if (normalizedUrl.isEmpty()) {
+            return RecordPushResult.failed(recordId, "BACKEND_NOT_CONFIGURED");
+        }
+        if (!BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
+            return RecordPushResult.failed(recordId, "FAMILY_KEY_MISSING");
+        }
+        String safeRecordId = recordId == null ? "" : recordId.trim();
+        if (safeRecordId.isEmpty()) {
+            return RecordPushResult.failed(recordId, "RECORD_ID_MISSING");
+        }
+        String boundary = "BabyLogBoundary" + Long.toHexString(System.nanoTime());
+        byte[] body = multipartAttachmentBody(boundary, safeRecordId, sealedBytes, contentHashVersion);
+        String url = encryptedRecordsUrl(normalizedUrl)
+                + "/"
+                + URLEncoder.encode(safeRecordId, "UTF-8");
+        HttpResponse response = rawPatch(url, familyKey, "multipart/form-data; boundary=" + boundary, body);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+            return RecordPushResult.ok(safeRecordId);
+        }
+        return RecordPushResult.failed(safeRecordId, "HTTP_" + response.statusCode);
+    }
+
     public static String healthUrl(String backendBaseUrl) {
         return BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl) + "/api/health";
     }
@@ -223,6 +257,97 @@ public final class BabyLogRemoteSyncClient {
 
     private HttpResponse get(String url, String familyKey) throws IOException {
         return request("GET", url, familyKey, null);
+    }
+
+    private HttpResponse rawPatch(String url, String familyKey, String contentType, byte[] body) throws IOException {
+        URI uri = URI.create(url);
+        boolean https = "https".equalsIgnoreCase(uri.getScheme());
+        int port = uri.getPort() > 0 ? uri.getPort() : (https ? 443 : 80);
+        String path = uri.getRawPath();
+        if (uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
+            path += "?" + uri.getRawQuery();
+        }
+        Socket socket = https
+                ? SSLSocketFactory.getDefault().createSocket(uri.getHost(), port)
+                : new Socket(uri.getHost(), port);
+        socket.setSoTimeout(READ_TIMEOUT_MS);
+        try (Socket closeable = socket;
+             OutputStream output = closeable.getOutputStream();
+             InputStream input = closeable.getInputStream()) {
+            byte[] safeBody = body == null ? new byte[0] : body;
+            StringBuilder headers = new StringBuilder();
+            headers.append("PATCH ").append(path).append(" HTTP/1.1\r\n");
+            headers.append("Host: ").append(uri.getHost());
+            if (uri.getPort() > 0) {
+                headers.append(":").append(uri.getPort());
+            }
+            headers.append("\r\n");
+            headers.append(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA)
+                    .append(": ")
+                    .append(BabyLogDomain.SCHEMA_VERSION)
+                    .append("\r\n");
+            headers.append(BabyLogSyncProtocol.HEADER_FAMILY_KEY)
+                    .append(": ")
+                    .append(BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey))
+                    .append("\r\n");
+            headers.append("Content-Type: ").append(contentType).append("\r\n");
+            headers.append("Content-Length: ").append(safeBody.length).append("\r\n");
+            headers.append("Connection: close\r\n\r\n");
+            output.write(headers.toString().getBytes(StandardCharsets.UTF_8));
+            output.write(safeBody);
+            output.flush();
+            return readRawHttpResponse(input);
+        }
+    }
+
+    private static HttpResponse readRawHttpResponse(InputStream input) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
+        String statusLine = reader.readLine();
+        int statusCode = 0;
+        if (statusLine != null) {
+            String[] parts = statusLine.split(" ");
+            if (parts.length >= 2) {
+                try {
+                    statusCode = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException ignored) {
+                    statusCode = 0;
+                }
+            }
+        }
+        String line;
+        while ((line = reader.readLine()) != null && !line.isEmpty()) {
+            // Skip headers.
+        }
+        StringBuilder body = new StringBuilder();
+        char[] buffer = new char[512];
+        int read;
+        while ((read = reader.read(buffer)) != -1 && body.length() < MAX_BODY_CHARS) {
+            int remaining = MAX_BODY_CHARS - body.length();
+            body.append(buffer, 0, Math.min(read, remaining));
+        }
+        return new HttpResponse(statusCode, body.toString());
+    }
+
+    private static byte[] multipartAttachmentBody(
+            String boundary,
+            String recordId,
+            byte[] sealedBytes,
+            String contentHashVersion
+    ) throws IOException {
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        writeUtf8(body, "--" + boundary + "\r\n");
+        writeUtf8(body, "Content-Disposition: form-data; name=\"attachmentFile\"; filename=\"attachment-" + recordId + ".bin\"\r\n");
+        writeUtf8(body, "Content-Type: application/octet-stream\r\n\r\n");
+        body.write(sealedBytes == null ? new byte[0] : sealedBytes);
+        writeUtf8(body, "\r\n--" + boundary + "\r\n");
+        writeUtf8(body, "Content-Disposition: form-data; name=\"attachmentFileVersion\"\r\n\r\n");
+        writeUtf8(body, contentHashVersion == null ? "" : contentHashVersion);
+        writeUtf8(body, "\r\n--" + boundary + "--\r\n");
+        return body.toByteArray();
+    }
+
+    private static void writeUtf8(OutputStream output, String value) throws IOException {
+        output.write((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
     }
 
     private HttpResponse request(String method, String url, String familyKey, String body) throws IOException {

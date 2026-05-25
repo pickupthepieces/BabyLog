@@ -3,9 +3,12 @@ import app.babylog.nativeapp.BabyLogSyncProtocol;
 
 import com.sun.net.httpserver.HttpServer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public final class BabyLogRemoteSyncClientSmokeTest {
     public static void main(String[] args) throws Exception {
@@ -22,6 +25,7 @@ public final class BabyLogRemoteSyncClientSmokeTest {
 
         assertHeaderUsesFamilyKeyHashOnly();
         assertPullEncryptedRecordsUsesHashHeaderAndCursor();
+        assertUploadAttachmentFileUsesMultipartPatch();
 
         BabyLogRemoteSyncClient.ConnectionResult ok = BabyLogRemoteSyncClient.ConnectionResult.ok("连接成功");
         assertTrue(ok.ok);
@@ -107,6 +111,74 @@ public final class BabyLogRemoteSyncClientSmokeTest {
         assertEquals("cipher_b", result.records.get(1).ciphertext);
         assertEquals(1, result.records.get(1).deletedFlag);
         assertEquals("", result.lastError);
+    }
+
+    private static void assertUploadAttachmentFileUsesMultipartPatch() throws Exception {
+        final String expectedHash = BabyLogSyncProtocol.hashFamilyKeyForLookup("family-secret");
+        final byte[] sealedBytes = new byte[]{12, 8, 4, 2, 1, 0, -1, -2, 44, 55, 66, 77, 88, 99};
+        final String[] capturedMethod = new String[1];
+        final String[] capturedHeader = new String[1];
+        final String[] capturedContentType = new String[1];
+        final byte[][] capturedBody = new byte[1][];
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/collections/encrypted_records/records/remote_1", exchange -> {
+            capturedMethod[0] = exchange.getRequestMethod();
+            capturedHeader[0] = exchange.getRequestHeaders().getFirst(BabyLogSyncProtocol.HEADER_FAMILY_KEY);
+            capturedContentType[0] = exchange.getRequestHeaders().getFirst("Content-Type");
+            capturedBody[0] = readAll(exchange.getRequestBody());
+            byte[] body = "{\"id\":\"remote_1\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        BabyLogRemoteSyncClient.RecordPushResult result;
+        try {
+            int port = server.getAddress().getPort();
+            BabyLogRemoteSyncClient client = new BabyLogRemoteSyncClient();
+            result = client.uploadAttachmentFile(
+                    "http://127.0.0.1:" + port,
+                    "family-secret",
+                    "remote_1",
+                    sealedBytes,
+                    "hash_v1"
+            );
+        } finally {
+            server.stop(0);
+        }
+        assertTrue(result.ok);
+        assertEquals("remote_1", result.clientId);
+        assertEquals("PATCH", capturedMethod[0]);
+        assertEquals(expectedHash, capturedHeader[0]);
+        assertTrue(capturedContentType[0].startsWith("multipart/form-data; boundary="));
+        String bodyText = new String(capturedBody[0], StandardCharsets.ISO_8859_1);
+        assertTrue(bodyText.contains("name=\"attachmentFile\"; filename=\"attachment-remote_1.bin\""));
+        assertTrue(bodyText.contains("Content-Type: application/octet-stream"));
+        assertTrue(bodyText.contains("name=\"attachmentFileVersion\""));
+        assertTrue(bodyText.contains("hash_v1"));
+        assertTrue(indexOf(capturedBody[0], sealedBytes) >= 0);
+    }
+
+    private static byte[] readAll(InputStream input) throws java.io.IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[256];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    private static int indexOf(byte[] source, byte[] needle) {
+        if (needle.length == 0 || source.length < needle.length) {
+            return -1;
+        }
+        for (int offset = 0; offset <= source.length - needle.length; offset += 1) {
+            if (Arrays.equals(Arrays.copyOfRange(source, offset, offset + needle.length), needle)) {
+                return offset;
+            }
+        }
+        return -1;
     }
 
     private static void assertEquals(Object expected, Object actual) {
