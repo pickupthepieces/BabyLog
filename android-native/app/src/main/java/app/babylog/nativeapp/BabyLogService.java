@@ -180,6 +180,7 @@ public final class BabyLogService {
         if (!repository.putEventsWithSyncChanges(events, changes)) {
             throw new JSONException("保存宫缩会话失败");
         }
+        onSuccessfulWrite();
         return events;
     }
 
@@ -240,6 +241,7 @@ public final class BabyLogService {
         if (!repository.putEventProfileAttachmentsAndSyncChanges(deleted, profileUpdate, attachments, changes)) {
             throw new JSONException("删除记录失败");
         }
+        onSuccessfulWrite();
         return deleted;
     }
 
@@ -269,6 +271,7 @@ public final class BabyLogService {
         if (!repository.putEventProfileAttachmentsAndSyncChanges(restored, profileUpdate, attachments, changes)) {
             throw new JSONException("恢复记录失败");
         }
+        onSuccessfulWrite();
         return restored;
     }
 
@@ -276,6 +279,7 @@ public final class BabyLogService {
         BabyLogDomain.ChildProfile next = profile == null ? BabyLogDomain.ChildProfile.empty() : profile;
         repository.saveChildProfile(next);
         repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", next.id, "upsert"));
+        onSuccessfulWrite();
     }
 
     public boolean saveEventWithSyncChange(BabyLogDomain.BabyLogEvent event) throws JSONException {
@@ -302,7 +306,12 @@ public final class BabyLogService {
         if (!ok) {
             throw new JSONException("保存记录失败");
         }
+        onSuccessfulWrite();
         return true;
+    }
+
+    private void onSuccessfulWrite() {
+        BabyLogSyncPushWorker.enqueueIfConfigured(context);
     }
 
     public static List<BabyLogDomain.SyncChange> createSyncChangesForEventUpsert(

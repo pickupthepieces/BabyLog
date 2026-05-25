@@ -2012,6 +2012,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     repository.saveChildProfile(child)
                 }
                 repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", child.id, "upsert"))
+                BabyLogSyncPushWorker.enqueueIfConfigured(this)
                 runOnUiThread {
                     profilePageState = null
                     pendingNavRoute = BabyLogRoutes.Home
