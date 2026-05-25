@@ -1040,6 +1040,10 @@ public final class BabyLogService {
         );
     }
 
+    public DashboardSnapshot refreshDashboardOnly() {
+        return loadDashboard();
+    }
+
     public void dismissRemoteUpdateBanner() {
         repository.dismissRemoteUpdateBanner();
     }

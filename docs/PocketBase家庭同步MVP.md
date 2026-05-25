@@ -27,6 +27,8 @@
 - 附件密文上传：`PATCH /api/collections/encrypted_records/records/{recordId}`，`multipart/form-data`。
 - 附件密文下载：`GET /api/files/encrypted_records/{recordId}/{filename}`。
 
+注：`/api/files/...` 的第一段 path 在 PocketBase 文档里官方是 collection ID，但 PocketBase 实际同时接受 collection name（如 `encrypted_records`）。BabyLog 客户端用 name 简化实现。如 PocketBase 未来某版本仅接受 ID，需要先 `GET /api/collections/encrypted_records` 取 `id` 再拼 URL。
+
 ## Collection 规划
 
 ### families
@@ -237,6 +239,19 @@ attachmentId + "|" + cipherVersion + "|" + familyKeyHash
 元数据泄漏面：攻击者拿 server DB 能看到“发生过 N 次同步事件”，但看不到 entity 类型 / 时间分布（这些都在密文里）。可接受。
 
 S5 含义：附件文件走 PocketBase `file` 字段挂在同一 `encrypted_records` 行。客户端按 `(entityType=attachment, entityId)` 去重，只下载最新版本对应的文件；上传侧每次 attachment metadata 有待同步时，会尝试补传该版本文件。
+
+## SyncChange 状态机
+
+`BabyLogDomain.SyncChange.status` 字段取值：
+
+| 状态 | 含义 | 进入条件 | 离开条件 |
+|---|---|---|---|
+| `pending` | 待推送，未尝试或上次成功 | 本机写入后创建 | push 成功 → synced；网络/加密失败 → failed；附件 metadata 已推但文件待传 → metadata_synced_file_pending |
+| `failed` | 推送失败 | 网络异常 / 加密失败 / server 错误 | 下次 push 重试，成功 → synced |
+| `synced` | 已成功推送到 server | 推送成功 | 永久（除非 entity 再次修改产生新 SyncChange） |
+| `metadata_synced_file_pending` | metadata 已推但文件待传（仅 attachment） | attachment metadata 推成功但文件触发流量限制 / 网络失败 | 文件成功上传 → synced；继续失败 → failed |
+
+`pull` orchestrator 仅看 `status != "synced"` 重试。`pushOnce` 排序按 `updatedAtClient` 升序。
 
 ## App 侧现状
 

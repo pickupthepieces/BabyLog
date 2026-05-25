@@ -98,6 +98,13 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals(1, BabyLogFormatters.daysBetweenDateInputs("2026-03-08", "2026-03-09"));
         assertEquals(280, BabyLogFormatters.daysBetweenDateInputs("2025-12-10", "2026-09-16"));
         assertEquals(0, BabyLogFormatters.daysBetweenDateInputs("bad-date", "2026-09-16"));
+        long nowMillis = BabyLogFormatters.parseIsoMillis("2026-05-25T12:00:00.000+0800");
+        assertEquals("刚刚", BabyLogFormatters.relativeTimeFromNow("2026-05-25T11:59:56.000+0800", nowMillis));
+        assertEquals("12 秒前", BabyLogFormatters.relativeTimeFromNow("2026-05-25T11:59:48.000+0800", nowMillis));
+        assertEquals("5 分钟前", BabyLogFormatters.relativeTimeFromNow("2026-05-25T11:55:00.000+0800", nowMillis));
+        assertEquals("3 小时前", BabyLogFormatters.relativeTimeFromNow("2026-05-25T09:00:00.000+0800", nowMillis));
+        assertEquals("2 天前", BabyLogFormatters.relativeTimeFromNow("2026-05-23T12:00:00.000+0800", nowMillis));
+        assertEquals("2026-05-17", BabyLogFormatters.relativeTimeFromNow("2026-05-17T12:00:00.000+0800", nowMillis));
         assertEquals("pregnancy", BabyLogFormatters.resolveCareStage(
                 BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-08-05", "", "auto", true),
                 "2026-05-18"

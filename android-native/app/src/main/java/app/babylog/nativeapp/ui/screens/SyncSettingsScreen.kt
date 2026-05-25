@@ -147,5 +147,5 @@ private fun formatLastPulledAt(value: String): String {
     if (value.isBlank()) {
         return "未拉取"
     }
-    return "${BabyLogFormatters.formatEventDay(value)} ${BabyLogFormatters.formatEventTime(value)}"
+    return BabyLogFormatters.relativeTimeFromNow(value)
 }

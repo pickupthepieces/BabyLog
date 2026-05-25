@@ -400,6 +400,37 @@ public final class BabyLogFormatters {
         return formatEventDay(iso);
     }
 
+    public static String relativeTimeFromNow(String iso) {
+        return relativeTimeFromNow(iso, System.currentTimeMillis());
+    }
+
+    public static String relativeTimeFromNow(String iso, long nowMillis) {
+        Date date = parseIso(iso);
+        if (date == null) {
+            return iso == null ? "" : iso;
+        }
+        long seconds = Math.max(0L, (nowMillis - date.getTime()) / 1000L);
+        if (seconds <= 5L) {
+            return "刚刚";
+        }
+        if (seconds < 60L) {
+            return seconds + " 秒前";
+        }
+        long minutes = seconds / 60L;
+        if (minutes < 60L) {
+            return minutes + " 分钟前";
+        }
+        long hours = minutes / 60L;
+        if (hours < 24L) {
+            return hours + " 小时前";
+        }
+        long days = hours / 24L;
+        if (days < 7L) {
+            return days + " 天前";
+        }
+        return iso.length() >= 10 ? iso.substring(0, 10) : iso;
+    }
+
     public static String formatByteSize(long bytes) {
         if (bytes < 1024) {
             return bytes + " B";

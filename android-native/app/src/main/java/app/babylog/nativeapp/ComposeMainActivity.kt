@@ -1675,7 +1675,8 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun dismissRemoteUpdateBanner() {
         runInBackground {
             service.dismissRemoteUpdateBanner()
-            reloadData()
+            val dashboard = service.refreshDashboardOnly()
+            runOnUiThread { uiState = uiState.copy(dashboard = dashboard) }
         }
     }
 
