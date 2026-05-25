@@ -74,9 +74,10 @@ jobs:
             echo "EOF" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Extract section between `## [VERSION]` and next `## ` heading
+          # Extract section between `## [VERSION]` and next `## ` heading.
+          # 用 index() 字面匹配,避免 ## [x.y.z] 的 [] 被 awk 当作正则字符类。
           SECTION=$(awk -v ver="## [$VERSION]" '
-            $0 ~ "^"ver { in_section=1; next }
+            index($0, ver) == 1 { in_section=1; next }
             in_section && /^## / { exit }
             in_section { print }
           ' CHANGELOG.md | sed '/./,$!d' | awk '{lines[NR]=$0} END{for(i=NR;i>0;i--) if(lines[i]!="") last=i; for(i=1;i<=last;i++) print lines[i]}')
