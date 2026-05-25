@@ -16,6 +16,7 @@
         android:required="false" />
 
     <application
+        android:name=".BabyLogApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/babylog_data_extraction_rules"
         android:fullBackupContent="@xml/babylog_backup_rules"

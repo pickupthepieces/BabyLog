@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -194,6 +196,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var syncPushRunning by mutableStateOf(false)
     private var syncPushMessage by mutableStateOf("")
     private var syncPushConfirmState by mutableStateOf<SyncPushConfirmState?>(null)
+    private var syncPullRunning by mutableStateOf(false)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -207,6 +210,15 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var pendingCheckupAttachmentName by mutableStateOf<String?>(null)
     private var pendingImageTarget by mutableStateOf(ImagePickTarget.Ultrasound)
     private var pendingVisitSummaryText: String? = null
+    private val syncPullHandler = Handler(Looper.getMainLooper())
+    private val foregroundPullRunnable = object : Runnable {
+        override fun run() {
+            if (shouldAutoPullSync()) {
+                pullSyncNow(silent = true)
+                syncPullHandler.postDelayed(this, 120_000L)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.AppTheme)
@@ -539,6 +551,16 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
 
         reloadData()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startForegroundPullLoop()
+    }
+
+    override fun onPause() {
+        syncPullHandler.removeCallbacks(foregroundPullRunnable)
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -1563,6 +1585,52 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
+    private fun startForegroundPullLoop() {
+        syncPullHandler.removeCallbacks(foregroundPullRunnable)
+        if (shouldAutoPullSync()) {
+            pullSyncNow(silent = true)
+            syncPullHandler.postDelayed(foregroundPullRunnable, 120_000L)
+        }
+    }
+
+    private fun shouldAutoPullSync(): Boolean {
+        val config = repository.loadSyncSettings()
+        return config.enabled && config.backendBaseUrl.isNotEmpty() && syncFamilyKeyConfigured
+    }
+
+    private fun pullSyncNow(silent: Boolean) {
+        if (syncPullRunning || !shouldAutoPullSync()) {
+            return
+        }
+        syncPullRunning = true
+        runInBackground {
+            try {
+                val summary = BabyLogSyncPullOrchestrator().pullOnce(
+                    repository,
+                    syncSecretStore,
+                    repository.loadSyncSettings(),
+                    remoteSyncClient
+                )
+                runOnUiThread {
+                    syncPullRunning = false
+                }
+                if (summary.applied > 0) {
+                    reloadData()
+                }
+                if (!silent) {
+                    showToast(if (summary.applied > 0) "已同步 ${summary.applied} 条家人更新" else "已是最新")
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    syncPullRunning = false
+                }
+                if (!silent) {
+                    showToast("同步失败：${error.message ?: "网络不可用"}")
+                }
+            }
+        }
+    }
+
     private fun saveSyncSettings(backendBaseUrl: String, familyKey: String) {
         val normalized = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl)
         if (normalized.isNotEmpty()) {
@@ -1621,6 +1689,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 } else if (BabyLogSyncSecretStore.hasUsableFamilyKey(familyKey)) {
                     syncSecretStore.saveFamilyKey(familyKey)
                 }
+                BabyLogSyncPullWorker.ensurePeriodicWork(this)
                 showToast(if (backendBaseUrl.isEmpty()) "已关闭后端同步" else "已保存同步地址")
                 runOnUiThread {
                     syncFamilyKeyConfigured = syncSecretStore.hasFamilyKey()
