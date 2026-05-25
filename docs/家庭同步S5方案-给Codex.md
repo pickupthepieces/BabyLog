@@ -15,6 +15,27 @@
 - **防回路第一原则继续生效**：远端拉来的文件落到本机 `attachmentBlobs` 时不得 emit 任何 SyncChange。
 - 不预设医学建议、不写"异常 / 严重 / 危险"等词。
 
+## 0.5 detekt 行数闸值 + baseline 注意事项（S5 必读）
+
+housekeeping 后 `ComposeMainActivity.kt` ≤ 4500 闸值已生效，当前 4210 行，**只剩 290 行缓冲**。S5 会动 CMA 加附件 UI / push-pull 接线 / dismiss / 占位符 / 进度条等，很可能撞顶。撞顶处理：
+
+- **不要把 ceiling 上调**。这是反 god-file 反弹的设计意图。
+- 撞顶时**继续仿 MainChrome.kt 模式**提取：把 attachment 相关 chrome composable / state holder 抽到 `ui/components/AttachmentChrome.kt` 或 `ui/components/SyncProgressChrome.kt`，同包 `app.babylog.nativeapp`，外部调用的 bump 到 `internal`，内部 helper 保持 `private`。
+- BabyLogService 同理（闸值 2200，余量充裕但别浪费）。
+
+### detekt baseline 撞 mismatch 时的处理
+
+`detekt-baseline.xml` 锁了 `BabyLogApp` 等 god 函数的具体签名。S5 任何往 `BabyLogApp` 加新参数（如 `onUploadAttachment` / `attachmentUploadProgress`）→ baseline 字符串 mismatch → CI 红。
+
+流程：
+
+1. 先确认改动本身合理（不是引入新坏味道，只是合理加参数）
+2. 本地跑 `cd android-native && ./gradlew :app:detektBaseline` 重生成基线
+3. **独立一笔** `chore: 更新 detekt baseline` commit（不和 feat 混）
+4. 推送
+
+如果改动撞 baseline 但合理性可疑（比如往 BabyLogApp 又加 10 个参数，明显是该拆 ViewModel 了），不要无脑更新 baseline，先 review 改动设计。
+
 ## 1. 设计目标
 
 | # | 目标 |
