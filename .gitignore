@@ -55,6 +55,8 @@ android-native/signing.properties
 *.aab
 *.keystore
 *.jks
+keys/
+*.b64
 
 # Local AI collaboration notes
 AI交接说明.md
