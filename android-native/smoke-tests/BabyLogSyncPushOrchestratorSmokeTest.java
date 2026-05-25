@@ -2,7 +2,6 @@ import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogFamilyKeyDeriver;
 import app.babylog.nativeapp.BabyLogPayloadCipher;
 import app.babylog.nativeapp.BabyLogRemoteSyncClient;
-import app.babylog.nativeapp.BabyLogSyncBase64;
 import app.babylog.nativeapp.BabyLogSyncProtocol;
 import app.babylog.nativeapp.BabyLogSyncPushOrchestrator;
 
@@ -13,6 +12,7 @@ import org.json.JSONObject;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 
 public final class BabyLogSyncPushOrchestratorSmokeTest {
@@ -80,8 +80,8 @@ public final class BabyLogSyncPushOrchestratorSmokeTest {
             byte[] plaintext = BabyLogPayloadCipher.open(
                     BabyLogFamilyKeyDeriver.deriveDataKey(familyKey),
                     aad,
-                    BabyLogSyncBase64.decode(serverJson.getString("nonce")),
-                    BabyLogSyncBase64.decode(serverJson.getString("ciphertext"))
+                    Base64.getDecoder().decode(serverJson.getString("nonce")),
+                    Base64.getDecoder().decode(serverJson.getString("ciphertext"))
             );
             JSONObject restored = new JSONObject(new String(plaintext, StandardCharsets.UTF_8));
             assertEquals(BabyLogSyncProtocol.ENTITY_EVENT, restored.getString("entityType"));

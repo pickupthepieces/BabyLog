@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,15 +82,15 @@ public final class BabyLogSyncPullOrchestrator {
             if (record == null) {
                 continue;
             }
-            if (record.updatedAtClient.compareTo(maxCursor) > 0) {
-                maxCursor = record.updatedAtClient;
-            }
             RemoteVersion version;
             try {
                 version = decryptRecord(familyKey, record);
             } catch (Exception error) {
                 skipped += 1;
                 continue;
+            }
+            if (record.updatedAtClient.compareTo(maxCursor) > 0) {
+                maxCursor = record.updatedAtClient;
             }
             String key = version.entityType + "/" + version.entityId;
             RemoteVersion existing = latestByEntity.get(key);
@@ -133,8 +134,8 @@ public final class BabyLogSyncPullOrchestrator {
         byte[] plaintext = BabyLogPayloadCipher.open(
                 BabyLogFamilyKeyDeriver.deriveDataKey(familyKey),
                 BabyLogSyncPushOrchestrator.aadBytes(record.clientId, record.cipherVersion, familyKeyHash),
-                BabyLogSyncBase64.decode(record.nonce),
-                BabyLogSyncBase64.decode(record.ciphertext)
+                Base64.getDecoder().decode(record.nonce),
+                Base64.getDecoder().decode(record.ciphertext)
         );
         JSONObject json = new JSONObject(new String(plaintext, StandardCharsets.UTF_8));
         JSONObject payload = json.optJSONObject("payload");

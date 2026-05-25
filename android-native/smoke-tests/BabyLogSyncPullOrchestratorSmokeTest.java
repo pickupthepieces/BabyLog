@@ -67,6 +67,18 @@ public final class BabyLogSyncPullOrchestratorSmokeTest {
                     "",
                     null
             );
+            BabyLogRepository wrongKeyRepository = BabyLogRepository.forSmokeTest();
+            BabyLogSyncPullOrchestrator.PullSummary wrongKeySummary = orchestrator.pullOnce(
+                    wrongKeyRepository,
+                    "wrong-family-secret",
+                    backend,
+                    new BabyLogRemoteSyncClient()
+            );
+            assertEquals(5, wrongKeySummary.totalFetched);
+            assertEquals(0, wrongKeySummary.applied);
+            assertEquals(5, wrongKeySummary.skipped);
+            assertEquals("", wrongKeyRepository.loadSyncLastPulledAt());
+
             BabyLogSyncPullOrchestrator.PullSummary summary = orchestrator.pullOnce(
                     repository,
                     familyKey,

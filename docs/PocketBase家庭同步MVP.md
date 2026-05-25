@@ -148,6 +148,21 @@ S4 客户端会在以下时机拉取：
 - 本轮新拉取数量
 - 立即推送 / 立即拉取
 
+## clientId 语义与 row 膨胀
+
+`clientId` = 本机 `SyncChange.id`（UUID v4，无业务语义），不是 entity 自己的 id。
+
+含义：
+
+- 同一 entity 多次改 = N 个 SyncChange = N 行 `encrypted_records`（解密后 entityId 相同）
+- Server **不做**自动 LWW upsert，row 数 = 同步活动量，不是 entity 数量
+- 拉取时客户端必须按解密后 `(entityType, entityId)` 分组 + `updatedAtClient` 取最新（已实现于 `BabyLogSyncPullOrchestrator`）
+- 长期使用 server row 可能是 entity 数的 5-10 倍
+
+元数据泄漏面：攻击者拿 server DB 能看到“发生过 N 次同步事件”，但看不到 entity 类型 / 时间分布（这些都在密文里）。可接受。
+
+S5+ 含义：附件文件如果走 PocketBase `file` 字段挂在同一 `encrypted_records` 行，每次 attachment metadata 改一次都会重传文件。S5 实现必须按 `(entityType=attachment, entityId)` 去重，**只上传最新版本对应的文件**，避免文件级膨胀。
+
 ## App 侧现状
 
 已完成：

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -153,8 +154,8 @@ public final class BabyLogSyncPushOrchestrator {
                 familyKeyHash,
                 BabyLogDomain.SCHEMA_VERSION,
                 CIPHER_VERSION,
-                BabyLogSyncBase64.encode(sealed.nonce),
-                BabyLogSyncBase64.encode(sealed.ciphertext),
+                Base64.getEncoder().encodeToString(sealed.nonce),
+                Base64.getEncoder().encodeToString(sealed.ciphertext),
                 updatedAtFor(entityJson),
                 deleted || hasDeletedAt(entityJson) ? 1 : 0
         );

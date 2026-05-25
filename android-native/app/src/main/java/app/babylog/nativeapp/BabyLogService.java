@@ -1122,25 +1122,6 @@ public final class BabyLogService {
         return counts;
     }
 
-    public SyncResult runSyncNow() throws JSONException {
-        List<BabyLogDomain.SyncChange> retryable = new ArrayList<>();
-        for (BabyLogDomain.SyncChange change : repository.listSyncChanges()) {
-            if ("pending".equals(change.status) || "failed".equals(change.status)) {
-                retryable.add(change);
-            }
-        }
-        if (retryable.isEmpty()) {
-            return new SyncResult(true, "OK", 0);
-        }
-
-        BabyLogDomain.BackendConfig config = repository.loadSyncSettings();
-        String code = config.enabled ? "BACKEND_UNREACHABLE" : "BACKEND_NOT_CONFIGURED";
-        for (BabyLogDomain.SyncChange change : retryable) {
-            repository.putSyncChange(change.withStatus("failed", code));
-        }
-        return new SyncResult(false, code, retryable.size());
-    }
-
     public String createBackupJson() throws JSONException, IOException {
         JSONObject data = new JSONObject();
         data.put("familyProfiles", repository.exportFamilyProfiles());
@@ -2182,15 +2163,4 @@ public final class BabyLogService {
         }
     }
 
-    public static final class SyncResult {
-        public final boolean ok;
-        public final String code;
-        public final int attempted;
-
-        SyncResult(boolean ok, String code, int attempted) {
-            this.ok = ok;
-            this.code = code;
-            this.attempted = attempted;
-        }
-    }
 }
