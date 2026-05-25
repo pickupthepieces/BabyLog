@@ -66,6 +66,40 @@ public final class BabyLogServiceSmokeTest {
         assertFalse(BabyLogService.hasBabyCareMinimumContent(BabyLogService.BabyCareInput.quick("pee", "", "")));
         assertTrue(BabyLogService.hasBabyCareMinimumContent(BabyLogService.BabyCareInput.quick("pee", "尿量偏多", "")));
 
+        JSONObject feedSidePayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.feed("母乳", "", "L", "亲喂")
+        );
+        assertEquals("L", feedSidePayload.optString("breastSide"));
+        assertTrue(feedSidePayload.optString("summary").contains("L"));
+
+        JSONObject solidFoodPayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.feed("辅食", "", "香蕉泥", "")
+        );
+        assertEquals("香蕉泥", solidFoodPayload.optString("solidFood"));
+
+        JSONObject breastfeedPayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.breastfeed("12", "8", "夜间")
+        );
+        assertEquals(12.0, breastfeedPayload.optDouble("leftMinutes"));
+        assertEquals(8.0, breastfeedPayload.optDouble("rightMinutes"));
+        assertFalse(breastfeedPayload.has("detail"));
+        assertTrue(breastfeedPayload.optString("summary").contains("左 12 分钟"));
+        assertTrue(breastfeedPayload.optString("summary").contains("右 8 分钟"));
+
+        JSONObject bottlePayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.bottle("120", "美赞臣", "睡前")
+        );
+        assertEquals(120.0, bottlePayload.optDouble("amountMl"));
+        assertEquals("美赞臣", bottlePayload.optString("brand"));
+        assertTrue(BabyLogService.formatBabyCareSummary(
+                BabyLogService.BabyCareInput.bottle("120", "美赞臣", "睡前")
+        ).contains("美赞臣"));
+
+        JSONObject oldBreastfeedPayload = new JSONObject();
+        oldBreastfeedPayload.put("detail", "左侧约十分钟");
+        Map<String, String> oldBreastfeedDraft = BabyLogService.babyCareDraftFields("breastfeed", oldBreastfeedPayload);
+        assertEquals("左侧约十分钟", oldBreastfeedDraft.get("tertiary"));
+
         assertEquals(
                 "产检 · 市妇幼产科 · 一切正常",
                 BabyLogService.formatPregnancySummary(

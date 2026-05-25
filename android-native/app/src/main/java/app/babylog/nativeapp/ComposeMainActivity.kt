@@ -3725,13 +3725,13 @@ internal data class PregnancyLabels(
 
 internal fun babyCareLabels(eventType: String): BabyCareLabels {
     return when (eventType) {
-        "feed" -> BabyCareLabels("方式，例如 母乳 / 奶瓶 / 辅食", "奶量 ml，例如 120", null, "备注", KeyboardType.Text, KeyboardType.Decimal)
+        "feed" -> BabyCareLabels("方式，例如 母乳 / 奶瓶 / 辅食", "奶量 ml，例如 120", "侧别 L / R / BOTH 或辅食食材", "备注", KeyboardType.Text, KeyboardType.Decimal)
         "sleep" -> BabyCareLabels("开始时间，例如 22:10", "结束时间，例如 01:20", "地点，例如 卧室", "备注")
         "diaper" -> BabyCareLabels("类型，例如 尿 / 便 / 混合", "性状或备注", null, "备注")
         "temperature" -> BabyCareLabels("体温", "测量方式，例如 腋温", null, "备注", KeyboardType.Decimal, KeyboardType.Text)
         "medication" -> BabyCareLabels("药名", "剂量，例如 2 ml", "原因", null)
-        "breastfeed" -> BabyCareLabels("详情，例如 左侧 12 分钟", "备注", null, null)
-        "bottle" -> BabyCareLabels("详情，例如 120 ml", "备注", null, null, KeyboardType.Text, KeyboardType.Text)
+        "breastfeed" -> BabyCareLabels("左侧时长（分钟）", "右侧时长（分钟）", "备注", null, KeyboardType.Decimal, KeyboardType.Decimal)
+        "bottle" -> BabyCareLabels("奶量 mL", "品牌", "备注", null, KeyboardType.Decimal, KeyboardType.Text)
         "wake" -> BabyCareLabels("状态，例如 自然醒 / 哭醒", "备注", null, null)
         "pee" -> BabyCareLabels("尿布情况", "备注", null, null)
         "poop" -> BabyCareLabels("性状 / 颜色", "备注", null, null)
@@ -3787,12 +3787,14 @@ internal fun buildBabyCareInput(
     note: String
 ): BabyLogService.BabyCareInput {
     return when (eventType) {
-        "feed" -> BabyLogService.BabyCareInput.feed(primary, secondary, note)
+        "feed" -> BabyLogService.BabyCareInput.feed(primary, secondary, tertiary, note)
         "sleep" -> BabyLogService.BabyCareInput.sleep(primary, secondary, tertiary, note)
         "diaper" -> BabyLogService.BabyCareInput.diaper(primary, secondary, note)
         "temperature" -> BabyLogService.BabyCareInput.temperature(primary, secondary, note)
         "medication" -> BabyLogService.BabyCareInput.medication(primary, secondary, tertiary)
-        "breastfeed", "bottle", "wake", "pee", "poop" -> BabyLogService.BabyCareInput.quick(eventType, primary, secondary)
+        "breastfeed" -> BabyLogService.BabyCareInput.breastfeed(primary, secondary, tertiary)
+        "bottle" -> BabyLogService.BabyCareInput.bottle(primary, secondary, tertiary)
+        "wake", "pee", "poop" -> BabyLogService.BabyCareInput.quick(eventType, primary, secondary)
         else -> BabyLogService.BabyCareInput.feed(primary, secondary, note)
     }
 }
@@ -3874,40 +3876,7 @@ private fun isEditableBabyRecord(eventType: String): Boolean {
 }
 
 private fun draftFromBabyCareEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
-    val payload = event.payload
-    val values = when (event.eventType) {
-        "feed" -> smartFormFields(
-            "primary" to payload.optString("feedType"),
-            "secondary" to payloadNumberText(payload, "amountMl"),
-            "note" to payload.optString("note")
-        )
-        "sleep" -> smartFormFields(
-            "primary" to payload.optString("sleepStart"),
-            "secondary" to payload.optString("sleepEnd"),
-            "tertiary" to payload.optString("sleepPlace"),
-            "note" to payload.optString("note")
-        )
-        "diaper" -> smartFormFields(
-            "primary" to payload.optString("diaperType"),
-            "secondary" to payload.optString("diaperDetail"),
-            "note" to payload.optString("note")
-        )
-        "temperature" -> smartFormFields(
-            "primary" to payloadNumberText(payload, "temperatureC"),
-            "secondary" to payload.optString("measureMethod"),
-            "note" to payload.optString("note")
-        )
-        "medication" -> smartFormFields(
-            "primary" to payload.optString("medicationName"),
-            "secondary" to payload.optString("dosage"),
-            "tertiary" to payload.optString("reason")
-        )
-        else -> smartFormFields(
-            "primary" to payload.optString("detail"),
-            "secondary" to payload.optString("note")
-        )
-    }
-    return SmartEntryDraft(values = values)
+    return SmartEntryDraft(values = BabyLogService.babyCareDraftFields(event.eventType, event.payload))
 }
 
 private fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
