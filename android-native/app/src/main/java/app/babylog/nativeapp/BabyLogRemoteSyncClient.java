@@ -8,10 +8,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class BabyLogRemoteSyncClient {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -64,6 +67,32 @@ public final class BabyLogRemoteSyncClient {
         }
     }
 
+    public PushResult pushPendingChanges(
+            String backendBaseUrl,
+            String familyKey,
+            List<EncryptedRecord> encrypted
+    ) throws IOException {
+        String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
+        if (normalizedUrl.isEmpty()) {
+            return PushResult.failedAll(encrypted, "BACKEND_NOT_CONFIGURED");
+        }
+        if (!BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
+            return PushResult.failedAll(encrypted, "FAMILY_KEY_MISSING");
+        }
+        List<RecordPushResult> results = new ArrayList<>();
+        if (encrypted == null) {
+            return new PushResult(results);
+        }
+        for (EncryptedRecord record : encrypted) {
+            if (record == null) {
+                continue;
+            }
+            RecordPushResult result = pushOne(normalizedUrl, familyKey, record);
+            results.add(result);
+        }
+        return new PushResult(results);
+    }
+
     public static String healthUrl(String backendBaseUrl) {
         return BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl) + "/api/health";
     }
@@ -78,19 +107,81 @@ public final class BabyLogRemoteSyncClient {
                 + URLEncoder.encode(filter, "UTF-8");
     }
 
+    public static String encryptedRecordsUrl(String backendBaseUrl) {
+        return BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl)
+                + "/api/collections/"
+                + BabyLogSyncProtocol.COLLECTION_ENCRYPTED_RECORDS
+                + "/records";
+    }
+
+    private RecordPushResult pushOne(String backendBaseUrl, String familyKey, EncryptedRecord record) throws IOException {
+        HttpResponse response = request("POST", encryptedRecordsUrl(backendBaseUrl), familyKey, record.toJson().toString());
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+            return RecordPushResult.ok(record.clientId);
+        }
+        if (response.statusCode == 409) {
+            String remoteId = findRemoteRecordId(backendBaseUrl, familyKey, record.clientId);
+            if (!remoteId.isEmpty()) {
+                HttpResponse patched = request(
+                        "PATCH",
+                        encryptedRecordsUrl(backendBaseUrl) + "/" + URLEncoder.encode(remoteId, "UTF-8"),
+                        familyKey,
+                        record.toJson().toString()
+                );
+                if (patched.statusCode >= 200 && patched.statusCode < 300) {
+                    return RecordPushResult.ok(record.clientId);
+                }
+                return RecordPushResult.failed(record.clientId, "HTTP_" + patched.statusCode);
+            }
+        }
+        return RecordPushResult.failed(record.clientId, "HTTP_" + response.statusCode);
+    }
+
+    private String findRemoteRecordId(String backendBaseUrl, String familyKey, String clientId) throws IOException {
+        String filter = "clientId=\"" + (clientId == null ? "" : clientId) + "\"";
+        String url = encryptedRecordsUrl(backendBaseUrl)
+                + "?filter="
+                + URLEncoder.encode(filter, "UTF-8");
+        HttpResponse response = get(url, familyKey);
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            return "";
+        }
+        try {
+            JSONObject json = new JSONObject(response.body);
+            JSONArray items = json.optJSONArray("items");
+            JSONObject first = items == null || items.length() == 0 ? null : items.optJSONObject(0);
+            return first == null ? "" : first.optString("id", "");
+        } catch (JSONException ignored) {
+            return "";
+        }
+    }
+
     private HttpResponse get(String url, String familyKey) throws IOException {
+        return request("GET", url, familyKey, null);
+    }
+
+    private HttpResponse request(String method, String url, String familyKey, String body) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setRequestMethod("GET");
+        connection.setRequestMethod(method);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA, String.valueOf(BabyLogDomain.SCHEMA_VERSION));
         if (BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
             connection.setRequestProperty(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey));
         }
+        if (body != null) {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(bytes);
+            }
+        }
         int statusCode = connection.getResponseCode();
-        String body = readLimited(statusCode >= 400 ? connection.getErrorStream() : connection.getInputStream());
+        String responseBody = readLimited(statusCode >= 400 ? connection.getErrorStream() : connection.getInputStream());
         connection.disconnect();
-        return new HttpResponse(statusCode, body);
+        return new HttpResponse(statusCode, responseBody);
     }
 
     private static String readLimited(InputStream stream) throws IOException {
@@ -134,6 +225,106 @@ public final class BabyLogRemoteSyncClient {
 
         public static ConnectionResult failed(String message) {
             return new ConnectionResult(false, message);
+        }
+    }
+
+    public static final class EncryptedRecord {
+        public final String clientId;
+        public final String familyKeyHash;
+        public final int schemaVersion;
+        public final int cipherVersion;
+        public final String nonce;
+        public final String ciphertext;
+        public final String updatedAtClient;
+        public final int deletedFlag;
+
+        public EncryptedRecord(
+                String clientId,
+                String familyKeyHash,
+                int schemaVersion,
+                int cipherVersion,
+                String nonce,
+                String ciphertext,
+                String updatedAtClient,
+                int deletedFlag
+        ) {
+            this.clientId = clientId == null ? "" : clientId;
+            this.familyKeyHash = familyKeyHash == null ? "" : familyKeyHash;
+            this.schemaVersion = schemaVersion;
+            this.cipherVersion = cipherVersion;
+            this.nonce = nonce == null ? "" : nonce;
+            this.ciphertext = ciphertext == null ? "" : ciphertext;
+            this.updatedAtClient = updatedAtClient == null ? "" : updatedAtClient;
+            this.deletedFlag = deletedFlag == 0 ? 0 : 1;
+        }
+
+        public JSONObject toJson() {
+            JSONObject json = new JSONObject();
+            try {
+                json.put("clientId", clientId);
+                json.put("familyKeyHash", familyKeyHash);
+                json.put("schemaVersion", schemaVersion);
+                json.put("cipherVersion", cipherVersion);
+                json.put("nonce", nonce);
+                json.put("ciphertext", ciphertext);
+                json.put("updatedAtClient", updatedAtClient);
+                json.put("deletedFlag", deletedFlag);
+            } catch (JSONException error) {
+                throw new IllegalStateException("Failed to encode encrypted record", error);
+            }
+            return json;
+        }
+    }
+
+    public static final class RecordPushResult {
+        public final String clientId;
+        public final boolean ok;
+        public final String errorCode;
+
+        private RecordPushResult(String clientId, boolean ok, String errorCode) {
+            this.clientId = clientId == null ? "" : clientId;
+            this.ok = ok;
+            this.errorCode = errorCode == null ? "" : errorCode;
+        }
+
+        public static RecordPushResult ok(String clientId) {
+            return new RecordPushResult(clientId, true, "");
+        }
+
+        public static RecordPushResult failed(String clientId, String errorCode) {
+            return new RecordPushResult(clientId, false, errorCode);
+        }
+    }
+
+    public static final class PushResult {
+        public final List<RecordPushResult> records;
+        public final int total;
+        public final int pushed;
+        public final int failed;
+
+        private PushResult(List<RecordPushResult> records) {
+            this.records = records == null ? new ArrayList<>() : new ArrayList<>(records);
+            this.total = this.records.size();
+            int ok = 0;
+            for (RecordPushResult result : this.records) {
+                if (result.ok) {
+                    ok += 1;
+                }
+            }
+            this.pushed = ok;
+            this.failed = total - ok;
+        }
+
+        static PushResult failedAll(List<EncryptedRecord> encrypted, String errorCode) {
+            List<RecordPushResult> results = new ArrayList<>();
+            if (encrypted != null) {
+                for (EncryptedRecord record : encrypted) {
+                    if (record != null) {
+                        results.add(RecordPushResult.failed(record.clientId, errorCode));
+                    }
+                }
+            }
+            return new PushResult(results);
         }
     }
 }

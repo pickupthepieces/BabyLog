@@ -8,6 +8,7 @@ public final class BabyLogSyncProtocol {
     public static final String HEADER_CLIENT_SCHEMA = "X-BabyLog-Schema-Version";
 
     public static final String COLLECTION_FAMILIES = "families";
+    public static final String COLLECTION_ENCRYPTED_RECORDS = "encrypted_records";
     public static final String ENTITY_FAMILY_PROFILE = "familyProfile";
     public static final String ENTITY_CHILD_PROFILE = "childProfile";
     public static final String ENTITY_FAMILY_MEMBER = "familyMember";
