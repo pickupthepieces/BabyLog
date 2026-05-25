@@ -136,17 +136,17 @@ import java.util.Date
 import java.util.Locale
 
 public final class ComposeMainActivity : ComponentActivity() {
-    private lateinit var repository: BabyLogRepository
-    private lateinit var service: BabyLogService
+    internal lateinit var repository: BabyLogRepository
+    internal lateinit var service: BabyLogService
     private lateinit var smartConfigStore: BabyLogSmartConfigStore
-    private lateinit var syncSecretStore: BabyLogSyncSecretStore
+    internal lateinit var syncSecretStore: BabyLogSyncSecretStore
     private lateinit var disclaimerStore: BabyLogDisclaimerStore
     private lateinit var preVisitQuestionStore: BabyLogPreVisitQuestionStore
     private lateinit var reminderStore: BabyLogReminderStore
     private val smartVisionClient = BabyLogSmartVisionClient()
     private val smartTextClient = BabyLogSmartTextClient()
     private val speechClient = BabyLogParaformerSpeechClient()
-    private val remoteSyncClient = BabyLogRemoteSyncClient()
+    internal val remoteSyncClient = BabyLogRemoteSyncClient()
     private lateinit var audioPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
@@ -156,7 +156,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private lateinit var importBackupLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var visitSummarySaveLauncher: ActivityResultLauncher<String>
 
-    private var uiState by mutableStateOf(BabyLogUiState())
+    internal var uiState by mutableStateOf(BabyLogUiState())
     private var pendingNavRoute by mutableStateOf<String?>(null)
     private var pendingNavNonce by mutableStateOf(0L)
     private var recordReturnRoute by mutableStateOf(BabyLogRoutes.Home)
@@ -188,19 +188,19 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var undoImportConfirm by mutableStateOf(false)
     private var profilePageState by mutableStateOf<ProfileDialogState?>(null)
     private var importConfirm by mutableStateOf<ImportConfirmState?>(null)
-    private var syncConfirmState by mutableStateOf<SyncConfirmState?>(null)
-    private var syncFamilyKeyConfigured by mutableStateOf(false)
+    internal var syncConfirmState by mutableStateOf<SyncConfirmState?>(null)
+    internal var syncFamilyKeyConfigured by mutableStateOf(false)
     private var syncCheckRunning by mutableStateOf(false)
     private var syncCheckMessage by mutableStateOf("")
     private var syncCheckOk by mutableStateOf<Boolean?>(null)
-    private var syncPushRunning by mutableStateOf(false)
-    private var syncPushMessage by mutableStateOf("")
-    private var syncPushConfirmState by mutableStateOf<SyncPushConfirmState?>(null)
-    private var syncPullRunning by mutableStateOf(false)
-    private var syncPullMessage by mutableStateOf("")
-    private var appUpdateRunning by mutableStateOf(false)
-    private var appUpdateStatus by mutableStateOf("未检查")
-    private var appUpdateCandidate by mutableStateOf<BabyLogAppUpdateManager.UpdateInfo?>(null)
+    internal var syncPushRunning by mutableStateOf(false)
+    internal var syncPushMessage by mutableStateOf("")
+    internal var syncPushConfirmState by mutableStateOf<SyncPushConfirmState?>(null)
+    internal var syncPullRunning by mutableStateOf(false)
+    internal var syncPullMessage by mutableStateOf("")
+    internal var appUpdateRunning by mutableStateOf(false)
+    internal var appUpdateStatus by mutableStateOf("未检查")
+    internal var appUpdateCandidate by mutableStateOf<BabyLogAppUpdateManager.UpdateInfo?>(null)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -475,33 +475,20 @@ public final class ComposeMainActivity : ComponentActivity() {
                     )
                 }
 
-                syncConfirmState?.let { confirm ->
-                    ConfirmDialog(
-                        title = "确认启用同步",
-                        message = "启用后会按你配置的地址和家庭密钥尝试同步。家庭密钥仅保存在本机加密存储中，不会进入导出、备份或家庭同步；当前真实推拉仍在接入中，记录会保留在本机待同步队列中。请确认服务器地址、家庭密钥和医疗数据跨设备风险都已知晓。",
-                        confirmText = "我已知晓并保存",
-                        destructive = false,
-                        onDismiss = { syncConfirmState = null },
-                        onConfirm = {
-                            syncConfirmState = null
-                            persistSyncSettings(confirm.backendBaseUrl, confirm.familyKey)
-                        }
-                    )
-                }
-
-                syncPushConfirmState?.let { confirm ->
-                    ConfirmDialog(
-                        title = "确认推送",
-                        message = "将把 ${confirm.pendingCount} 条本机记录加密上传到 ${confirm.backendBaseUrl}，其中可能包含附件文件。家庭密钥仅本机保存，服务器仅看到密文。",
-                        confirmText = "加密推送",
-                        destructive = false,
-                        onDismiss = { syncPushConfirmState = null },
-                        onConfirm = {
-                            syncPushConfirmState = null
-                            pushSyncNow()
-                        }
-                    )
-                }
+                SyncConfirmDialogs(
+                    syncConfirmState = syncConfirmState,
+                    syncPushConfirmState = syncPushConfirmState,
+                    onDismissSyncConfirm = { syncConfirmState = null },
+                    onConfirmSyncSettings = { confirm ->
+                        syncConfirmState = null
+                        persistSyncSettings(confirm.backendBaseUrl, confirm.familyKey)
+                    },
+                    onDismissPushConfirm = { syncPushConfirmState = null },
+                    onConfirmPushSync = {
+                        syncPushConfirmState = null
+                        pushSyncNow()
+                    }
+                )
 
                 if (showClearLocalConfirm) {
                     ConfirmDialog(
@@ -545,19 +532,14 @@ public final class ComposeMainActivity : ComponentActivity() {
                         }
                     )
                 }
-                appUpdateCandidate?.let { update ->
-                    ConfirmDialog(
-                        title = "发现新版本 ${update.versionName}",
-                        message = "当前版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})，可更新到 ${update.versionName} (${update.versionCode})。\n\n${update.notes.ifBlank { "本次更新未填写说明。" }}\n\n下载后会打开系统安装器，需要你手动确认安装。",
-                        confirmText = "下载更新",
-                        destructive = false,
-                        onDismiss = { appUpdateCandidate = null },
-                        onConfirm = {
-                            appUpdateCandidate = null
-                            downloadAndInstallAppUpdate(update)
-                        }
-                    )
-                }
+                AppUpdateConfirmDialog(
+                    update = appUpdateCandidate,
+                    onDismiss = { appUpdateCandidate = null },
+                    onConfirm = { update ->
+                        appUpdateCandidate = null
+                        downloadAndInstallAppUpdate(update)
+                    }
+                )
 
                 infoDialog?.let { dialog ->
                     AlertDialog(
@@ -673,7 +655,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun reloadData() {
+    internal fun reloadData() {
         runInBackground {
             service.purgeExpiredTrash()
             val timeline = service.listTimelineEvents()
@@ -1554,198 +1536,11 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestPushSyncNow() {
-        if (syncPushRunning) {
-            return
-        }
-        val dashboard = uiState.dashboard
-        val pendingCount = dashboard?.pendingSyncCount ?: 0
-        if (pendingCount <= 0) {
-            showToast("暂无待推送记录")
-            return
-        }
-        val config = uiState.syncConfig
-        if (!config.enabled || config.backendBaseUrl.isBlank()) {
-            showInfo("同步未配置", "请先在同步设置里填写家庭后端地址和家庭密钥。")
-            return
-        }
-        if ((dashboard?.syncedSyncCount ?: 0) == 0) {
-            syncPushConfirmState = SyncPushConfirmState(config.backendBaseUrl, pendingCount)
-            return
-        }
-        pushSyncNow()
-    }
-
-    private fun pushSyncNow() {
-        if (syncPushRunning) {
-            return
-        }
-        syncPushRunning = true
-        syncPushMessage = "正在加密并推送本机记录..."
-        runInBackground {
-            try {
-                val summary = BabyLogSyncPushOrchestrator().pushOnce(
-                    service,
-                    repository,
-                    syncSecretStore,
-                    repository.loadSyncSettings(),
-                    remoteSyncClient
-                )
-                runOnUiThread {
-                    syncPushRunning = false
-                    val noPushWork = summary.pushed == 0 && summary.failed == 0 && summary.filesUploaded == 0 && summary.filesPending == 0
-                    syncPushMessage = if (noPushWork) {
-                        "上次推送：刚刚，已是最新；没有待推送记录或附件"
-                    } else {
-                        "上次推送：刚刚，成功 ${summary.pushed}、失败 ${summary.failed}；文件上传 ${summary.filesUploaded} 个 / ${BabyLogFormatters.formatByteSize(summary.bytesUploaded)}"
-                    }
-                    if (summary.filesPending > 0) {
-                        syncPushMessage += "；附件待重试 ${summary.filesPending} 个"
-                    }
-                    if (summary.failed > 0 && summary.lastError.isNotBlank()) {
-                        syncPushMessage += "；失败原因：${formatSyncError(summary.lastError)}"
-                    }
-                    showToast(if (noPushWork) "已是最新" else if (summary.failed == 0) "已加密推送 ${summary.pushed} 条，文件 ${summary.filesUploaded} 个" else "推送完成，失败 ${summary.failed} 条")
-                }
-                reloadData()
-            } catch (error: Exception) {
-                runOnUiThread {
-                    syncPushRunning = false
-                    syncPushMessage = "上次推送失败：${error.message ?: "网络不可用"}"
-                    showInfo("推送失败", error.message ?: "无法推送本机记录")
-                }
-            }
-        }
-    }
-
-    private fun requestPullSyncNow() {
-        pullSyncNow(silent = false)
-    }
-
     private fun startForegroundPullLoop() {
         syncPullHandler.removeCallbacks(foregroundPullRunnable)
         if (shouldAutoPullSync()) {
             pullSyncNow(silent = true)
             syncPullHandler.postDelayed(foregroundPullRunnable, 120_000L)
-        }
-    }
-
-    private fun shouldAutoPullSync(): Boolean {
-        val config = repository.loadSyncSettings()
-        return config.enabled && config.backendBaseUrl.isNotEmpty() && syncFamilyKeyConfigured
-    }
-
-    private fun pullSyncNow(silent: Boolean) {
-        if (syncPullRunning) {
-            return
-        }
-        if (!shouldAutoPullSync()) {
-            if (!silent) {
-                showInfo("同步未配置", "请先在同步设置里填写家庭后端地址和家庭密钥。")
-            }
-            return
-        }
-        syncPullRunning = true
-        if (!silent) {
-            syncPullMessage = "正在拉取家人更新..."
-        }
-        runInBackground {
-            try {
-                val summary = BabyLogSyncPullOrchestrator().pullOnce(
-                    repository,
-                    syncSecretStore,
-                    repository.loadSyncSettings(),
-                    remoteSyncClient
-                )
-                runOnUiThread {
-                    syncPullRunning = false
-                    if (!silent) {
-                        syncPullMessage = if (summary.lastError.isBlank()) {
-                            "上次拉取：刚刚，新增 ${summary.applied}、忽略 ${summary.skipped}"
-                        } else {
-                            "上次拉取失败：${formatSyncError(summary.lastError)}"
-                        }
-                    }
-                }
-                if (summary.lastError.isBlank()) {
-                    BabyLogSyncAttachmentDownloadWorker.enqueueIfNeeded(this@ComposeMainActivity)
-                    reloadData()
-                }
-                if (!silent) {
-                    if (summary.lastError.isBlank()) {
-                        showToast(if (summary.applied > 0) "已同步 ${summary.applied} 条家人更新" else "已是最新")
-                    } else {
-                        showToast("同步失败：${formatSyncError(summary.lastError)}")
-                    }
-                }
-            } catch (error: Exception) {
-                runOnUiThread {
-                    syncPullRunning = false
-                    if (!silent) {
-                        syncPullMessage = "上次拉取失败：${error.message ?: "网络不可用"}"
-                    }
-                }
-                if (!silent) {
-                    showToast("同步失败：${error.message ?: "网络不可用"}")
-                }
-            }
-        }
-    }
-
-    private fun dismissRemoteUpdateBanner() {
-        runInBackground {
-            service.dismissRemoteUpdateBanner()
-            val dashboard = service.refreshDashboardOnly()
-            runOnUiThread { uiState = uiState.copy(dashboard = dashboard) }
-        }
-    }
-
-    private fun checkAppUpdate() {
-        if (appUpdateRunning) return
-        appUpdateRunning = true
-        appUpdateStatus = "正在检查更新..."
-        runInBackground {
-            try {
-                val update = BabyLogAppUpdateManager.fetchLatest(BabyLogAppUpdateManager.DEFAULT_MANIFEST_URL, BuildConfig.VERSION_CODE)
-                runOnUiThread {
-                    appUpdateRunning = false
-                    if (update == null) {
-                        appUpdateStatus = "当前已是最新版本"
-                        showToast("已是最新版本")
-                    } else {
-                        appUpdateStatus = "发现新版本 ${update.versionName}"
-                        appUpdateCandidate = update
-                    }
-                }
-            } catch (error: Exception) {
-                runOnUiThread {
-                    appUpdateRunning = false
-                    appUpdateStatus = "检查失败：${error.message ?: "网络不可用"}"
-                    showInfo("检查更新失败", error.message ?: "无法读取更新信息")
-                }
-            }
-        }
-    }
-
-    private fun downloadAndInstallAppUpdate(update: BabyLogAppUpdateManager.UpdateInfo) {
-        appUpdateRunning = true
-        appUpdateStatus = "正在下载 ${update.versionName}..."
-        runInBackground {
-            try {
-                val target = File(File(filesDir, "app-updates"), "BabyLog-${update.versionCode}.apk")
-                val apk = BabyLogAppUpdateManager.downloadApk(update, target)
-                runOnUiThread {
-                    appUpdateRunning = false
-                    appUpdateStatus = "下载完成，等待安装"
-                    BabyLogApkInstaller.install(this, apk, ::showInfo)
-                }
-            } catch (error: Exception) {
-                runOnUiThread {
-                    appUpdateRunning = false
-                    appUpdateStatus = "下载失败：${error.message ?: "网络不可用"}"
-                    showInfo("下载更新失败", error.message ?: "无法下载或校验更新包")
-                }
-            }
         }
     }
 
@@ -2370,11 +2165,11 @@ public final class ComposeMainActivity : ComponentActivity() {
             || BabyLogService.isScreeningEventType(eventType)
     }
 
-    private fun runInBackground(block: () -> Unit) {
+    internal fun runInBackground(block: () -> Unit) {
         Thread(block).start()
     }
 
-    private fun showToast(message: String) {
+    internal fun showToast(message: String) {
         runOnUiThread {
             if (!isFinishing && !isDestroyed) {
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
@@ -2382,7 +2177,7 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun showInfo(title: String, message: String) {
+    internal fun showInfo(title: String, message: String) {
         runOnUiThread {
             if (!isFinishing && !isDestroyed) {
                 infoDialog = InfoDialogState(title, message)
@@ -2396,21 +2191,6 @@ public final class ComposeMainActivity : ComponentActivity() {
         val eventCount = data.optJSONArray("events")?.length() ?: 0
         val hasProfile = (data.optJSONArray("childProfiles")?.length() ?: 0) > 0
         return ImportPreview(eventCount, if (hasProfile) "含宝宝档案" else "不含宝宝档案，导入后需重新建档")
-    }
-
-    private fun formatSyncError(code: String?): String {
-        return when (code) {
-            "BACKEND_NOT_CONFIGURED" -> "后端未配置"
-            "BACKEND_UNREACHABLE" -> "后端暂不可达"
-            "FAMILY_KEY_MISSING" -> "家庭密钥未配置"
-            "FAMILY_KEY_LOAD_FAILED" -> "家庭密钥读取失败"
-            "ENTITY_NOT_FOUND" -> "本机记录不存在"
-            "ENCRYPT_FAILED" -> "加密失败"
-            "PUSH_FAILED" -> "网络推送失败"
-            "PULL_FAILED" -> "网络拉取失败"
-            "STATUS_UPDATE_FAILED" -> "状态更新失败"
-            else -> code ?: "未知错误"
-        }
     }
 
     private companion object {
@@ -2465,12 +2245,12 @@ private data class ImportConfirmState(
     val profileLabel: String
 )
 
-private data class SyncConfirmState(
+internal data class SyncConfirmState(
     val backendBaseUrl: String,
     val familyKey: String
 )
 
-private data class SyncPushConfirmState(
+internal data class SyncPushConfirmState(
     val backendBaseUrl: String,
     val pendingCount: Int
 )
@@ -3747,7 +3527,8 @@ private fun VoiceRecordingPopup() {
 }
 
 @Composable
-private fun ConfirmDialog(
+@Suppress("FunctionNaming")
+internal fun ConfirmDialog(
     title: String,
     message: String,
     confirmText: String,
