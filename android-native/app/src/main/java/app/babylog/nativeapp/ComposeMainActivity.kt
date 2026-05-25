@@ -1640,6 +1640,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     }
                 }
                 if (summary.lastError.isBlank()) {
+                    BabyLogSyncAttachmentDownloadWorker.enqueueIfNeeded(this@ComposeMainActivity)
                     reloadData()
                 }
                 if (!silent) {

@@ -1,6 +1,9 @@
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogRemoteSyncClient;
 import app.babylog.nativeapp.BabyLogRepository;
+import app.babylog.nativeapp.BabyLogAttachmentCipher;
+import app.babylog.nativeapp.BabyLogFamilyKeyDeriver;
+import app.babylog.nativeapp.BabyLogSyncAttachmentDownloader;
 import app.babylog.nativeapp.BabyLogSyncProtocol;
 import app.babylog.nativeapp.BabyLogSyncPullOrchestrator;
 import app.babylog.nativeapp.BabyLogSyncPushOrchestrator;
@@ -21,6 +24,11 @@ import java.util.List;
 
 public final class BabyLogSyncPullOrchestratorSmokeTest {
     public static void main(String[] args) throws Exception {
+        assertPullQueuesAndDownloadsEncryptedAttachmentWithoutSyncLoop();
+        assertPullAppliesLwwAndDoesNotEmitSyncChanges();
+    }
+
+    private static void assertPullAppliesLwwAndDoesNotEmitSyncChanges() throws Exception {
         String familyKey = "family-secret";
         BabyLogRepository repository = BabyLogRepository.forSmokeTest();
         repository.putEvent(localEvent("evt_4", "2026-05-25T10:00:00.000+0800", "本机版"));
@@ -111,6 +119,90 @@ public final class BabyLogSyncPullOrchestratorSmokeTest {
         }
     }
 
+    private static void assertPullQueuesAndDownloadsEncryptedAttachmentWithoutSyncLoop() throws Exception {
+        String familyKey = "family-secret";
+        String familyHash = BabyLogFamilyKeyDeriver.lookupHashHex(familyKey);
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
+                "ultrasound",
+                "remote-scan.jpg",
+                "image/jpeg",
+                0,
+                ""
+        );
+        byte[] plaintext = "remote encrypted image bytes".getBytes(StandardCharsets.UTF_8);
+        byte[] sealed = BabyLogAttachmentCipher.sealFile(
+                BabyLogFamilyKeyDeriver.deriveAttachmentKey(familyKey),
+                BabyLogSyncPushOrchestrator.attachmentAadBytes(attachment.id, BabyLogSyncPushOrchestrator.CIPHER_VERSION, familyHash),
+                plaintext
+        );
+        BabyLogRemoteSyncClient.EncryptedRecord encrypted = encryptedAttachment(
+                familyKey,
+                "client_attachment",
+                "remote_attachment_record",
+                attachment,
+                "remote-file.bin",
+                "remote_hash_v1"
+        );
+
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/collections/encrypted_records/records", exchange -> {
+            JSONArray items = new JSONArray().put(encrypted.toJson()
+                    .put("id", "remote_attachment_record")
+                    .put("attachmentFile", "remote-file.bin")
+                    .put("attachmentFileVersion", "remote_hash_v1"));
+            JSONObject body = new JSONObject()
+                    .put("page", 1)
+                    .put("perPage", 200)
+                    .put("totalItems", 1)
+                    .put("totalPages", 1)
+                    .put("items", items);
+            byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.createContext("/api/files/encrypted_records/remote_attachment_record/remote-file.bin", exchange -> {
+            exchange.sendResponseHeaders(200, sealed.length);
+            exchange.getResponseBody().write(sealed);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BabyLogDomain.BackendConfig backend = new BabyLogDomain.BackendConfig(
+                    true,
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    "",
+                    null
+            );
+            BabyLogSyncPullOrchestrator.PullSummary summary = new BabyLogSyncPullOrchestrator().pullOnce(
+                    repository,
+                    familyKey,
+                    backend,
+                    new BabyLogRemoteSyncClient()
+            );
+            assertEquals(1, summary.applied);
+            assertEquals(1, repository.listAttachmentDownloadQueue().size());
+            assertEquals(0, repository.listSyncChanges().size());
+
+            BabyLogSyncAttachmentDownloader.DownloadSummary download = BabyLogSyncAttachmentDownloader.downloadQueuedOnce(
+                    repository,
+                    backend,
+                    familyKey,
+                    new BabyLogRemoteSyncClient()
+            );
+            assertEquals(1, download.downloaded);
+            assertEquals(0, download.failed);
+            assertTrue(repository.hasAttachmentBlob(attachment.id));
+            assertEquals("remote_hash_v1", repository.attachmentBlobContentHash(attachment.id));
+            assertTrue(java.util.Arrays.equals(plaintext, repository.findAttachmentBlobBytes(attachment.id)));
+            assertEquals(0, repository.listAttachmentDownloadQueue().size());
+            assertEquals(0, repository.listSyncChanges().size());
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static BabyLogRemoteSyncClient.EncryptedRecord encrypted(
             String familyKey,
             String clientId,
@@ -124,6 +216,37 @@ public final class BabyLogSyncPullOrchestratorSmokeTest {
                 event.id,
                 event.toJson(),
                 deleted
+        );
+    }
+
+    private static BabyLogRemoteSyncClient.EncryptedRecord encryptedAttachment(
+            String familyKey,
+            String clientId,
+            String remoteId,
+            BabyLogDomain.AttachmentRecord attachment,
+            String fileName,
+            String fileVersion
+    ) throws Exception {
+        BabyLogRemoteSyncClient.EncryptedRecord base = BabyLogSyncPushOrchestrator.encryptEntityForPush(
+                familyKey,
+                clientId,
+                BabyLogSyncProtocol.ENTITY_ATTACHMENT,
+                attachment.id,
+                attachment.toJson(),
+                false
+        );
+        return new BabyLogRemoteSyncClient.EncryptedRecord(
+                base.clientId,
+                base.familyKeyHash,
+                base.schemaVersion,
+                base.cipherVersion,
+                base.nonce,
+                base.ciphertext,
+                base.updatedAtClient,
+                base.deletedFlag,
+                remoteId,
+                fileName,
+                fileVersion
         );
     }
 

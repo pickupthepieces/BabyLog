@@ -11,6 +11,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,15 +30,19 @@ public final class BabyLogRepository {
     private static final String CURRENT_MEMBER_KEY = "currentMember";
     private static final String SYNC_LAST_PULLED_AT_KEY = "syncLastPulledAt";
     private static final String REMOTE_UPDATE_BANNER_COUNT_KEY = "remoteUpdateBannerCount";
+    private static final String ATTACHMENT_DOWNLOAD_QUEUE_KEY = "attachmentDownloadQueue";
 
     private final StringStore store;
+    private final File attachmentBlobDir;
 
     public BabyLogRepository(Context context) {
         store = new SharedPreferencesStringStore(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE));
+        attachmentBlobDir = new File(context.getFilesDir(), "attachments");
     }
 
     private BabyLogRepository(StringStore store) {
         this.store = store;
+        attachmentBlobDir = new File(System.getProperty("java.io.tmpdir"), "babylog-repository-smoke-" + System.nanoTime());
     }
 
     public static BabyLogRepository forSmokeTest() {
@@ -188,6 +193,74 @@ public final class BabyLogRepository {
             Log.w(TAG, "Failed to read attachment blob", error);
             return null;
         }
+    }
+    public boolean hasAttachmentBlob(String attachmentId) {
+        byte[] bytes = findAttachmentBlobBytes(attachmentId);
+        return bytes != null && bytes.length > 0;
+    }
+    public String attachmentBlobContentHash(String attachmentId) {
+        BabyLogDomain.AttachmentRecord attachment = findAttachmentById(attachmentId);
+        return attachment == null || attachment.contentHash == null ? "" : attachment.contentHash;
+    }
+    public boolean putAttachmentBlobFromRemote(String attachmentId, byte[] bytes, String contentHash) throws JSONException {
+        if (attachmentId == null || attachmentId.trim().isEmpty() || bytes == null) {
+            return false;
+        }
+        BabyLogDomain.AttachmentRecord attachment = findAttachmentById(attachmentId);
+        if (attachment == null) {
+            return false;
+        }
+        if (!attachmentBlobDir.exists() && !attachmentBlobDir.mkdirs()) {
+            return false;
+        }
+        File output = new File(attachmentBlobDir, safeFileName(attachmentId) + ".bin");
+        try (FileOutputStream stream = new FileOutputStream(output)) {
+            stream.write(bytes);
+        } catch (IOException error) {
+            Log.w(TAG, "Failed to write remote attachment blob", error);
+            return false;
+        }
+        JSONObject json = attachment.toJson()
+                .put("localPath", output.getAbsolutePath())
+                .put("localBlobKey", output.getAbsolutePath())
+                .put("byteSize", bytes.length)
+                .put("contentHash", contentHash == null || contentHash.trim().isEmpty() ? JSONObject.NULL : contentHash);
+        JSONArray updated = upsertJson(readArray(ATTACHMENTS_KEY), attachmentId, json);
+        return store.edit().putString(ATTACHMENTS_KEY, updated.toString()).commit();
+    }
+    public void enqueueAttachmentDownload(String attachmentId, String remoteRecordId, String filename, String fileVersion) throws JSONException {
+        if (attachmentId == null || attachmentId.trim().isEmpty()
+                || remoteRecordId == null || remoteRecordId.trim().isEmpty()
+                || filename == null || filename.trim().isEmpty()) {
+            return;
+        }
+        JSONObject json = new JSONObject()
+                .put("id", attachmentId)
+                .put("attachmentId", attachmentId)
+                .put("remoteRecordId", remoteRecordId)
+                .put("filename", filename)
+                .put("fileVersion", fileVersion == null ? "" : fileVersion);
+        JSONArray updated = upsertJson(readArray(ATTACHMENT_DOWNLOAD_QUEUE_KEY), attachmentId, json);
+        store.edit().putString(ATTACHMENT_DOWNLOAD_QUEUE_KEY, updated.toString()).commit();
+    }
+    public List<AttachmentDownloadRequest> listAttachmentDownloadQueue() {
+        JSONArray array = readArray(ATTACHMENT_DOWNLOAD_QUEUE_KEY);
+        List<AttachmentDownloadRequest> requests = new ArrayList<>();
+        for (int i = 0; i < array.length(); i += 1) {
+            JSONObject json = array.optJSONObject(i);
+            if (json != null) {
+                requests.add(new AttachmentDownloadRequest(
+                        json.optString("attachmentId", ""),
+                        json.optString("remoteRecordId", ""),
+                        json.optString("filename", ""),
+                        json.optString("fileVersion", "")
+                ));
+            }
+        }
+        return requests;
+    }
+    public void removeAttachmentDownload(String attachmentId) {
+        hardDeleteJson(ATTACHMENT_DOWNLOAD_QUEUE_KEY, attachmentId);
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachments() {
@@ -464,6 +537,21 @@ public final class BabyLogRepository {
             updated.put(next);
         }
         return updated;
+    }
+
+    private static String safeFileName(String value) {
+        String safe = value == null ? "" : value.replaceAll("[^A-Za-z0-9._-]", "_");
+        return safe.isEmpty() ? "attachment" : safe;
+    }
+
+    public static final class AttachmentDownloadRequest {
+        public final String attachmentId, remoteRecordId, filename, fileVersion;
+        AttachmentDownloadRequest(String attachmentId, String remoteRecordId, String filename, String fileVersion) {
+            this.attachmentId = attachmentId == null ? "" : attachmentId;
+            this.remoteRecordId = remoteRecordId == null ? "" : remoteRecordId;
+            this.filename = filename == null ? "" : filename;
+            this.fileVersion = fileVersion == null ? "" : fileVersion;
+        }
     }
 
     private void hardDeleteJson(String key, String id) {

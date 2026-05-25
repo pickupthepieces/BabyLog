@@ -114,6 +114,7 @@ public final class BabyLogSyncPullOrchestrator {
             try {
                 if (repository.putEntityFromRemote(version.entityType, version.payload, version.deletedFlag)) {
                     applied += 1;
+                    enqueueAttachmentDownloadIfNeeded(repository, version);
                 } else {
                     skipped += 1;
                 }
@@ -126,6 +127,25 @@ public final class BabyLogSyncPullOrchestrator {
         }
         repository.addRemoteUpdateBannerCount(applied);
         return new PullSummary(fetched.size(), applied, skipped, "", maxCursor);
+    }
+
+    private static void enqueueAttachmentDownloadIfNeeded(BabyLogRepository repository, RemoteVersion version) throws JSONException {
+        if (!BabyLogSyncProtocol.ENTITY_ATTACHMENT.equals(version.entityType)
+                || version.deletedFlag
+                || version.remoteRecordId.isEmpty()
+                || version.attachmentFile.isEmpty()) {
+            return;
+        }
+        String localHash = repository.attachmentBlobContentHash(version.entityId);
+        if (repository.hasAttachmentBlob(version.entityId) && !localHash.isEmpty() && localHash.equals(version.attachmentFileVersion)) {
+            return;
+        }
+        repository.enqueueAttachmentDownload(
+                version.entityId,
+                version.remoteRecordId,
+                version.attachmentFile,
+                version.attachmentFileVersion
+        );
     }
 
     private static RemoteVersion decryptRecord(String familyKey, BabyLogRemoteSyncClient.EncryptedRecord record)
@@ -144,7 +164,10 @@ public final class BabyLogSyncPullOrchestrator {
                 json.optString("entityId", ""),
                 payload == null ? new JSONObject() : payload,
                 record.updatedAtClient,
-                record.deletedFlag == 1
+                record.deletedFlag == 1,
+                record.remoteId,
+                record.attachmentFile,
+                record.attachmentFileVersion
         );
     }
 
@@ -180,13 +203,28 @@ public final class BabyLogSyncPullOrchestrator {
         final JSONObject payload;
         final String updatedAtClient;
         final boolean deletedFlag;
+        final String remoteRecordId;
+        final String attachmentFile;
+        final String attachmentFileVersion;
 
-        RemoteVersion(String entityType, String entityId, JSONObject payload, String updatedAtClient, boolean deletedFlag) {
+        RemoteVersion(
+                String entityType,
+                String entityId,
+                JSONObject payload,
+                String updatedAtClient,
+                boolean deletedFlag,
+                String remoteRecordId,
+                String attachmentFile,
+                String attachmentFileVersion
+        ) {
             this.entityType = entityType == null ? "" : entityType;
             this.entityId = entityId == null ? "" : entityId;
             this.payload = payload == null ? new JSONObject() : payload;
             this.updatedAtClient = updatedAtClient == null ? "" : updatedAtClient;
             this.deletedFlag = deletedFlag;
+            this.remoteRecordId = remoteRecordId == null ? "" : remoteRecordId;
+            this.attachmentFile = attachmentFile == null ? "" : attachmentFile;
+            this.attachmentFileVersion = attachmentFileVersion == null ? "" : attachmentFileVersion;
         }
     }
 

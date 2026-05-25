@@ -71,6 +71,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogRemoteSyncClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncPushOrchestrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullOrchestrator.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogSyncAttachmentDownloader.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \

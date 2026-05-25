@@ -504,6 +504,9 @@ public final class BabyLogRemoteSyncClient {
         public final String ciphertext;
         public final String updatedAtClient;
         public final int deletedFlag;
+        public final String remoteId;
+        public final String attachmentFile;
+        public final String attachmentFileVersion;
 
         public EncryptedRecord(
                 String clientId,
@@ -515,6 +518,22 @@ public final class BabyLogRemoteSyncClient {
                 String updatedAtClient,
                 int deletedFlag
         ) {
+            this(clientId, familyKeyHash, schemaVersion, cipherVersion, nonce, ciphertext, updatedAtClient, deletedFlag, "", "", "");
+        }
+
+        public EncryptedRecord(
+                String clientId,
+                String familyKeyHash,
+                int schemaVersion,
+                int cipherVersion,
+                String nonce,
+                String ciphertext,
+                String updatedAtClient,
+                int deletedFlag,
+                String remoteId,
+                String attachmentFile,
+                String attachmentFileVersion
+        ) {
             this.clientId = clientId == null ? "" : clientId;
             this.familyKeyHash = familyKeyHash == null ? "" : familyKeyHash;
             this.schemaVersion = schemaVersion;
@@ -523,6 +542,9 @@ public final class BabyLogRemoteSyncClient {
             this.ciphertext = ciphertext == null ? "" : ciphertext;
             this.updatedAtClient = updatedAtClient == null ? "" : updatedAtClient;
             this.deletedFlag = deletedFlag == 0 ? 0 : 1;
+            this.remoteId = remoteId == null ? "" : remoteId;
+            this.attachmentFile = attachmentFile == null ? "" : attachmentFile;
+            this.attachmentFileVersion = attachmentFileVersion == null ? "" : attachmentFileVersion;
         }
 
         public JSONObject toJson() {
@@ -554,7 +576,10 @@ public final class BabyLogRemoteSyncClient {
                     json.optString("nonce", ""),
                     json.optString("ciphertext", ""),
                     json.optString("updatedAtClient", ""),
-                    json.optInt("deletedFlag", 0)
+                    json.optInt("deletedFlag", 0),
+                    json.optString("id", ""),
+                    json.optString("attachmentFile", ""),
+                    json.optString("attachmentFileVersion", "")
             );
         }
     }

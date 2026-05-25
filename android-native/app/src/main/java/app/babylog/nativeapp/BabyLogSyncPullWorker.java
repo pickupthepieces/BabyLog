@@ -42,6 +42,7 @@ public final class BabyLogSyncPullWorker extends Worker {
         if ("PULL_FAILED".equals(summary.lastError) || summary.lastError.startsWith("HTTP_")) {
             return Result.retry();
         }
+        BabyLogSyncAttachmentDownloadWorker.enqueueIfNeeded(context);
         return Result.success();
     }
 
