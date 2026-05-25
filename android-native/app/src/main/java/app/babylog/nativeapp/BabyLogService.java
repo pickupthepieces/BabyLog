@@ -2,28 +2,21 @@ package app.babylog.nativeapp;
 
 import android.content.Context;
 import android.net.Uri;
-import android.os.Environment;
-import android.util.Base64;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public final class BabyLogService {
@@ -35,10 +28,12 @@ public final class BabyLogService {
 
     private final Context context;
     private final BabyLogRepository repository;
+    private final BabyLogAttachmentInputBuilder attachmentBuilder;
 
     public BabyLogService(Context context, BabyLogRepository repository) {
         this.context = context.getApplicationContext();
         this.repository = repository;
+        this.attachmentBuilder = new BabyLogAttachmentInputBuilder(this.context);
     }
 
     public BabyLogDomain.BabyLogEvent recordQuickEvent(QuickAction action) throws JSONException {
@@ -108,12 +103,12 @@ public final class BabyLogService {
         String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : BabyLogFormatters.nowIso();
-        List<BabyLogDomain.AttachmentRecord> attachments = createPregnancyAttachments(input);
+        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createPregnancyAttachments(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 input.eventType,
                 occurredAt,
                 payload,
-                attachmentIdsFromRecords(attachments),
+                BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments),
                 "manual"
         );
         saveEventWithAttachmentsAndSyncChanges(event, attachments);
@@ -126,8 +121,8 @@ public final class BabyLogService {
         }
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
-        List<BabyLogDomain.AttachmentRecord> attachments = createPregnancyAttachments(input);
-        attachmentIds.addAll(attachmentIdsFromRecords(attachments));
+        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createPregnancyAttachments(input);
+        attachmentIds.addAll(BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments));
         String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
                 : existing.occurredAt;
@@ -773,7 +768,7 @@ public final class BabyLogService {
         if (input == null) {
             return false;
         }
-        return hasUsableUltrasoundPhoto(input.photoPath)
+        return BabyLogAttachmentInputBuilder.hasUsableUltrasoundPhoto(input.photoPath)
                 || BabyLogFormatters.parseOptionalNumber(input.bpdMm) != null
                 || BabyLogFormatters.parseOptionalNumber(input.hcMm) != null
                 || BabyLogFormatters.parseOptionalNumber(input.acMm) != null
@@ -845,14 +840,6 @@ public final class BabyLogService {
                 || !isBlank(input.note);
     }
 
-    private static boolean hasUsableUltrasoundPhoto(String photoPath) {
-        if (isBlank(photoPath)) {
-            return false;
-        }
-        File image = new File(photoPath);
-        return image.isFile() && image.length() > 0;
-    }
-
     public static String formatMaternalMetricSummary(MaternalMetricInput input) {
         StringBuilder summary = new StringBuilder(BabyLogFormatters.eventLabel("maternal_metric"));
         Double weight = BabyLogFormatters.parseOptionalNumber(input.weightKg);
@@ -880,12 +867,12 @@ public final class BabyLogService {
         if (!hasUltrasoundMinimumContent(input)) {
             throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
-        List<BabyLogDomain.AttachmentRecord> attachments = createUltrasoundAttachments(input);
+        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createUltrasoundAttachments(input);
         BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                 "ultrasound",
                 BabyLogFormatters.createOccurredAtFromDate(input.examDate),
                 buildUltrasoundPayload(input),
-                attachmentIdsFromRecords(attachments),
+                BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments),
                 "manual"
         );
         saveEventWithAttachmentsAndSyncChanges(event, attachments);
@@ -898,8 +885,8 @@ public final class BabyLogService {
             throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
         List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
-        List<BabyLogDomain.AttachmentRecord> attachments = createUltrasoundAttachments(input);
-        attachmentIds.addAll(attachmentIdsFromRecords(attachments));
+        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createUltrasoundAttachments(input);
+        attachmentIds.addAll(BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments));
         String occurredAt = BabyLogFormatters.isValidDateInput(input.examDate)
                 ? BabyLogFormatters.createOccurredAtFromDate(input.examDate)
                 : existing.occurredAt;
@@ -962,56 +949,6 @@ public final class BabyLogService {
             throw new JSONException("记录类型不匹配");
         }
         return existing;
-    }
-
-    private List<BabyLogDomain.AttachmentRecord> createPregnancyAttachments(PregnancyInput input) throws JSONException {
-        List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
-        if (!isPregnancyDocumentEvent(input.eventType) || isBlank(input.attachmentPath)) {
-            return attachments;
-        }
-        File image = new File(input.attachmentPath);
-        if (image.exists() && image.length() > 0) {
-            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
-                    "document_image",
-                    isBlank(input.attachmentName) ? image.getName() : input.attachmentName,
-                    "image/jpeg",
-                    image.length(),
-                    input.attachmentPath
-            );
-            attachments.add(attachment);
-        }
-        return attachments;
-    }
-
-    private List<BabyLogDomain.AttachmentRecord> createUltrasoundAttachments(UltrasoundInput input) throws JSONException {
-        List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
-        if (input.photoPath != null && !input.photoPath.isEmpty()) {
-            File image = new File(input.photoPath);
-            if (image.exists() && image.length() > 0) {
-                BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
-                        "ultrasound_image",
-                        input.photoName == null || input.photoName.isEmpty() ? image.getName() : input.photoName,
-                        "image/jpeg",
-                        image.length(),
-                        input.photoPath
-                );
-                attachments.add(attachment);
-            }
-        }
-        return attachments;
-    }
-
-    private static List<String> attachmentIdsFromRecords(List<BabyLogDomain.AttachmentRecord> attachments) {
-        List<String> ids = new ArrayList<>();
-        if (attachments == null) {
-            return ids;
-        }
-        for (BabyLogDomain.AttachmentRecord attachment : attachments) {
-            if (attachment != null) {
-                ids.add(attachment.id);
-            }
-        }
-        return ids;
     }
 
     private static JSONObject buildUltrasoundPayload(UltrasoundInput input) throws JSONException {
@@ -1151,7 +1088,7 @@ public final class BabyLogService {
         data.put("events", repository.exportEvents());
         JSONArray attachments = sanitizeAttachmentsForBackup(repository.exportAttachments(), BabyLogFormatters.nowIso());
         data.put("attachments", attachments);
-        data.put("attachmentBlobs", createAttachmentBlobBackup(attachments));
+        data.put("attachmentBlobs", attachmentBuilder.createAttachmentBlobBackup(attachments));
         data.put("syncChanges", repository.exportSyncChanges());
         validateBackupDataForImport(data);
 
@@ -1177,7 +1114,7 @@ public final class BabyLogService {
         if (!file.isFile()) {
             throw new IOException("没有可撤销的导入快照");
         }
-        String raw = new String(readBytes(file), StandardCharsets.UTF_8);
+        String raw = new String(BabyLogAttachmentInputBuilder.readFileBytes(file), StandardCharsets.UTF_8);
         int count = importBackupJson(raw, false);
         file.delete();
         return count;
@@ -1200,7 +1137,7 @@ public final class BabyLogService {
             writeImportUndoSnapshot(createBackupJson());
         }
         JSONArray attachments = data.optJSONArray("attachments");
-        JSONArray restoredAttachments = restoreAttachmentBlobs(attachments, data.optJSONArray("attachmentBlobs"));
+        JSONArray restoredAttachments = attachmentBuilder.restoreAttachmentBlobs(attachments, data.optJSONArray("attachmentBlobs"));
         boolean imported = repository.importData(
                 data.optJSONArray("familyProfiles"),
                 data.optJSONArray("childProfiles"),
@@ -1227,204 +1164,41 @@ public final class BabyLogService {
         validateProfiles(data.optJSONArray("familyProfiles"), "familyProfiles");
         validateProfiles(data.optJSONArray("childProfiles"), "childProfiles");
         validateProfiles(data.optJSONArray("familyMembers"), "familyMembers");
-        validateAttachments(data.optJSONArray("attachments"), data.optJSONArray("attachmentBlobs"));
+        BabyLogAttachmentInputBuilder.validateAttachments(data.optJSONArray("attachments"), data.optJSONArray("attachmentBlobs"));
         validateSyncChanges(data.optJSONArray("syncChanges"));
     }
 
     public String copyImageUriToPrivateFile(Uri uri, String nameHint) throws IOException {
-        InputStream input = context.getContentResolver().openInputStream(uri);
-        if (input == null) {
-            throw new IOException("无法读取图片");
-        }
-        File raw = createCameraCaptureFile("selected-original.jpg");
-        try (InputStream in = input; FileOutputStream out = new FileOutputStream(raw)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        }
-        try {
-            return compressImageFileToPrivateFile(raw, nameHint == null ? "selected.jpg" : nameHint);
-        } finally {
-            raw.delete();
-        }
+        return attachmentBuilder.copyImageUriToPrivateFile(uri, nameHint);
     }
 
     public String compressImageFileToPrivateFile(File source, String nameHint) throws IOException {
-        File output = createAttachmentFile(nameHint == null ? "scan.jpg" : nameHint);
-        BabyLogImageUtils.compressFileToJpeg(source, output);
-        return output.getAbsolutePath();
+        return attachmentBuilder.compressImageFileToPrivateFile(source, nameHint);
     }
 
     public File createCameraCaptureFile(String nameHint) throws IOException {
-        File base = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File dir = new File(base == null ? context.getFilesDir() : base, "camera-captures");
-        if (!dir.exists() && !dir.mkdirs()) {
-            throw new IOException("无法创建拍照目录");
-        }
-        String safeName = nameHint == null ? "scan.jpg" : nameHint.replaceAll("[^A-Za-z0-9._-]", "_");
-        return File.createTempFile("babylog-", "-" + safeName, dir);
+        return attachmentBuilder.createCameraCaptureFile(nameHint);
     }
 
     public File createAttachmentFile(String nameHint) {
-        File dir = new File(context.getFilesDir(), "attachments");
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-        String safeName = nameHint == null ? "scan.jpg" : nameHint.replaceAll("[^A-Za-z0-9._-]", "_");
-        return new File(dir, UUID.randomUUID() + "-" + safeName);
+        return attachmentBuilder.createAttachmentFile(nameHint);
     }
 
     public void clearLocalData() {
-        deleteRecursively(new File(context.getFilesDir(), "attachments"));
-        deleteRecursively(new File(context.getFilesDir(), "camera-captures"));
-        File pictureBase = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        if (pictureBase != null) {
-            deleteRecursively(new File(pictureBase, "camera-captures"));
-        }
+        attachmentBuilder.clearLocalAttachmentFiles();
         repository.clearLocalData();
     }
 
     private long estimateAttachmentBytes() {
-        return directoryBytes(new File(context.getFilesDir(), "attachments"));
+        return attachmentBuilder.estimateAttachmentBytes();
     }
 
     private void deleteLocalFile(String path) {
-        if (path == null || path.trim().isEmpty()) {
-            return;
-        }
-        File file = new File(path);
-        if (file.isFile()) {
-            file.delete();
-        }
-    }
-
-    private void deleteRecursively(File file) {
-        if (file == null || !file.exists()) {
-            return;
-        }
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) {
-                for (File child : children) {
-                    deleteRecursively(child);
-                }
-            }
-        }
-        file.delete();
-    }
-
-    private long directoryBytes(File file) {
-        if (file == null || !file.exists()) {
-            return 0;
-        }
-        if (file.isFile()) {
-            return file.length();
-        }
-        long bytes = 0;
-        File[] children = file.listFiles();
-        if (children == null) {
-            return 0;
-        }
-        for (File child : children) {
-            bytes += directoryBytes(child);
-        }
-        return bytes;
+        attachmentBuilder.deleteLocalFile(path);
     }
 
     public static JSONArray sanitizeAttachmentsForBackup(JSONArray attachments, String missingAt) throws JSONException {
-        JSONArray sanitized = new JSONArray();
-        if (attachments == null) {
-            return sanitized;
-        }
-        String timestamp = isBlank(missingAt) ? BabyLogFormatters.nowIso() : missingAt;
-        for (int i = 0; i < attachments.length(); i++) {
-            JSONObject json = attachments.optJSONObject(i);
-            if (json == null) {
-                continue;
-            }
-            JSONObject copy = new JSONObject(json.toString());
-            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(copy);
-            if (attachment != null && attachment.deletedAt == null) {
-                File file = new File(attachment.localPath);
-                if (!file.isFile()) {
-                    copy.put("deletedAt", timestamp);
-                    copy.put("updatedAt", timestamp);
-                    copy.put("ocrStatus", "missing-local-file");
-                }
-            }
-            sanitized.put(copy);
-        }
-        return sanitized;
-    }
-
-    private JSONArray createAttachmentBlobBackup(JSONArray attachments) throws IOException, JSONException {
-        JSONArray blobs = new JSONArray();
-        if (attachments == null) {
-            return blobs;
-        }
-        for (int i = 0; i < attachments.length(); i++) {
-            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(attachments.optJSONObject(i));
-            if (attachment == null) {
-                continue;
-            }
-            if (attachment.deletedAt != null) {
-                continue;
-            }
-            File file = new File(attachment.localPath);
-            if (!file.isFile()) {
-                throw new IOException("附件文件不存在：" + attachment.originalName);
-            }
-            JSONObject blob = new JSONObject();
-            blob.put("familyId", attachment.familyId);
-            blob.put("attachmentId", attachment.id);
-            blob.put("mimeType", attachment.mimeType);
-            blob.put("byteSize", file.length());
-            blob.put("createdAt", attachment.createdAt);
-            blob.put("dataBase64", Base64.encodeToString(readBytes(file), Base64.NO_WRAP));
-            blobs.put(blob);
-        }
-        return blobs;
-    }
-
-    private JSONArray restoreAttachmentBlobs(JSONArray attachments, JSONArray blobs) throws JSONException, IOException {
-        if (attachments == null) {
-            attachments = new JSONArray();
-        }
-        if (blobs == null) {
-            return attachments;
-        }
-
-        Map<String, String> restoredPaths = new HashMap<>();
-        for (int i = 0; i < blobs.length(); i++) {
-            JSONObject blob = blobs.optJSONObject(i);
-            if (blob == null) {
-                continue;
-            }
-            String attachmentId = blob.optString("attachmentId");
-            byte[] bytes = Base64.decode(blob.optString("dataBase64", ""), Base64.DEFAULT);
-            File file = createAttachmentFile(attachmentId + ".jpg");
-            try (FileOutputStream output = new FileOutputStream(file)) {
-                output.write(bytes);
-            }
-            restoredPaths.put(attachmentId, file.getAbsolutePath());
-        }
-
-        JSONArray restored = new JSONArray();
-        for (int i = 0; i < attachments.length(); i++) {
-            JSONObject attachment = attachments.optJSONObject(i);
-            if (attachment == null) {
-                continue;
-            }
-            String path = restoredPaths.get(attachment.optString("id"));
-            if (path != null) {
-                attachment.put("localPath", path);
-                attachment.put("localBlobKey", path);
-            }
-            restored.put(attachment);
-        }
-        return restored;
+        return BabyLogAttachmentInputBuilder.sanitizeAttachmentsForBackup(attachments, missingAt);
     }
 
     private File importUndoSnapshotFile() {
@@ -1434,17 +1208,6 @@ public final class BabyLogService {
     private void writeImportUndoSnapshot(String raw) throws IOException {
         try (FileOutputStream output = new FileOutputStream(importUndoSnapshotFile())) {
             output.write(raw.getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
-    private byte[] readBytes(File file) throws IOException {
-        try (FileInputStream input = new FileInputStream(file); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-            return output.toByteArray();
         }
     }
 
@@ -1551,36 +1314,6 @@ public final class BabyLogService {
             JSONObject json = profiles.optJSONObject(i);
             if (json == null || isBlank(json.optString("id"))) {
                 throw new JSONException("Invalid " + label + " at index " + i);
-            }
-        }
-    }
-
-    private static void validateAttachments(JSONArray attachments, JSONArray blobs) throws JSONException {
-        if (attachments == null || attachments.length() == 0) {
-            return;
-        }
-        Set<String> blobAttachmentIds = new HashSet<>();
-        if (blobs != null) {
-            for (int i = 0; i < blobs.length(); i++) {
-                JSONObject blob = blobs.optJSONObject(i);
-                String attachmentId = blob == null ? "" : blob.optString("attachmentId");
-                if (isBlank(attachmentId) || isBlank(blob.optString("dataBase64"))) {
-                    throw new JSONException("Invalid attachment blob at index " + i);
-                }
-                blobAttachmentIds.add(attachmentId);
-            }
-        }
-        for (int i = 0; i < attachments.length(); i++) {
-            JSONObject json = attachments.optJSONObject(i);
-            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(json);
-            if (attachment == null || isBlank(attachment.id) || isBlank(attachment.kind) || isBlank(attachment.createdAt)) {
-                throw new JSONException("Invalid attachment at index " + i);
-            }
-            if (attachment.deletedAt != null) {
-                continue;
-            }
-            if (!blobAttachmentIds.contains(attachment.id)) {
-                throw new JSONException("Missing attachment blob for " + attachment.id);
             }
         }
     }
