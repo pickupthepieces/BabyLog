@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 public final class BabyLogService {
@@ -381,6 +382,36 @@ public final class BabyLogService {
             return 0;
         }
         return (int) Math.ceil(remaining / (24.0 * 60.0 * 60.0 * 1000.0));
+    }
+
+    public static OptionalInt sleepDurationMinutes(BabyLogDomain.BabyLogEvent event) {
+        if (event == null || !"sleep".equals(event.eventType)) {
+            return OptionalInt.empty();
+        }
+        String start = event.payload.optString("sleepStart");
+        String end = event.payload.optString("sleepEnd");
+        if (isBlank(start) || isBlank(end)) {
+            return OptionalInt.empty();
+        }
+        long startMillis = BabyLogFormatters.parseIsoMillis(start);
+        long endMillis = BabyLogFormatters.parseIsoMillis(end);
+        if (startMillis > 0L && endMillis > 0L) {
+            long diffMillis = endMillis - startMillis;
+            if (diffMillis < 0L) {
+                diffMillis += 24L * 60L * 60L * 1000L;
+            }
+            return OptionalInt.of((int) Math.max(0L, diffMillis / 60_000L));
+        }
+        Integer startMinute = parseClockMinute(start);
+        Integer endMinute = parseClockMinute(end);
+        if (startMinute == null || endMinute == null) {
+            return OptionalInt.empty();
+        }
+        int diff = endMinute - startMinute;
+        if (diff < 0) {
+            diff += 24 * 60;
+        }
+        return OptionalInt.of(diff);
     }
 
     public static JSONObject buildBabyCarePayload(BabyCareInput input) throws JSONException {
@@ -1373,6 +1404,30 @@ public final class BabyLogService {
             return "BOTH";
         }
         return raw.trim();
+    }
+
+    private static Integer parseClockMinute(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        int timeStart = Math.max(normalized.lastIndexOf('T'), normalized.lastIndexOf(' '));
+        if (timeStart >= 0 && normalized.length() >= timeStart + 6) {
+            normalized = normalized.substring(timeStart + 1, timeStart + 6);
+        }
+        if (normalized.length() < 5 || normalized.charAt(2) != ':') {
+            return null;
+        }
+        try {
+            int hour = Integer.parseInt(normalized.substring(0, 2));
+            int minute = Integer.parseInt(normalized.substring(3, 5));
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+                return null;
+            }
+            return hour * 60 + minute;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static String withLabel(String label, String value) {

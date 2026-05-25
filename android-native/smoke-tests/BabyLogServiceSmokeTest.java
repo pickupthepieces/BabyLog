@@ -30,6 +30,22 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.BabyCareInput.sleep("22:10", "01:20", "卧室", "")
                 )
         );
+        BabyLogDomain.BabyLogEvent sleepEvent = sleepEvent("2026-05-25T22:00:00.000+0800", "2026-05-25T23:30:00.000+0800");
+        assertEquals(90, BabyLogService.sleepDurationMinutes(sleepEvent).getAsInt());
+        assertEquals("1 小时 30 分", BabyLogFormatters.formatSleepDurationLabel(90));
+        assertEquals("45 分钟", BabyLogFormatters.formatSleepDurationLabel(45));
+        assertEquals("3 分钟", BabyLogFormatters.formatSleepDurationLabel(3));
+
+        BabyLogDomain.BabyLogEvent overnightSleepEvent = sleepEvent(
+                "2026-05-25T23:00:00.000+0800",
+                "2026-05-26T06:30:00.000+0800"
+        );
+        assertEquals(450, BabyLogService.sleepDurationMinutes(overnightSleepEvent).getAsInt());
+        assertTrue(BabyLogFormatters.eventSummary(overnightSleepEvent).contains("7 小时 30 分"));
+
+        BabyLogDomain.BabyLogEvent openSleepEvent = sleepEvent("2026-05-25T23:00:00.000+0800", "");
+        assertFalse(BabyLogService.sleepDurationMinutes(openSleepEvent).isPresent());
+        assertTrue(BabyLogFormatters.eventSummary(openSleepEvent).contains("睡眠中"));
 
         assertEquals(
                 "尿布 · 便 · 黄色偏稀",
@@ -395,6 +411,16 @@ public final class BabyLogServiceSmokeTest {
             return;
         }
         throw new AssertionError("expected exception");
+    }
+
+    private static BabyLogDomain.BabyLogEvent sleepEvent(String startIso, String endIso) throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("sleepStart", startIso);
+        if (endIso != null && !endIso.isEmpty()) {
+            payload.put("sleepEnd", endIso);
+        }
+        payload.put("summary", "睡眠");
+        return BabyLogDomain.createEvent("sleep", startIso, payload, Collections.emptyList(), "manual");
     }
 
     private interface ThrowingRunnable {

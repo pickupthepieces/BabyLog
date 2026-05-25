@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+import java.util.OptionalInt;
 import java.util.TimeZone;
 
 public final class BabyLogFormatters {
@@ -338,6 +339,9 @@ public final class BabyLogFormatters {
                     payload.optString("reason", "")
             );
         }
+        if ("sleep".equals(event.eventType)) {
+            return sleepSummary(event);
+        }
         String summary = payload.optString("summary", "");
         return summary.isEmpty() ? "手动记录 · 待补充详情" : localizeStoredSummary(summary);
     }
@@ -361,6 +365,19 @@ public final class BabyLogFormatters {
             return "--:--";
         }
         return cnFormat("HH:mm", Locale.CHINA).format(date);
+    }
+
+    public static String formatSleepDurationLabel(int minutes) {
+        int safeMinutes = Math.max(0, minutes);
+        int hours = safeMinutes / 60;
+        int rest = safeMinutes % 60;
+        if (hours <= 0) {
+            return rest + " 分钟";
+        }
+        if (rest == 0) {
+            return hours + " 小时";
+        }
+        return hours + " 小时 " + rest + " 分";
     }
 
     public static String formatEventDay(String iso) {
@@ -561,6 +578,31 @@ public final class BabyLogFormatters {
             summary.append(" · 待补充详情");
         }
         return summary.toString();
+    }
+
+    private static String sleepSummary(BabyLogDomain.BabyLogEvent event) {
+        JSONObject payload = event.payload;
+        String start = sleepTimeLabel(payload.optString("sleepStart"));
+        String end = sleepTimeLabel(payload.optString("sleepEnd"));
+        String place = payload.optString("sleepPlace");
+        if (end.isEmpty()) {
+            return babyCareSummary(event.eventType, start, "睡眠中…", place);
+        }
+        OptionalInt duration = BabyLogService.sleepDurationMinutes(event);
+        return babyCareSummary(
+                event.eventType,
+                start.isEmpty() ? end : start + "–" + end,
+                duration.isPresent() ? formatSleepDurationLabel(duration.getAsInt()) : "",
+                place
+        );
+    }
+
+    private static String sleepTimeLabel(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "";
+        }
+        String eventTime = formatEventTime(value);
+        return "--:--".equals(eventTime) ? value.trim() : eventTime;
     }
 
     private static String localizeFeedType(String value) {
