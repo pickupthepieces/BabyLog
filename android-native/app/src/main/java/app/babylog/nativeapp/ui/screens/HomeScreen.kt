@@ -44,6 +44,13 @@ internal fun HomeScreen(
     val stage = currentCareStage(state.childProfile)
     val pregnancyDerivedUiMuted = BabyLogFormatters.shouldMutePregnancyDerivedUi(stage)
     val remoteUpdateCount = state.dashboard?.remoteUpdateBannerCount ?: 0
+    val babyDailySummary = remember(state.timeline, selectedBabyDay, stage) {
+        if (stage == BabyLogDomain.STAGE_BABY) {
+            BabyLogDailySummaryCalculator.calculate(state.timeline, selectedBabyDay)
+        } else {
+            null
+        }
+    }
     val listState = rememberLazyListState()
     val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
     val railTargetVisible = remember { mutableStateOf(true) }
@@ -113,6 +120,7 @@ internal fun HomeScreen(
                 val dayEvents = state.timeline.filter {
                     BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
                 }
+                item { babyDailySummary?.let { DailyBabySummaryCard(it) } }
                 item { BabyDaySummary(dayEvents, selectedBabyDay) }
                 item {
                     SectionHeader(
