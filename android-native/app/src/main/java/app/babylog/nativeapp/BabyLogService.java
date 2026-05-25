@@ -1047,12 +1047,16 @@ public final class BabyLogService {
         List<BabyLogDomain.SyncChange> changes = repository.listSyncChanges();
         int pending = 0;
         int failed = 0;
+        int synced = 0;
         for (BabyLogDomain.SyncChange change : changes) {
             if ("pending".equals(change.status) || "failed".equals(change.status)) {
                 pending += 1;
             }
             if ("failed".equals(change.status)) {
                 failed += 1;
+            }
+            if ("synced".equals(change.status)) {
+                synced += 1;
             }
         }
         return new DashboardSnapshot(
@@ -1061,6 +1065,7 @@ public final class BabyLogService {
                 summarizeToday(),
                 pending,
                 failed,
+                synced,
                 repository.estimateLocalBytes() + estimateAttachmentBytes(),
                 context.getFilesDir().getUsableSpace()
         );
@@ -2131,6 +2136,7 @@ public final class BabyLogService {
         public final Map<String, Integer> todayCounts;
         public final int pendingSyncCount;
         public final int failedSyncCount;
+        public final int syncedSyncCount;
         public final long localBytes;
         public final long freeBytes;
 
@@ -2140,6 +2146,7 @@ public final class BabyLogService {
                 Map<String, Integer> todayCounts,
                 int pendingSyncCount,
                 int failedSyncCount,
+                int syncedSyncCount,
                 long localBytes,
                 long freeBytes
         ) {
@@ -2148,6 +2155,7 @@ public final class BabyLogService {
             this.todayCounts = todayCounts;
             this.pendingSyncCount = pendingSyncCount;
             this.failedSyncCount = failedSyncCount;
+            this.syncedSyncCount = syncedSyncCount;
             this.localBytes = localBytes;
             this.freeBytes = freeBytes;
         }

@@ -191,6 +191,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var syncCheckRunning by mutableStateOf(false)
     private var syncCheckMessage by mutableStateOf("")
     private var syncCheckOk by mutableStateOf<Boolean?>(null)
+    private var syncPushRunning by mutableStateOf(false)
+    private var syncPushMessage by mutableStateOf("")
+    private var syncPushConfirmState by mutableStateOf<SyncPushConfirmState?>(null)
     private var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     private var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
     private var editingEvent by mutableStateOf<BabyLogDomain.BabyLogEvent?>(null)
@@ -282,7 +285,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                     onShareVisitSummary = ::shareVisitSummary,
                     onSaveVisitSummary = ::saveVisitSummary,
                     onPolishVisitSummary = ::polishVisitSummary,
-                    onSyncNow = ::syncNow,
+                    onSyncNow = ::requestPushSyncNow,
                     onExportBackup = ::exportBackup,
                     onImportBackup = ::importBackup,
                     onUndoImport = { undoImportConfirm = true },
@@ -299,12 +302,15 @@ public final class ComposeMainActivity : ComponentActivity() {
                     syncCheckRunning = syncCheckRunning,
                     syncCheckMessage = syncCheckMessage,
                     syncCheckOk = syncCheckOk,
+                    syncPushRunning = syncPushRunning,
+                    syncPushMessage = syncPushMessage,
                     onCloseSettingsPage = {
                         profilePageState = null
                         smartSettingsConfig = null
                         speechSettingsConfig = null
                     },
                     onCheckSyncConnection = ::checkSyncConnection,
+                    onPushSyncNow = ::requestPushSyncNow,
                     onSaveSyncSettings = ::saveSyncSettings,
                     onSaveSmartSettings = ::saveSmartSettings,
                     onSaveSpeechSettings = ::saveSpeechSettings,
@@ -455,6 +461,20 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onConfirm = {
                             syncConfirmState = null
                             persistSyncSettings(confirm.backendBaseUrl, confirm.familyKey)
+                        }
+                    )
+                }
+
+                syncPushConfirmState?.let { confirm ->
+                    ConfirmDialog(
+                        title = "确认推送",
+                        message = "将把 ${confirm.pendingCount} 条本机记录加密上传到 ${confirm.backendBaseUrl}。家庭密钥仅本机保存，服务器仅看到密文。",
+                        confirmText = "加密推送",
+                        destructive = false,
+                        onDismiss = { syncPushConfirmState = null },
+                        onConfirm = {
+                            syncPushConfirmState = null
+                            pushSyncNow()
                         }
                     )
                 }
@@ -1487,14 +1507,58 @@ public final class ComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun syncNow() {
+    private fun requestPushSyncNow() {
+        if (syncPushRunning) {
+            return
+        }
+        val dashboard = uiState.dashboard
+        val pendingCount = dashboard?.pendingSyncCount ?: 0
+        if (pendingCount <= 0) {
+            showToast("暂无待推送记录")
+            return
+        }
+        val config = uiState.syncConfig
+        if (!config.enabled || config.backendBaseUrl.isBlank()) {
+            showInfo("同步未配置", "请先在同步设置里填写家庭后端地址和家庭密钥。")
+            return
+        }
+        if ((dashboard?.syncedSyncCount ?: 0) == 0) {
+            syncPushConfirmState = SyncPushConfirmState(config.backendBaseUrl, pendingCount)
+            return
+        }
+        pushSyncNow()
+    }
+
+    private fun pushSyncNow() {
+        if (syncPushRunning) {
+            return
+        }
+        syncPushRunning = true
+        syncPushMessage = "正在加密并推送本机记录..."
         runInBackground {
             try {
-                val result = service.runSyncNow()
-                showToast(if (result.ok) "同步队列为空" else "同步未完成：${formatSyncError(result.code)}")
+                val summary = BabyLogSyncPushOrchestrator().pushOnce(
+                    service,
+                    repository,
+                    syncSecretStore,
+                    repository.loadSyncSettings(),
+                    remoteSyncClient
+                )
+                runOnUiThread {
+                    syncPushRunning = false
+                    syncPushMessage = "上次推送：刚刚，成功 ${summary.pushed}、失败 ${summary.failed}"
+                    if (summary.failed > 0 && summary.lastError.isNotBlank()) {
+                        syncPushMessage += "；失败原因：${formatSyncError(summary.lastError)}"
+                    }
+                    showToast(if (summary.failed == 0) "已加密推送 ${summary.pushed} 条" else "推送完成，失败 ${summary.failed} 条")
+                }
                 reloadData()
-            } catch (error: JSONException) {
-                showInfo("同步失败", error.message ?: "同步队列更新失败")
+            } catch (error: Exception) {
+                runOnUiThread {
+                    syncPushRunning = false
+                    syncPushMessage = "上次推送失败：${error.message ?: "网络不可用"}"
+                    showInfo("推送失败", error.message ?: "无法推送本机记录")
+                }
             }
         }
     }
@@ -2150,6 +2214,12 @@ public final class ComposeMainActivity : ComponentActivity() {
         return when (code) {
             "BACKEND_NOT_CONFIGURED" -> "后端未配置"
             "BACKEND_UNREACHABLE" -> "后端暂不可达"
+            "FAMILY_KEY_MISSING" -> "家庭密钥未配置"
+            "FAMILY_KEY_LOAD_FAILED" -> "家庭密钥读取失败"
+            "ENTITY_NOT_FOUND" -> "本机记录不存在"
+            "ENCRYPT_FAILED" -> "加密失败"
+            "PUSH_FAILED" -> "网络推送失败"
+            "STATUS_UPDATE_FAILED" -> "状态更新失败"
             else -> code ?: "未知错误"
         }
     }
@@ -2209,6 +2279,11 @@ private data class ImportConfirmState(
 private data class SyncConfirmState(
     val backendBaseUrl: String,
     val familyKey: String
+)
+
+private data class SyncPushConfirmState(
+    val backendBaseUrl: String,
+    val pendingCount: Int
 )
 
 internal data class AttachmentListPageState(
@@ -2287,8 +2362,11 @@ private fun BabyLogApp(
     syncCheckRunning: Boolean,
     syncCheckMessage: String,
     syncCheckOk: Boolean?,
+    syncPushRunning: Boolean,
+    syncPushMessage: String,
     onCloseSettingsPage: () -> Unit,
     onCheckSyncConnection: (String, String) -> Unit,
+    onPushSyncNow: () -> Unit,
     onSaveSyncSettings: (String, String) -> Unit,
     onSaveSmartSettings: (BabyLogSmartConfigStore.Config) -> Unit,
     onSaveSpeechSettings: (BabyLogSmartConfigStore.SpeechConfig) -> Unit,
@@ -2685,8 +2763,14 @@ private fun BabyLogApp(
                     checkingConnection = syncCheckRunning,
                     connectionMessage = syncCheckMessage,
                     connectionOk = syncCheckOk,
+                    pendingSyncCount = state.dashboard?.pendingSyncCount ?: 0,
+                    syncedSyncCount = state.dashboard?.syncedSyncCount ?: 0,
+                    failedSyncCount = state.dashboard?.failedSyncCount ?: 0,
+                    pushingSync = syncPushRunning,
+                    pushMessage = syncPushMessage,
                     onBack = ::closeSettingsPage,
                     onCheckConnection = onCheckSyncConnection,
+                    onPushNow = onPushSyncNow,
                     onSave = onSaveSyncSettings
                 )
             }
@@ -3444,9 +3528,9 @@ internal fun SettingsScreen(
             )
             Divider(color = ChestnutPalette.Border)
             ActionRow(
-                title = "立即同步",
-                subtitle = "待同步 ${state.dashboard?.pendingSyncCount ?: 0} 条，失败 ${state.dashboard?.failedSyncCount ?: 0} 条",
-                action = "同步",
+                title = "立即推送",
+                subtitle = "待同步 ${state.dashboard?.pendingSyncCount ?: 0} 条，已推送 ${state.dashboard?.syncedSyncCount ?: 0} 条，失败 ${state.dashboard?.failedSyncCount ?: 0} 条",
+                action = "推送",
                 onClick = onSyncNow
             )
         }

@@ -21,8 +21,14 @@ internal fun SyncSettingsScreen(
     checkingConnection: Boolean,
     connectionMessage: String,
     connectionOk: Boolean?,
+    pendingSyncCount: Int,
+    syncedSyncCount: Int,
+    failedSyncCount: Int,
+    pushingSync: Boolean,
+    pushMessage: String,
     onBack: () -> Unit,
     onCheckConnection: (String, String) -> Unit,
+    onPushNow: () -> Unit,
     onSave: (String, String) -> Unit
 ) {
     var backendBaseUrl by rememberSaveable(config.backendBaseUrl) { mutableStateOf(config.backendBaseUrl) }
@@ -71,6 +77,27 @@ internal fun SyncSettingsScreen(
                     color = if (connectionOk == true) ChestnutPalette.Primary else ChestnutPalette.Muted,
                     fontSize = 13.sp
                 )
+            }
+        }
+        item {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !pushingSync,
+                onClick = onPushNow
+            ) {
+                Text(if (pushingSync) "推送中..." else "立即推送本机记录", color = ChestnutPalette.Primary)
+            }
+        }
+        item {
+            Text(
+                "待同步：$pendingSyncCount 条\n已推送：$syncedSyncCount 条\n失败：$failedSyncCount 条",
+                color = ChestnutPalette.Muted,
+                fontSize = 13.sp
+            )
+        }
+        if (pushMessage.isNotBlank()) {
+            item {
+                Text(pushMessage, color = ChestnutPalette.Muted, fontSize = 13.sp)
             }
         }
     }
