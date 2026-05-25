@@ -24,6 +24,7 @@ public final class BabyLogRemoteSyncClient {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 15_000;
     private static final int MAX_BODY_CHARS = 1024 * 1024;
+    private static final int MAX_FILE_BODY_BYTES = 6 * 1024 * 1024;
 
     public ConnectionResult checkConnection(String backendBaseUrl, String familyKey) throws IOException {
         String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
@@ -169,6 +170,36 @@ public final class BabyLogRemoteSyncClient {
         return RecordPushResult.failed(safeRecordId, "HTTP_" + response.statusCode);
     }
 
+    public byte[] downloadAttachmentFile(
+            String backendBaseUrl,
+            String familyKey,
+            String recordId,
+            String filename
+    ) throws IOException {
+        String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
+        if (normalizedUrl.isEmpty()) {
+            throw new IOException("BACKEND_NOT_CONFIGURED");
+        }
+        if (!BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
+            throw new IOException("FAMILY_KEY_MISSING");
+        }
+        String safeRecordId = recordId == null ? "" : recordId.trim();
+        String safeFilename = filename == null ? "" : filename.trim();
+        if (safeRecordId.isEmpty() || safeFilename.isEmpty()) {
+            throw new IOException("ATTACHMENT_FILE_MISSING");
+        }
+        return getBytes(
+                normalizedUrl
+                        + "/api/files/"
+                        + BabyLogSyncProtocol.COLLECTION_ENCRYPTED_RECORDS
+                        + "/"
+                        + URLEncoder.encode(safeRecordId, "UTF-8")
+                        + "/"
+                        + URLEncoder.encode(safeFilename, "UTF-8"),
+                familyKey
+        );
+    }
+
     public static String healthUrl(String backendBaseUrl) {
         return BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl) + "/api/health";
     }
@@ -257,6 +288,26 @@ public final class BabyLogRemoteSyncClient {
 
     private HttpResponse get(String url, String familyKey) throws IOException {
         return request("GET", url, familyKey, null);
+    }
+
+    private byte[] getBytes(String url, String familyKey) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
+        connection.setRequestProperty(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA, String.valueOf(BabyLogDomain.SCHEMA_VERSION));
+        if (BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
+            connection.setRequestProperty(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey));
+        }
+        int statusCode = connection.getResponseCode();
+        if (statusCode < 200 || statusCode >= 300) {
+            String errorBody = readLimited(connection.getErrorStream());
+            connection.disconnect();
+            throw new IOException("HTTP_" + statusCode + (errorBody.isEmpty() ? "" : ":" + errorBody));
+        }
+        byte[] bytes = readBytesLimited(connection.getInputStream());
+        connection.disconnect();
+        return bytes;
     }
 
     private HttpResponse rawPatch(String url, String familyKey, String contentType, byte[] body) throws IOException {
@@ -388,6 +439,24 @@ public final class BabyLogRemoteSyncClient {
             }
         }
         return builder.toString();
+    }
+
+    private static byte[] readBytesLimited(InputStream stream) throws IOException {
+        if (stream == null) {
+            return new byte[0];
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int total = 0;
+        int read;
+        while ((read = stream.read(buffer)) != -1) {
+            total += read;
+            if (total > MAX_FILE_BODY_BYTES) {
+                throw new IOException("ATTACHMENT_FILE_TOO_LARGE");
+            }
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
     }
 
     private static final class HttpResponse {

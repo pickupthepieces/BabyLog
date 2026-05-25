@@ -26,6 +26,7 @@ public final class BabyLogRemoteSyncClientSmokeTest {
         assertHeaderUsesFamilyKeyHashOnly();
         assertPullEncryptedRecordsUsesHashHeaderAndCursor();
         assertUploadAttachmentFileUsesMultipartPatch();
+        assertDownloadAttachmentFileUsesHashHeader();
 
         BabyLogRemoteSyncClient.ConnectionResult ok = BabyLogRemoteSyncClient.ConnectionResult.ok("连接成功");
         assertTrue(ok.ok);
@@ -157,6 +158,38 @@ public final class BabyLogRemoteSyncClientSmokeTest {
         assertTrue(bodyText.contains("name=\"attachmentFileVersion\""));
         assertTrue(bodyText.contains("hash_v1"));
         assertTrue(indexOf(capturedBody[0], sealedBytes) >= 0);
+    }
+
+    private static void assertDownloadAttachmentFileUsesHashHeader() throws Exception {
+        final String expectedHash = BabyLogSyncProtocol.hashFamilyKeyForLookup("family-secret");
+        final byte[] sealedBytes = new byte[]{9, 8, 7, 6, 5, 4, 3, 2, 1};
+        final String[] capturedHeader = new String[1];
+        final String[] capturedMethod = new String[1];
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/files/encrypted_records/remote_2/attachment.bin", exchange -> {
+            capturedMethod[0] = exchange.getRequestMethod();
+            capturedHeader[0] = exchange.getRequestHeaders().getFirst(BabyLogSyncProtocol.HEADER_FAMILY_KEY);
+            exchange.sendResponseHeaders(200, sealedBytes.length);
+            exchange.getResponseBody().write(sealedBytes);
+            exchange.close();
+        });
+        server.start();
+        byte[] downloaded;
+        try {
+            int port = server.getAddress().getPort();
+            BabyLogRemoteSyncClient client = new BabyLogRemoteSyncClient();
+            downloaded = client.downloadAttachmentFile(
+                    "http://127.0.0.1:" + port,
+                    "family-secret",
+                    "remote_2",
+                    "attachment.bin"
+            );
+        } finally {
+            server.stop(0);
+        }
+        assertEquals("GET", capturedMethod[0]);
+        assertEquals(expectedHash, capturedHeader[0]);
+        assertTrue(Arrays.equals(sealedBytes, downloaded));
     }
 
     private static byte[] readAll(InputStream input) throws java.io.IOException {
