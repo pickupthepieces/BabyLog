@@ -247,7 +247,7 @@ public final class BabyLogRemoteSyncClient {
     private RecordPushResult pushOne(String backendBaseUrl, String familyKey, EncryptedRecord record) throws IOException {
         HttpResponse response = request("POST", encryptedRecordsUrl(backendBaseUrl), familyKey, record.toJson().toString());
         if (response.statusCode >= 200 && response.statusCode < 300) {
-            return RecordPushResult.ok(record.clientId);
+            return RecordPushResult.ok(record.clientId, remoteIdFromBody(response.body));
         }
         if (response.statusCode == 409) {
             String remoteId = findRemoteRecordId(backendBaseUrl, familyKey, record.clientId);
@@ -259,7 +259,7 @@ public final class BabyLogRemoteSyncClient {
                         record.toJson().toString()
                 );
                 if (patched.statusCode >= 200 && patched.statusCode < 300) {
-                    return RecordPushResult.ok(record.clientId);
+                    return RecordPushResult.ok(record.clientId, remoteId);
                 }
                 return RecordPushResult.failed(record.clientId, "HTTP_" + patched.statusCode);
             }
@@ -348,6 +348,14 @@ public final class BabyLogRemoteSyncClient {
             output.write(safeBody);
             output.flush();
             return readRawHttpResponse(input);
+        }
+    }
+
+    private String remoteIdFromBody(String body) {
+        try {
+            return new JSONObject(body == null ? "{}" : body).optString("id", "");
+        } catch (JSONException ignored) {
+            return "";
         }
     }
 
@@ -553,21 +561,27 @@ public final class BabyLogRemoteSyncClient {
 
     public static final class RecordPushResult {
         public final String clientId;
+        public final String remoteRecordId;
         public final boolean ok;
         public final String errorCode;
 
-        private RecordPushResult(String clientId, boolean ok, String errorCode) {
+        private RecordPushResult(String clientId, String remoteRecordId, boolean ok, String errorCode) {
             this.clientId = clientId == null ? "" : clientId;
+            this.remoteRecordId = remoteRecordId == null ? "" : remoteRecordId;
             this.ok = ok;
             this.errorCode = errorCode == null ? "" : errorCode;
         }
 
         public static RecordPushResult ok(String clientId) {
-            return new RecordPushResult(clientId, true, "");
+            return ok(clientId, "");
+        }
+
+        public static RecordPushResult ok(String clientId, String remoteRecordId) {
+            return new RecordPushResult(clientId, remoteRecordId, true, "");
         }
 
         public static RecordPushResult failed(String clientId, String errorCode) {
-            return new RecordPushResult(clientId, false, errorCode);
+            return new RecordPushResult(clientId, "", false, errorCode);
         }
     }
 

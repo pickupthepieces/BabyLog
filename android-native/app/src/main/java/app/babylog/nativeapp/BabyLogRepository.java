@@ -8,6 +8,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -161,6 +165,29 @@ public final class BabyLogRepository {
             }
         }
         return null;
+    }
+
+    public byte[] findAttachmentBlobBytes(String attachmentId) {
+        BabyLogDomain.AttachmentRecord attachment = findAttachmentById(attachmentId);
+        if (attachment == null || attachment.localPath == null || attachment.localPath.trim().isEmpty()) {
+            return null;
+        }
+        File file = new File(attachment.localPath);
+        if (!file.isFile()) {
+            return null;
+        }
+        try (FileInputStream input = new FileInputStream(file);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return output.toByteArray();
+        } catch (IOException error) {
+            Log.w(TAG, "Failed to read attachment blob", error);
+            return null;
+        }
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachments() {

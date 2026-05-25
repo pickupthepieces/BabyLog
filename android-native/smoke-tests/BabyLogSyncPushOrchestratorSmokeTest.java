@@ -1,6 +1,8 @@
 import app.babylog.nativeapp.BabyLogDomain;
+import app.babylog.nativeapp.BabyLogAttachmentCipher;
 import app.babylog.nativeapp.BabyLogFamilyKeyDeriver;
 import app.babylog.nativeapp.BabyLogPayloadCipher;
+import app.babylog.nativeapp.BabyLogRepository;
 import app.babylog.nativeapp.BabyLogRemoteSyncClient;
 import app.babylog.nativeapp.BabyLogSyncProtocol;
 import app.babylog.nativeapp.BabyLogSyncPushOrchestrator;
@@ -14,9 +16,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.io.File;
+import java.nio.file.Files;
+import java.util.List;
 
 public final class BabyLogSyncPushOrchestratorSmokeTest {
     public static void main(String[] args) throws Exception {
+        assertPushOnceUploadsAttachmentAsEncryptedMultipart();
+        assertEncryptEntityBodyHasNoPlaintext();
+    }
+
+    private static void assertEncryptEntityBodyHasNoPlaintext() throws Exception {
         final String[] capturedBody = new String[1];
         final String[] capturedHeader = new String[1];
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -91,6 +101,131 @@ public final class BabyLogSyncPushOrchestratorSmokeTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    private static void assertPushOnceUploadsAttachmentAsEncryptedMultipart() throws Exception {
+        final String familyKey = "family-secret";
+        final String familyHash = BabyLogFamilyKeyDeriver.lookupHashHex(familyKey);
+        final byte[] plaintextFile = "ultrasound-file-plain-bytes".getBytes(StandardCharsets.UTF_8);
+        final int[] metadataRequests = new int[1];
+        final int[] fileRequests = new int[1];
+        final byte[][] capturedMultipart = new byte[1][];
+        final String[] capturedContentType = new String[1];
+
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/collections/encrypted_records/records", exchange -> {
+            if ("POST".equals(exchange.getRequestMethod())) {
+                metadataRequests[0] += 1;
+                byte[] body = "{\"id\":\"remote_att_1\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.createContext("/api/collections/encrypted_records/records/remote_att_1", exchange -> {
+            fileRequests[0] += 1;
+            capturedContentType[0] = exchange.getRequestHeaders().getFirst("Content-Type");
+            capturedMultipart[0] = exchange.getRequestBody().readAllBytes();
+            byte[] body = "{\"id\":\"remote_att_1\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        File tempFile = File.createTempFile("babylog-s5d-", ".bin");
+        try {
+            Files.write(tempFile.toPath(), plaintextFile);
+            BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
+                    "ultrasound",
+                    "scan.jpg",
+                    "image/jpeg",
+                    plaintextFile.length,
+                    tempFile.getAbsolutePath()
+            );
+            BabyLogDomain.SyncChange change = BabyLogDomain.createSyncChange(
+                    BabyLogSyncProtocol.ENTITY_ATTACHMENT,
+                    attachment.id,
+                    "upsert"
+            );
+            repository.putEventWithAttachmentsAndSyncChanges(null, Collections.singletonList(attachment), Collections.singletonList(change));
+
+            int port = server.getAddress().getPort();
+            BabyLogSyncPushOrchestrator.PushSummary summary = new BabyLogSyncPushOrchestrator().pushOnceForSmokeTest(
+                    repository,
+                    new BabyLogDomain.BackendConfig(true, "http://127.0.0.1:" + port, "cn", null),
+                    new BabyLogRemoteSyncClient(),
+                    familyKey
+            );
+
+            assertEquals(1, metadataRequests[0]);
+            assertEquals(1, fileRequests[0]);
+            assertEquals(1, summary.pushed);
+            assertEquals(0, summary.failed);
+            assertEquals(1, summary.filesUploaded);
+            assertEquals(0, summary.filesPending);
+            assertEquals((long) plaintextFile.length, summary.bytesUploaded);
+
+            String boundary = boundaryFrom(capturedContentType[0]);
+            byte[] sealedFile = extractMultipartFile(capturedMultipart[0], boundary);
+            assertTrue(sealedFile.length > plaintextFile.length + 12);
+            byte[] restored = BabyLogAttachmentCipher.openFile(
+                    BabyLogFamilyKeyDeriver.deriveAttachmentKey(familyKey),
+                    BabyLogSyncPushOrchestrator.attachmentAadBytes(attachment.id, BabyLogSyncPushOrchestrator.CIPHER_VERSION, familyHash),
+                    sealedFile
+            );
+            assertTrue(Arrays.equals(plaintextFile, restored));
+
+            List<BabyLogDomain.SyncChange> changes = repository.listSyncChanges();
+            assertEquals(1, changes.size());
+            assertEquals("synced", changes.get(0).status);
+        } finally {
+            server.stop(0);
+            tempFile.delete();
+        }
+    }
+
+    private static String boundaryFrom(String contentType) {
+        String marker = "boundary=";
+        int index = contentType == null ? -1 : contentType.indexOf(marker);
+        if (index < 0) {
+            throw new AssertionError("missing multipart boundary");
+        }
+        return contentType.substring(index + marker.length());
+    }
+
+    private static byte[] extractMultipartFile(byte[] body, String boundary) {
+        byte[] headerEnd = "\r\n\r\n".getBytes(StandardCharsets.ISO_8859_1);
+        byte[] nextBoundary = ("\r\n--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
+        int start = indexOf(body, headerEnd, 0);
+        if (start < 0) {
+            throw new AssertionError("missing file header end");
+        }
+        start += headerEnd.length;
+        int end = indexOf(body, nextBoundary, start);
+        if (end <= start) {
+            throw new AssertionError("missing file boundary");
+        }
+        return Arrays.copyOfRange(body, start, end);
+    }
+
+    private static int indexOf(byte[] source, byte[] needle, int from) {
+        for (int offset = Math.max(0, from); offset <= source.length - needle.length; offset += 1) {
+            boolean match = true;
+            for (int i = 0; i < needle.length; i += 1) {
+                if (source[offset + i] != needle[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return offset;
+            }
+        }
+        return -1;
     }
 
     private static void assertServerBodyHasNoPlaintext(String body) {
