@@ -93,6 +93,48 @@ public final class BabyLogRemoteSyncClient {
         return new PushResult(results);
     }
 
+    public PullResult pullEncryptedRecords(
+            String backendBaseUrl,
+            String familyKey,
+            String sinceCursor,
+            int page,
+            int perPage
+    ) throws IOException {
+        String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
+        if (normalizedUrl.isEmpty()) {
+            return PullResult.failed("BACKEND_NOT_CONFIGURED");
+        }
+        if (!BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
+            return PullResult.failed("FAMILY_KEY_MISSING");
+        }
+        HttpResponse response = get(encryptedRecordsPullUrl(normalizedUrl, familyKey, sinceCursor, page, perPage), familyKey);
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            return PullResult.failed("HTTP_" + response.statusCode);
+        }
+        try {
+            JSONObject json = new JSONObject(response.body);
+            JSONArray items = json.optJSONArray("items");
+            List<EncryptedRecord> records = new ArrayList<>();
+            if (items != null) {
+                for (int i = 0; i < items.length(); i += 1) {
+                    JSONObject item = items.optJSONObject(i);
+                    if (item != null) {
+                        records.add(EncryptedRecord.fromJson(item));
+                    }
+                }
+            }
+            return new PullResult(
+                    records,
+                    json.optInt("page", page),
+                    json.optInt("totalPages", 0),
+                    json.optInt("totalItems", records.size()),
+                    ""
+            );
+        } catch (JSONException error) {
+            return PullResult.failed("PARSE_FAILED");
+        }
+    }
+
     public static String healthUrl(String backendBaseUrl) {
         return BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl) + "/api/health";
     }
@@ -112,6 +154,29 @@ public final class BabyLogRemoteSyncClient {
                 + "/api/collections/"
                 + BabyLogSyncProtocol.COLLECTION_ENCRYPTED_RECORDS
                 + "/records";
+    }
+
+    public static String encryptedRecordsPullUrl(
+            String backendBaseUrl,
+            String familyKey,
+            String sinceCursor,
+            int page,
+            int perPage
+    ) throws IOException {
+        String familyKeyHash = BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey);
+        StringBuilder filter = new StringBuilder();
+        filter.append("familyKeyHash=\"").append(familyKeyHash).append("\"");
+        if (sinceCursor != null && !sinceCursor.trim().isEmpty()) {
+            filter.append(" && updatedAtClient > \"").append(sinceCursor.trim()).append("\"");
+        }
+        return encryptedRecordsUrl(backendBaseUrl)
+                + "?filter="
+                + URLEncoder.encode(filter.toString(), "UTF-8")
+                + "&sort=updatedAtClient"
+                + "&page="
+                + Math.max(1, page)
+                + "&perPage="
+                + Math.max(1, perPage);
     }
 
     private RecordPushResult pushOne(String backendBaseUrl, String familyKey, EncryptedRecord record) throws IOException {
@@ -274,6 +339,22 @@ public final class BabyLogRemoteSyncClient {
             }
             return json;
         }
+
+        public static EncryptedRecord fromJson(JSONObject json) {
+            if (json == null) {
+                return new EncryptedRecord("", "", 0, 0, "", "", "", 0);
+            }
+            return new EncryptedRecord(
+                    json.optString("clientId", ""),
+                    json.optString("familyKeyHash", ""),
+                    json.optInt("schemaVersion", 0),
+                    json.optInt("cipherVersion", 0),
+                    json.optString("nonce", ""),
+                    json.optString("ciphertext", ""),
+                    json.optString("updatedAtClient", ""),
+                    json.optInt("deletedFlag", 0)
+            );
+        }
     }
 
     public static final class RecordPushResult {
@@ -325,6 +406,26 @@ public final class BabyLogRemoteSyncClient {
                 }
             }
             return new PushResult(results);
+        }
+    }
+
+    public static final class PullResult {
+        public final List<EncryptedRecord> records;
+        public final int page;
+        public final int totalPages;
+        public final int totalItems;
+        public final String lastError;
+
+        public PullResult(List<EncryptedRecord> records, int page, int totalPages, int totalItems, String lastError) {
+            this.records = records == null ? new ArrayList<>() : new ArrayList<>(records);
+            this.page = page;
+            this.totalPages = totalPages;
+            this.totalItems = totalItems;
+            this.lastError = lastError == null ? "" : lastError;
+        }
+
+        static PullResult failed(String errorCode) {
+            return new PullResult(new ArrayList<EncryptedRecord>(), 0, 0, 0, errorCode);
         }
     }
 }

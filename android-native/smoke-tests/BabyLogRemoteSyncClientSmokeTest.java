@@ -4,6 +4,7 @@ import app.babylog.nativeapp.BabyLogSyncProtocol;
 import com.sun.net.httpserver.HttpServer;
 
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 
 public final class BabyLogRemoteSyncClientSmokeTest {
@@ -20,6 +21,7 @@ public final class BabyLogRemoteSyncClientSmokeTest {
         assertFalse(familyUrl.contains("family-secret"));
 
         assertHeaderUsesFamilyKeyHashOnly();
+        assertPullEncryptedRecordsUsesHashHeaderAndCursor();
 
         BabyLogRemoteSyncClient.ConnectionResult ok = BabyLogRemoteSyncClient.ConnectionResult.ok("连接成功");
         assertTrue(ok.ok);
@@ -52,6 +54,59 @@ public final class BabyLogRemoteSyncClientSmokeTest {
         assertEquals(64, capturedHeader[0].length());
         assertFalse(capturedHeader[0].contains("family-secret"));
         assertEquals(BabyLogSyncProtocol.hashFamilyKeyForLookup("family-secret"), capturedHeader[0]);
+    }
+
+    private static void assertPullEncryptedRecordsUsesHashHeaderAndCursor() throws Exception {
+        final String expectedHash = BabyLogSyncProtocol.hashFamilyKeyForLookup("family-secret");
+        final String[] capturedHeader = new String[1];
+        final String[] capturedQuery = new String[1];
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/collections/encrypted_records/records", exchange -> {
+            capturedHeader[0] = exchange.getRequestHeaders().getFirst(BabyLogSyncProtocol.HEADER_FAMILY_KEY);
+            capturedQuery[0] = URLDecoder.decode(exchange.getRequestURI().getRawQuery(), "UTF-8");
+            String body = "{"
+                    + "\"page\":2,"
+                    + "\"perPage\":2,"
+                    + "\"totalItems\":3,"
+                    + "\"totalPages\":2,"
+                    + "\"items\":["
+                    + "{\"clientId\":\"client_a\",\"familyKeyHash\":\"" + expectedHash + "\",\"schemaVersion\":1,\"cipherVersion\":1,\"nonce\":\"nonce_a\",\"ciphertext\":\"cipher_a\",\"updatedAtClient\":\"2026-05-25T09:00:00Z\",\"deletedFlag\":0},"
+                    + "{\"clientId\":\"client_b\",\"familyKeyHash\":\"" + expectedHash + "\",\"schemaVersion\":1,\"cipherVersion\":1,\"nonce\":\"nonce_b\",\"ciphertext\":\"cipher_b\",\"updatedAtClient\":\"2026-05-25T10:00:00Z\",\"deletedFlag\":1}"
+                    + "]"
+                    + "}";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        BabyLogRemoteSyncClient.PullResult result;
+        try {
+            int port = server.getAddress().getPort();
+            BabyLogRemoteSyncClient client = new BabyLogRemoteSyncClient();
+            result = client.pullEncryptedRecords(
+                    "http://127.0.0.1:" + port,
+                    "family-secret",
+                    "2026-05-25T08:00:00Z",
+                    2,
+                    2
+            );
+        } finally {
+            server.stop(0);
+        }
+        assertEquals(expectedHash, capturedHeader[0]);
+        assertTrue(capturedQuery[0].contains("familyKeyHash=\"" + expectedHash + "\""));
+        assertTrue(capturedQuery[0].contains("updatedAtClient > \"2026-05-25T08:00:00Z\""));
+        assertTrue(capturedQuery[0].contains("page=2"));
+        assertTrue(capturedQuery[0].contains("perPage=2"));
+        assertEquals(2, result.records.size());
+        assertEquals(2, result.page);
+        assertEquals(2, result.totalPages);
+        assertEquals(3, result.totalItems);
+        assertEquals("client_a", result.records.get(0).clientId);
+        assertEquals("cipher_b", result.records.get(1).ciphertext);
+        assertEquals(1, result.records.get(1).deletedFlag);
+        assertEquals("", result.lastError);
     }
 
     private static void assertEquals(Object expected, Object actual) {
