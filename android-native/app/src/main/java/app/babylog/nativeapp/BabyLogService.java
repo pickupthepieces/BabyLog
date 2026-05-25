@@ -38,6 +38,12 @@ public final class BabyLogService {
         this.attachmentBuilder = new BabyLogAttachmentInputBuilder(this.context);
     }
 
+    private BabyLogService(BabyLogRepository repository) {
+        this.context = null; this.repository = repository; this.attachmentBuilder = null;
+    }
+
+    public static BabyLogService forSmokeTest(BabyLogRepository repository) { return new BabyLogService(repository); }
+
     public BabyLogDomain.BabyLogEvent recordQuickEvent(QuickAction action) throws JSONException {
         JSONObject payload = new JSONObject();
         payload.put("summary", action.label);
@@ -1211,6 +1217,10 @@ public final class BabyLogService {
         return counts;
     }
 
+    public DailyBabySummary dailyBabySummary(String dateInput) {
+        return BabyLogDailySummaryCalculator.calculate(repository.listEvents(), dateInput);
+    }
+
     public String createBackupJson() throws JSONException, IOException {
         JSONObject data = new JSONObject();
         data.put("familyProfiles", repository.exportFamilyProfiles());
@@ -2131,6 +2141,12 @@ public final class BabyLogService {
             this.hint = hint;
             this.toneColor = toneColor;
             this.eventType = eventType;
+        }
+    }
+
+    public static final class DailyBabySummary extends BabyLogDailyBabySummaryBase {
+        DailyBabySummary(BabyLogDailyBabySummaryBase.Values values) {
+            super(values);
         }
     }
 

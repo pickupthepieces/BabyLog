@@ -321,6 +321,7 @@ public final class BabyLogServiceSmokeTest {
 
         assertRepositorySupportsAtomicEventAttachmentSyncWrites(original);
         assertCreateEventPlansSyncChange(original);
+        assertDailyBabySummary();
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -436,6 +437,79 @@ public final class BabyLogServiceSmokeTest {
         }
         payload.put("summary", "睡眠");
         return BabyLogDomain.createEvent("sleep", startIso, payload, Collections.emptyList(), "manual");
+    }
+
+    private static void assertDailyBabySummary() throws Exception {
+        BabyLogRepository emptyRepository = BabyLogRepository.forSmokeTest();
+        BabyLogService.DailyBabySummary empty = BabyLogService.forSmokeTest(emptyRepository).dailyBabySummary("2026-05-25");
+        assertEquals(0, empty.feedCount);
+        assertEquals(0, empty.feedTotalMl);
+        assertEquals("", empty.feedLastTime);
+        assertEquals(0, empty.sleepTotalMinutes);
+        assertEquals(0, empty.sleepIncompleteCount);
+        assertEquals(0, empty.peeCount);
+        assertEquals(0, empty.poopCount);
+        assertEquals(0, empty.diaperCount);
+        assertTrue(Double.isNaN(empty.temperatureMax));
+        assertTrue(Double.isNaN(empty.temperatureMin));
+        assertEquals("", empty.temperatureLastTime);
+        assertEquals("", empty.medicationLastName);
+        assertEquals("", empty.medicationLastTime);
+        assertEquals(0, empty.milestoneCount);
+
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        repository.putEvent(babyEvent("feed", "2026-05-25T08:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.feed("奶瓶", "120", ""))));
+        repository.putEvent(babyEvent("bottle", "2026-05-25T10:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.bottle("90", "A2", ""))));
+        repository.putEvent(babyEvent("breastfeed", "2026-05-25T11:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.breastfeed("12", "8", ""))));
+        repository.putEvent(sleepEvent("2026-05-25T23:00:00.000+0800", "2026-05-26T06:30:00.000+0800"));
+        repository.putEvent(sleepEvent("2026-05-25T12:00:00.000+0800", ""));
+        repository.putEvent(babyEvent("pee", "2026-05-25T13:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.quick("pee", "偏多", ""))));
+        repository.putEvent(babyEvent("poop", "2026-05-25T15:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.quick("poop", "软便", ""))));
+        repository.putEvent(babyEvent("diaper", "2026-05-25T15:30:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.diaper("尿便混合", "量多", "黄色软便", ""))));
+        repository.putEvent(babyEvent("temperature", "2026-05-25T09:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.temperature("36.7", "腋温", ""))));
+        repository.putEvent(babyEvent("temperature", "2026-05-25T14:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.temperature("37.4", "腋温", ""))));
+        repository.putEvent(babyEvent("medication", "2026-05-25T16:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.medication("布洛芬", "2 ml", ""))));
+        JSONObject milestonePayload = new JSONObject();
+        milestonePayload.put("summary", "会翻身");
+        repository.putEvent(babyEvent("milestone", "2026-05-25T17:00:00.000+0800", milestonePayload));
+        JSONObject ultrasoundPayload = new JSONObject();
+        ultrasoundPayload.put("summary", "B 超");
+        repository.putEvent(babyEvent("ultrasound", "2026-05-25T18:00:00.000+0800", ultrasoundPayload));
+
+        BabyLogService service = BabyLogService.forSmokeTest(repository);
+        BabyLogService.DailyBabySummary day = service.dailyBabySummary("2026-05-25");
+        assertEquals("2026-05-25", day.dateInput);
+        assertEquals(3, day.feedCount);
+        assertEquals(210, day.feedTotalMl);
+        assertEquals("2026-05-25T11:00:00.000+0800", day.feedLastTime);
+        assertEquals(450, day.sleepTotalMinutes);
+        assertEquals(1, day.sleepIncompleteCount);
+        assertEquals(2, day.peeCount);
+        assertEquals(2, day.poopCount);
+        assertEquals(1, day.diaperCount);
+        assertEquals(37.4, day.temperatureMax);
+        assertEquals(36.7, day.temperatureMin);
+        assertEquals("2026-05-25T14:00:00.000+0800", day.temperatureLastTime);
+        assertEquals("布洛芬", day.medicationLastName);
+        assertEquals("2026-05-25T16:00:00.000+0800", day.medicationLastTime);
+        assertEquals(1, day.milestoneCount);
+
+        BabyLogService.DailyBabySummary nextDay = service.dailyBabySummary("2026-05-26");
+        assertEquals(0, nextDay.sleepTotalMinutes);
+        assertEquals(0, nextDay.feedCount);
+    }
+
+    private static BabyLogDomain.BabyLogEvent babyEvent(String eventType, String occurredAt, JSONObject payload) {
+        return BabyLogDomain.createEvent(eventType, occurredAt, payload, Collections.emptyList(), "manual");
     }
 
     private interface ThrowingRunnable {
