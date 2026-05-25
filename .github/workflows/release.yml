@@ -1,0 +1,184 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TZ: Asia/Shanghai
+      BABYLOG_RELEASE_KEYSTORE_BASE64: ${{ secrets.BABYLOG_RELEASE_KEYSTORE_BASE64 }}
+      BABYLOG_RELEASE_STORE_PASSWORD: ${{ secrets.BABYLOG_RELEASE_STORE_PASSWORD }}
+      BABYLOG_RELEASE_KEY_ALIAS: ${{ secrets.BABYLOG_RELEASE_KEY_ALIAS }}
+      BABYLOG_RELEASE_KEY_PASSWORD: ${{ secrets.BABYLOG_RELEASE_KEY_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION_NAME="${TAG#v}"
+          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo "::error::Tag must look like vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease, got: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION_NAME" =~ - ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify build.gradle versionName matches tag
+        shell: bash
+        run: |
+          GRADLE_VERSION_NAME=$(grep -oE "versionName '[^']+'" android-native/app/build.gradle | sed "s/versionName '//;s/'//")
+          if [[ "$GRADLE_VERSION_NAME" != "${{ steps.version.outputs.version_name }}" ]]; then
+            echo "::error::build.gradle versionName=$GRADLE_VERSION_NAME does not match tag versionName=${{ steps.version.outputs.version_name }}"
+            exit 1
+          fi
+          echo "versionName match: $GRADLE_VERSION_NAME"
+
+      - name: Read versionCode from build.gradle
+        id: version_code
+        shell: bash
+        run: |
+          VC=$(grep -oE "versionCode [0-9]+" android-native/app/build.gradle | awk '{print $2}')
+          if [[ -z "$VC" ]]; then
+            echo "::error::Failed to read versionCode from build.gradle"
+            exit 1
+          fi
+          echo "version_code=$VC" >> "$GITHUB_OUTPUT"
+          echo "versionCode: $VC"
+
+      - name: Extract CHANGELOG section for this version
+        id: notes
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version_name }}"
+          if [[ ! -f CHANGELOG.md ]]; then
+            echo "::warning::CHANGELOG.md not found; release notes will be empty"
+            echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+            echo "本次发布未提供 CHANGELOG。" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Extract section between `## [VERSION]` and next `## ` heading
+          SECTION=$(awk -v ver="## [$VERSION]" '
+            $0 ~ "^"ver { in_section=1; next }
+            in_section && /^## / { exit }
+            in_section { print }
+          ' CHANGELOG.md | sed '/./,$!d' | awk '{lines[NR]=$0} END{for(i=NR;i>0;i--) if(lines[i]!="") last=i; for(i=1;i<=last;i++) print lines[i]}')
+          if [[ -z "$SECTION" ]]; then
+            echo "::warning::No CHANGELOG section found for version $VERSION; using fallback note"
+            SECTION="本次发布未提供 CHANGELOG。"
+          fi
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$SECTION" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Lint debug
+        run: cd android-native && ./gradlew :app:lintDebug --console=plain
+
+      - name: Detekt
+        run: cd android-native && ./gradlew :app:detekt --console=plain
+
+      - name: Prepare release signing
+        if: env.BABYLOG_RELEASE_KEYSTORE_BASE64 != ''
+        shell: bash
+        run: |
+          cd android-native
+          echo "$BABYLOG_RELEASE_KEYSTORE_BASE64" | base64 --decode > release.jks
+          {
+            echo "BABYLOG_RELEASE_STORE_FILE=release.jks"
+            echo "BABYLOG_RELEASE_STORE_PASSWORD=$BABYLOG_RELEASE_STORE_PASSWORD"
+            echo "BABYLOG_RELEASE_KEY_ALIAS=$BABYLOG_RELEASE_KEY_ALIAS"
+            echo "BABYLOG_RELEASE_KEY_PASSWORD=$BABYLOG_RELEASE_KEY_PASSWORD"
+          } > signing.properties
+
+      - name: Verify signing properties exist
+        shell: bash
+        run: |
+          if [[ ! -f android-native/signing.properties ]]; then
+            echo "::error::Signing properties missing; release secrets must be configured."
+            exit 1
+          fi
+
+      - name: Assemble signed release
+        run: cd android-native && ./gradlew :app:assembleRelease --console=plain
+
+      - name: Locate release APK
+        id: apk
+        shell: bash
+        run: |
+          APK_PATH=$(find android-native/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [[ -z "$APK_PATH" ]]; then
+            echo "::error::No release APK produced"
+            exit 1
+          fi
+          TARGET_NAME="BabyLog-${{ steps.version.outputs.version_name }}.apk"
+          cp "$APK_PATH" "$RUNNER_TEMP/$TARGET_NAME"
+          echo "path=$RUNNER_TEMP/$TARGET_NAME" >> "$GITHUB_OUTPUT"
+          echo "name=$TARGET_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Compute SHA-256
+        id: sha
+        shell: bash
+        run: |
+          SUM=$(sha256sum "${{ steps.apk.outputs.path }}" | awk '{print $1}')
+          echo "sha256=$SUM" >> "$GITHUB_OUTPUT"
+          echo "SHA-256: $SUM"
+
+      - name: Generate update manifest
+        id: manifest
+        shell: bash
+        run: |
+          MANIFEST="$RUNNER_TEMP/babylog-update.json"
+          NOTES_ESCAPED=$(printf '%s' "${{ steps.notes.outputs.notes }}" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          cat > "$MANIFEST" <<EOF
+          {
+            "versionCode": ${{ steps.version_code.outputs.version_code }},
+            "versionName": "${{ steps.version.outputs.version_name }}",
+            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/${{ steps.apk.outputs.name }}",
+            "sha256": "${{ steps.sha.outputs.sha256 }}",
+            "notes": $NOTES_ESCAPED
+          }
+          EOF
+          echo "path=$MANIFEST" >> "$GITHUB_OUTPUT"
+          echo "--- manifest ---"
+          cat "$MANIFEST"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: BabyLog ${{ steps.version.outputs.version_name }}
+          body: ${{ steps.notes.outputs.notes }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.manifest.outputs.path }}
+          fail_on_unmatched_files: true
