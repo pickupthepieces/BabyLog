@@ -27,10 +27,10 @@
             path="babylog_pre_visit.xml" />
         <exclude
             domain="file"
-            path="attachments" />
+            path="attachments/" />
         <exclude
             domain="file"
-            path="camera-captures" />
+            path="camera-captures/" />
         <exclude
             domain="external"
             path="Pictures/camera-captures" />
@@ -65,10 +65,10 @@
             path="babylog_pre_visit.xml" />
         <exclude
             domain="file"
-            path="attachments" />
+            path="attachments/" />
         <exclude
             domain="file"
-            path="camera-captures" />
+            path="camera-captures/" />
         <exclude
             domain="external"
             path="Pictures/camera-captures" />
