@@ -11,6 +11,7 @@ public final class BabyLogFamilyKeyDeriver {
     private static final byte[] INFO_LOOKUP = "lookup/v1".getBytes(StandardCharsets.UTF_8);
     private static final byte[] INFO_DATA = "data/v1".getBytes(StandardCharsets.UTF_8);
     private static final byte[] INFO_INDEX = "index/v1".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] INFO_ATTACHMENT = "attachment/v1".getBytes(StandardCharsets.UTF_8);
     private static final int KEY_BYTES = 32;
 
     private BabyLogFamilyKeyDeriver() {
@@ -26,6 +27,10 @@ public final class BabyLogFamilyKeyDeriver {
 
     public static byte[] deriveIndexKey(String familyKey) {
         return derive(familyKey, INFO_INDEX);
+    }
+
+    public static byte[] deriveAttachmentKey(String familyKey) {
+        return derive(familyKey, INFO_ATTACHMENT);
     }
 
     public static String lookupHashHex(String familyKey) {

@@ -9,13 +9,19 @@ public final class BabyLogFamilyKeyDeriverSmokeTest {
         byte[] lookup = BabyLogFamilyKeyDeriver.deriveLookupKey(" family-secret ");
         byte[] data = BabyLogFamilyKeyDeriver.deriveDataKey("family-secret");
         byte[] index = BabyLogFamilyKeyDeriver.deriveIndexKey("family-secret");
+        byte[] attachment = BabyLogFamilyKeyDeriver.deriveAttachmentKey("family-secret");
 
         assertEquals(32, lookup.length);
         assertEquals(32, data.length);
         assertEquals(32, index.length);
+        assertEquals(32, attachment.length);
         assertTrue(Arrays.equals(lookup, BabyLogFamilyKeyDeriver.deriveLookupKey("family-secret")));
+        assertTrue(Arrays.equals(attachment, BabyLogFamilyKeyDeriver.deriveAttachmentKey(" family-secret ")));
         assertFalse(Arrays.equals(lookup, data));
         assertFalse(Arrays.equals(data, index));
+        assertFalse(Arrays.equals(data, attachment));
+        assertFalse(Arrays.equals(index, attachment));
+        assertFalse(Arrays.equals(lookup, attachment));
         assertFalse(Arrays.equals(lookup, BabyLogFamilyKeyDeriver.deriveLookupKey("another-family")));
 
         String composed = "\u00e9-family";
