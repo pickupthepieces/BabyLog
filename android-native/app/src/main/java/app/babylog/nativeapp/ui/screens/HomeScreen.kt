@@ -51,6 +51,10 @@ internal fun HomeScreen(
             null
         }
     }
+    var babyDayViewMode by rememberSaveable { mutableStateOf(BabyDayViewMode.Timeline) }
+    val babyTimelineSlots = remember(state.timeline, selectedBabyDay) {
+        BabyLogBabyDayTimelineSlots.compute(state.timeline, selectedBabyDay)
+    }
     val listState = rememberLazyListState()
     val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
     val railTargetVisible = remember { mutableStateOf(true) }
@@ -121,23 +125,34 @@ internal fun HomeScreen(
                     BabyLogFormatters.recordDay(it.occurredAt) == selectedBabyDay && isEventVisibleInHome(it, stage)
                 }
                 item { babyDailySummary?.let { DailyBabySummaryCard(it) } }
-                item { BabyDaySummary(dayEvents, selectedBabyDay) }
                 item {
-                    SectionHeader(
-                        title = if (selectedBabyDay == BabyLogFormatters.todayDateInput()) "今天记录" else "当天记录"
+                    BabyDayViewSwitcher(
+                        mode = babyDayViewMode,
+                        onModeChange = { babyDayViewMode = it }
                     )
                 }
-                if (dayEvents.isEmpty()) {
-                    item { EmptyPanel("这一天还没有记录") }
-                } else {
-                    items(dayEvents, key = { it.id }) { event ->
-                        TimelineRow(
-                            event,
-                            highlighted = event.id == highlightedEventId,
-                            onClick = { onOpenDetail(event) },
-                            onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                            onDelete = { onDeleteEvent(event) }
+                if (babyDayViewMode == BabyDayViewMode.Timeline) {
+                    item {
+                        BabyDayTimeline(
+                            slots = babyTimelineSlots,
+                            onEventClick = { eventId ->
+                                state.timeline.firstOrNull { it.id == eventId }?.let(onOpenDetail)
+                            }
                         )
+                    }
+                } else {
+                    if (dayEvents.isEmpty()) {
+                        item { EmptyPanel("这一天还没有记录") }
+                    } else {
+                        items(dayEvents, key = { it.id }) { event ->
+                            TimelineRow(
+                                event,
+                                highlighted = event.id == highlightedEventId,
+                                onClick = { onOpenDetail(event) },
+                                onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
+                                onDelete = { onDeleteEvent(event) }
+                            )
+                        }
                     }
                 }
             }
