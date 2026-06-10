@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.Scaffold
+import androidx.compose.material.SnackbarDuration
+import androidx.compose.material.SnackbarResult
+import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +31,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.babylog.nativeapp.ui.screens.BabyLogRoutes
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val QUICK_RAIL_ENTER_SLIDE_MILLIS = 280
 private const val QUICK_RAIL_ENTER_EXPAND_MILLIS = 260
@@ -35,6 +39,7 @@ private const val QUICK_RAIL_ENTER_FADE_MILLIS = 180
 private const val QUICK_RAIL_EXIT_SLIDE_MILLIS = 220
 private const val QUICK_RAIL_EXIT_SHRINK_MILLIS = 210
 private const val QUICK_RAIL_EXIT_FADE_MILLIS = 130
+private const val QUICK_UNDO_SNACKBAR_MILLIS = 5_000L
 
 @Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "FunctionNaming")
 @Composable
@@ -73,6 +78,7 @@ internal fun BabyLogApp(
     val onSmartVoiceHoldStart = navigationActions.onSmartVoiceHoldStart
     val onSmartVoiceHoldEnd = navigationActions.onSmartVoiceHoldEnd
     val quickActions = homeState.quickActions
+    val quickUndoRequest = homeState.quickUndoRequest
     val onQuickAction = navigationActions.onQuickAction
     val attachmentListPageState = libraryState.attachmentListPageState
     val previewAttachment = libraryState.previewAttachment
@@ -190,6 +196,7 @@ internal fun BabyLogApp(
     val onSmartEntryCandidateDismiss = smartEntryActions.onCandidateDismiss
     val state = uiState
     val navController = rememberNavController()
+    val scaffoldState = rememberScaffoldState()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     val activeTab = if (BabyLogRoutes.isTopLevel(currentRoute)) currentRoute ?: BabyLogRoutes.Home else BabyLogRoutes.Home
@@ -254,6 +261,23 @@ internal fun BabyLogApp(
     LaunchedEffect(activeTab) {
         quickRailVisible = true
     }
+    LaunchedEffect(quickUndoRequest?.nonce) {
+        val request = quickUndoRequest ?: return@LaunchedEffect
+        val result = withTimeoutOrNull(QUICK_UNDO_SNACKBAR_MILLIS) {
+            scaffoldState.snackbarHostState.showSnackbar(
+                message = "已记录：${request.label}",
+                actionLabel = "撤销",
+                duration = SnackbarDuration.Indefinite
+            )
+        }
+        if (result == null) {
+            scaffoldState.snackbarHostState.currentSnackbarData?.dismiss()
+        }
+        navigationActions.onQuickUndoRequestConsumed(request.nonce)
+        if (result == SnackbarResult.ActionPerformed) {
+            navigationActions.onUndoQuickEvent(request.eventId)
+        }
+    }
     fun closeRecord(onCancel: () -> Unit) {
         onCancel()
         if (!navController.popBackStack()) {
@@ -307,6 +331,7 @@ internal fun BabyLogApp(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            scaffoldState = scaffoldState,
             backgroundColor = ChestnutPalette.Bg,
             topBar = {
                 if (state.disclaimerAccepted &&

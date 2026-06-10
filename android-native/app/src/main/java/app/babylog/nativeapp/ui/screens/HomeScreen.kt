@@ -189,7 +189,7 @@ internal fun HomeScreen(
             }
             if (stage == BabyLogDomain.STAGE_PREGNANCY) {
                 item { FetalGrowthPanel(state.timeline) }
-            } else if (!pregnancyDerivedUiMuted) {
+            } else if (!pregnancyDerivedUiMuted && shouldShowTrendPanel(state.timeline, stage)) {
                 item { SectionHeader(title = "趋势") }
                 item { TrendPanel(state.timeline, stage) }
             }
@@ -294,5 +294,18 @@ private fun prenatalScreeningSuggestions(gestationalDays: Int): List<PrenatalScr
         if (inWindow(24, 28, 0)) add(PrenatalScreeningSuggestion("screening_ogtt", "糖耐 OGTT", "24-28 周"))
         if (gestationalDays >= 32 * 7) add(PrenatalScreeningSuggestion("screening_nst", "胎心监护 NST", "32 周后按医嘱"))
         if (inWindow(35, 37, 0)) add(PrenatalScreeningSuggestion("screening_gbs", "GBS", "35-37 周"))
+    }
+}
+
+private fun shouldShowTrendPanel(events: List<BabyLogDomain.BabyLogEvent>, stage: String): Boolean {
+    if (stage != BabyLogDomain.STAGE_BABY) {
+        return true
+    }
+    return events.any { event ->
+        event.eventType == "growth" &&
+            event.deletedAt == null &&
+            (event.payload.has("weightKg") ||
+                event.payload.has("heightCm") ||
+                event.payload.has("headCircumferenceCm"))
     }
 }

@@ -13,6 +13,7 @@ internal class HomeViewModel : ViewModel() {
     var highlightedEventId by mutableStateOf<String?>(null)
     var timelineFilter by mutableStateOf("all")
     var selectedBabyDay by mutableStateOf(BabyLogFormatters.todayDateInput())
+    var quickUndoRequest by mutableStateOf<QuickUndoRequest?>(null)
     var attachmentListPageState by mutableStateOf<AttachmentListPageState?>(null)
     var previewAttachment by mutableStateOf<BabyLogDomain.AttachmentRecord?>(null)
 }

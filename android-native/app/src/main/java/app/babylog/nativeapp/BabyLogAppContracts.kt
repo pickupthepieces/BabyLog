@@ -25,7 +25,14 @@ internal data class BabyLogNavigationState(
 )
 
 internal data class BabyLogHomeState(
-    val quickActions: List<BabyLogService.QuickAction>
+    val quickActions: List<BabyLogService.QuickAction>,
+    val quickUndoRequest: QuickUndoRequest? = null
+)
+
+internal data class QuickUndoRequest(
+    val eventId: String,
+    val label: String,
+    val nonce: Long
 )
 
 internal data class BabyLogLibraryState(
@@ -97,7 +104,9 @@ internal data class BabyLogNavigationActions(
     val onSmartEntryClick: (String) -> Unit,
     val onSmartVoiceHoldStart: (String) -> Unit,
     val onSmartVoiceHoldEnd: (String) -> Unit,
-    val onQuickAction: (BabyLogService.QuickAction, String) -> String?
+    val onQuickAction: (BabyLogService.QuickAction, String) -> String?,
+    val onQuickUndoRequestConsumed: (Long) -> Unit,
+    val onUndoQuickEvent: (String) -> Unit
 )
 
 internal data class BabyLogLibraryActions(

@@ -87,6 +87,9 @@ public final class ComposeMainActivity : ComponentActivity() {
     private var selectedBabyDay: String
         get() = homeViewModel.selectedBabyDay
         set(value) { homeViewModel.selectedBabyDay = value }
+    private var quickUndoRequest: QuickUndoRequest?
+        get() = homeViewModel.quickUndoRequest
+        set(value) { homeViewModel.quickUndoRequest = value }
     private var babyCareAction: BabyLogService.QuickAction?
         get() = recordViewModel.babyCareAction
         set(value) { recordViewModel.babyCareAction = value }
@@ -282,7 +285,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                         selectedBabyDay = selectedBabyDay
                     ),
                     home = BabyLogHomeState(
-                        quickActions = quickActions()
+                        quickActions = quickActions(),
+                        quickUndoRequest = quickUndoRequest
                     ),
                     library = BabyLogLibraryState(
                         attachmentListPageState = attachmentListPageState,
@@ -351,7 +355,9 @@ public final class ComposeMainActivity : ComponentActivity() {
                         onQuickAction = { action, sourceRoute ->
                             recordReturnRoute = sourceRoute
                             handleQuickAction(action)
-                        }
+                        },
+                        onQuickUndoRequestConsumed = ::consumeQuickUndoRequest,
+                        onUndoQuickEvent = ::undoQuickEvent
                     ),
                     library = BabyLogLibraryActions(
                         onShowAttachments = { title, attachments ->
@@ -927,11 +933,32 @@ public final class ComposeMainActivity : ComponentActivity() {
     private fun recordQuickAction(action: BabyLogService.QuickAction) {
         runInBackground {
             try {
-                service.recordQuickEvent(action)
-                showToast("已记录：${action.label}")
+                val event = service.recordQuickEvent(action)
+                runOnUiThread {
+                    quickUndoRequest = QuickUndoRequest(event.id, action.label, System.nanoTime())
+                }
                 reloadData()
             } catch (error: Exception) {
                 showBabyLogError("保存失败", "无法保存记录", error)
+            }
+        }
+    }
+
+    private fun consumeQuickUndoRequest(nonce: Long) {
+        val current = quickUndoRequest
+        if (current != null && current.nonce == nonce) {
+            quickUndoRequest = null
+        }
+    }
+
+    private fun undoQuickEvent(eventId: String) {
+        runInBackground {
+            try {
+                service.deleteEvent(eventId)
+                showToast("已撤销记录")
+                reloadData()
+            } catch (error: Exception) {
+                showBabyLogError("撤销失败", "无法撤销这条记录", error)
             }
         }
     }

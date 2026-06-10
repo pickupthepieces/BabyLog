@@ -346,6 +346,7 @@ public final class BabyLogServiceSmokeTest {
         assertSuccessfulWriteTriggersSync();
         assertQuickSleepWakeClosure();
         assertBabyCareOccurredTimeBackfill();
+        assertQuickUndoUsesTrashDelete();
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -619,6 +620,19 @@ public final class BabyLogServiceSmokeTest {
         );
         assertEquals("2026-05-25T04:15:00.000+0800", edited.occurredAt);
         assertEquals(feed.createdAt, edited.createdAt);
+    }
+
+    private static void assertQuickUndoUsesTrashDelete() throws Exception {
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        BabyLogService service = BabyLogService.forSmokeTest(repository);
+        BabyLogDomain.BabyLogEvent event = service.recordQuickEvent(
+                new BabyLogService.QuickAction("尿尿", "一拍即记", 0, "pee")
+        );
+        BabyLogDomain.BabyLogEvent deleted = service.deleteEvent(event.id);
+        assertTrue(deleted.deletedAt != null);
+        assertEquals(0, service.listTimelineEvents().size());
+        assertEquals(1, service.listTrashEvents().size());
+        assertEquals(event.id, service.listTrashEvents().get(0).id);
     }
 
     private static void assertServiceExceptionTypes() throws Exception {
