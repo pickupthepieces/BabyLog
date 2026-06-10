@@ -1287,7 +1287,7 @@ public final class BabyLogService {
         return counts;
     }
 
-    public DailyBabySummary dailyBabySummary(String dateInput) {
+    public BabyLogDailyBabySummary dailyBabySummary(String dateInput) {
         return BabyLogDailySummaryCalculator.calculate(repository.listEvents(), dateInput);
     }
 
@@ -2115,12 +2115,6 @@ public final class BabyLogService {
             this.hint = hint;
             this.toneColor = toneColor;
             this.eventType = eventType;
-        }
-    }
-
-    public static final class DailyBabySummary extends BabyLogDailyBabySummaryBase {
-        DailyBabySummary(BabyLogDailyBabySummaryBase.Values values) {
-            super(values);
         }
     }
 

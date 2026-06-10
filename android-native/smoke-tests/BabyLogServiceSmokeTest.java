@@ -3,6 +3,7 @@ import static app.babylog.nativeapp.SmokeAssert.*;
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogException;
 import app.babylog.nativeapp.BabyLogBabyDayTimelineSlots;
+import app.babylog.nativeapp.BabyLogDailyBabySummary;
 import app.babylog.nativeapp.BabyLogFormatters;
 import app.babylog.nativeapp.BabyLogRepository;
 import app.babylog.nativeapp.BabyLogService;
@@ -446,7 +447,7 @@ public final class BabyLogServiceSmokeTest {
 
     private static void assertDailyBabySummary() throws Exception {
         BabyLogRepository emptyRepository = BabyLogRepository.forSmokeTest();
-        BabyLogService.DailyBabySummary empty = BabyLogService.forSmokeTest(emptyRepository).dailyBabySummary("2026-05-25");
+        BabyLogDailyBabySummary empty = BabyLogService.forSmokeTest(emptyRepository).dailyBabySummary("2026-05-25");
         assertEquals(0, empty.feedCount);
         assertEquals(0, empty.feedTotalMl);
         assertEquals("", empty.feedLastTime);
@@ -494,7 +495,7 @@ public final class BabyLogServiceSmokeTest {
         repository.putEvent(babyEvent("ultrasound", "2026-05-25T18:00:00.000+0800", ultrasoundPayload));
 
         BabyLogService service = BabyLogService.forSmokeTest(repository);
-        BabyLogService.DailyBabySummary day = service.dailyBabySummary("2026-05-25");
+        BabyLogDailyBabySummary day = service.dailyBabySummary("2026-05-25");
         assertEquals("2026-05-25", day.dateInput);
         assertEquals(3, day.feedCount);
         assertEquals(210, day.feedTotalMl);
@@ -511,7 +512,7 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("2026-05-25T16:00:00.000+0800", day.medicationLastTime);
         assertEquals(1, day.milestoneCount);
 
-        BabyLogService.DailyBabySummary nextDay = service.dailyBabySummary("2026-05-26");
+        BabyLogDailyBabySummary nextDay = service.dailyBabySummary("2026-05-26");
         assertEquals(0, nextDay.sleepTotalMinutes);
         assertEquals(0, nextDay.feedCount);
     }
@@ -558,7 +559,7 @@ public final class BabyLogServiceSmokeTest {
         assertTrue(BabyLogService.sleepDurationMinutes(closedSleep).isPresent());
         assertTrue(BabyLogService.sleepDurationMinutes(closedSleep).getAsInt() > 0);
         assertEquals("已闭合睡眠段", wake.payload.optString("note"));
-        BabyLogService.DailyBabySummary summary = service.dailyBabySummary(BabyLogFormatters.recordDay(sleepStart));
+        BabyLogDailyBabySummary summary = service.dailyBabySummary(BabyLogFormatters.recordDay(sleepStart));
         assertTrue(summary.sleepTotalMinutes > 0);
 
         String closedAt = closedSleep.payload.optString("sleepEnd");

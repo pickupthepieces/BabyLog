@@ -9,7 +9,7 @@ final class BabyLogDailySummaryCalculator {
     private BabyLogDailySummaryCalculator() {
     }
 
-    static BabyLogService.DailyBabySummary calculate(List<BabyLogDomain.BabyLogEvent> events, String dateInput) {
+    static BabyLogDailyBabySummary calculate(List<BabyLogDomain.BabyLogEvent> events, String dateInput) {
         String day = isBlank(dateInput) ? BabyLogFormatters.todayDateInput() : dateInput.trim();
         Builder builder = new Builder(day);
         if (events == null) {
@@ -167,8 +167,8 @@ final class BabyLogDailySummaryCalculator {
             }
         }
 
-        BabyLogService.DailyBabySummary build() {
-            return new BabyLogService.DailyBabySummary(new BabyLogDailyBabySummaryBase.Values(
+        BabyLogDailyBabySummary build() {
+            return new BabyLogDailyBabySummary(
                     dateInput,
                     feedCount,
                     feedTotalMl,
@@ -184,7 +184,7 @@ final class BabyLogDailySummaryCalculator {
                     medicationLastName,
                     medicationLastTime,
                     milestoneCount
-            ));
+            );
         }
     }
 }

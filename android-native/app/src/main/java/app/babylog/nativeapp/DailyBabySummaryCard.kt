@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 @Suppress("FunctionNaming")
-internal fun DailyBabySummaryCard(summary: BabyLogService.DailyBabySummary) {
+internal fun DailyBabySummaryCard(summary: BabyLogDailyBabySummary) {
     val rows = dailyBabySummaryRows(summary)
     if (rows.isEmpty()) return
     Panel {
@@ -39,7 +39,7 @@ private data class DailyBabySummaryRow(
     val value: String
 )
 
-private fun dailyBabySummaryRows(summary: BabyLogService.DailyBabySummary): List<DailyBabySummaryRow> {
+private fun dailyBabySummaryRows(summary: BabyLogDailyBabySummary): List<DailyBabySummaryRow> {
     return listOfNotNull(
         feedSummaryRow(summary),
         sleepSummaryRow(summary),
@@ -50,13 +50,13 @@ private fun dailyBabySummaryRows(summary: BabyLogService.DailyBabySummary): List
     )
 }
 
-private fun feedSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBabySummaryRow? {
+private fun feedSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     if (summary.feedCount <= 0) return null
     val amount = if (summary.feedTotalMl > 0) " / ${summary.feedTotalMl} mL" else ""
     return DailyBabySummaryRow("喂养", "${countLabel(summary.feedCount)}$amount${summaryTimeSuffix(summary.feedLastTime)}")
 }
 
-private fun sleepSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBabySummaryRow? {
+private fun sleepSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     if (summary.sleepTotalMinutes <= 0 && summary.sleepIncompleteCount <= 0) return null
     val parts = mutableListOf<String>()
     if (summary.sleepTotalMinutes > 0) {
@@ -68,7 +68,7 @@ private fun sleepSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBaby
     return DailyBabySummaryRow("睡眠", parts.joinToString(" · "))
 }
 
-private fun diaperSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBabySummaryRow? {
+private fun diaperSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     val parts = mutableListOf<String>()
     if (summary.peeCount > 0) parts += "尿 ${countLabel(summary.peeCount)}"
     if (summary.poopCount > 0) parts += "便 ${countLabel(summary.poopCount)}"
@@ -76,7 +76,7 @@ private fun diaperSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBab
     return parts.takeIf { it.isNotEmpty() }?.let { DailyBabySummaryRow("尿布", it.joinToString(" · ")) }
 }
 
-private fun temperatureSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBabySummaryRow? {
+private fun temperatureSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     if (summary.temperatureMin.isNaN() || summary.temperatureMax.isNaN()) return null
     val temperature = if (summary.temperatureMin == summary.temperatureMax) {
         "${BabyLogFormatters.formatNumber(summary.temperatureMax)} ℃"
@@ -86,13 +86,13 @@ private fun temperatureSummaryRow(summary: BabyLogService.DailyBabySummary): Dai
     return DailyBabySummaryRow("体温", temperature + summaryTimeSuffix(summary.temperatureLastTime))
 }
 
-private fun medicationSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBabySummaryRow? {
+private fun medicationSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     if (summary.medicationLastName.isBlank() && summary.medicationLastTime.isBlank()) return null
     val name = summary.medicationLastName.ifBlank { "最近一次" }
     return DailyBabySummaryRow("用药", "$name${summaryTimeSuffix(summary.medicationLastTime)}")
 }
 
-private fun milestoneSummaryRow(summary: BabyLogService.DailyBabySummary): DailyBabySummaryRow? {
+private fun milestoneSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     return if (summary.milestoneCount > 0) DailyBabySummaryRow("里程碑", countLabel(summary.milestoneCount)) else null
 }
 
