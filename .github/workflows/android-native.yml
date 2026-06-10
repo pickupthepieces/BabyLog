@@ -89,6 +89,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullOrchestrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncAttachmentDownloader.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogQuickEventRecorder.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryStringStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryCollectionStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogLegacyCollectionMigrator.java \

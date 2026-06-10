@@ -10,12 +10,16 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public final class BabyLogServiceSmokeTest {
     public static void main(String[] args) throws Exception {
@@ -339,6 +343,7 @@ public final class BabyLogServiceSmokeTest {
         assertServiceExceptionTypes();
         assertDailyBabySummary();
         assertSuccessfulWriteTriggersSync();
+        assertQuickSleepWakeClosure();
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -556,6 +561,42 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(1, trigger.count);
     }
 
+    private static void assertQuickSleepWakeClosure() throws Exception {
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        BabyLogService service = BabyLogService.forSmokeTest(repository);
+        BabyLogService.QuickAction sleepAction = new BabyLogService.QuickAction("睡眠", "", 0, "sleep");
+        BabyLogService.QuickAction wakeAction = new BabyLogService.QuickAction("起床", "", 0, "wake");
+
+        BabyLogDomain.BabyLogEvent quickSleep = service.recordQuickEvent(sleepAction);
+        assertEquals(quickSleep.occurredAt, quickSleep.payload.optString("sleepStart"));
+        String sleepStart = shiftIsoMinutes(quickSleep.occurredAt, -30);
+        JSONObject openPayload = new JSONObject(quickSleep.payload.toString());
+        openPayload.put("sleepStart", sleepStart);
+        BabyLogDomain.BabyLogEvent openSleep = BabyLogService.createEditedEvent(
+                quickSleep,
+                "sleep",
+                openPayload,
+                quickSleep.attachmentIds,
+                sleepStart
+        );
+        repository.putEvent(openSleep);
+
+        BabyLogDomain.BabyLogEvent wake = service.recordQuickEvent(wakeAction);
+        BabyLogDomain.BabyLogEvent closedSleep = repository.findEventById(openSleep.id);
+        assertEquals(wake.occurredAt, closedSleep.payload.optString("sleepEnd"));
+        assertTrue(BabyLogService.sleepDurationMinutes(closedSleep).isPresent());
+        assertTrue(BabyLogService.sleepDurationMinutes(closedSleep).getAsInt() > 0);
+        assertEquals("已闭合睡眠段", wake.payload.optString("note"));
+        BabyLogService.DailyBabySummary summary = service.dailyBabySummary(BabyLogFormatters.recordDay(sleepStart));
+        assertTrue(summary.sleepTotalMinutes > 0);
+
+        String closedAt = closedSleep.payload.optString("sleepEnd");
+        BabyLogDomain.BabyLogEvent secondWake = service.recordQuickEvent(wakeAction);
+        BabyLogDomain.BabyLogEvent afterSecondWake = repository.findEventById(openSleep.id);
+        assertEquals(closedAt, afterSecondWake.payload.optString("sleepEnd"));
+        assertEquals("", secondWake.payload.optString("note"));
+    }
+
     private static void assertServiceExceptionTypes() throws Exception {
         BabyLogService service = BabyLogService.forSmokeTest(BabyLogRepository.forSmokeTest());
         assertThrowsType(
@@ -574,6 +615,16 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogException.ValidationException.class,
                 () -> service.importBackupJson("{}")
         );
+    }
+
+    private static String shiftIsoMinutes(String iso, int minutes) {
+        long millis = BabyLogFormatters.parseIsoMillis(iso);
+        if (millis <= 0L) {
+            return iso;
+        }
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US);
+        format.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+        return format.format(new Date(millis + minutes * 60_000L));
     }
 
     private interface ThrowingRunnable {

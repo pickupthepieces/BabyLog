@@ -58,20 +58,8 @@ public final class BabyLogService {
             throw new BabyLogException.ValidationException("快捷记录不能为空");
         }
         try {
-            JSONObject payload = new JSONObject();
-            payload.put("summary", action.label);
-            payload.put("quickAction", action.label);
-            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                    action.eventType,
-                    BabyLogFormatters.nowIso(),
-                    payload,
-                    Collections.emptyList(),
-                    "manual"
-            );
-            BabyLogDomain.ChildProfile profileUpdate = "birth".equals(event.eventType)
-                    ? withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt)
-                    : null;
-            saveEventWithAttachmentsAndOptionalChildProfile(event, Collections.emptyList(), profileUpdate);
+            BabyLogDomain.BabyLogEvent event = BabyLogQuickEventRecorder.record(repository, action);
+            onSuccessfulWrite();
             return event;
         } catch (JSONException error) {
             throw storageFailure("保存快捷记录失败", error);
