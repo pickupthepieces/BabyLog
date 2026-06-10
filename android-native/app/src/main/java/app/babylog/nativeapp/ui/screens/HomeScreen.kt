@@ -135,6 +135,7 @@ internal fun HomeScreen(
                     item {
                         BabyDayTimeline(
                             slots = babyTimelineSlots,
+                            selectedDay = selectedBabyDay,
                             onEventClick = { eventId ->
                                 state.timeline.firstOrNull { it.id == eventId }?.let(onOpenDetail)
                             }

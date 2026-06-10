@@ -15,6 +15,9 @@ public final class BabyLogBabyDayTimelineSlotsSmokeTest {
         openSleepEndsAtDayBoundary();
         mixedEventsAreSorted();
         pregnancyEventsDoNotPolluteBabyTimeline();
+        eventSummaryStripsTimelinePrefix();
+        todayInitialFocusLooksBackTwoHours();
+        pastDayInitialFocusUsesFirstSlotOrMorning();
         System.out.println("BabyLogBabyDayTimelineSlotsSmokeTest PASS");
     }
 
@@ -99,6 +102,46 @@ public final class BabyLogBabyDayTimelineSlotsSmokeTest {
         );
         assertEquals(0, slots.sleepSegments.size());
         assertEquals(0, slots.eventPoints.size());
+    }
+
+    private static void eventSummaryStripsTimelinePrefix() throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("feedType", "母乳");
+        BabyLogBabyDayTimelineSlots.TimelineSlots slots = BabyLogBabyDayTimelineSlots.compute(
+                Collections.singletonList(event("feed", "2026-05-25T15:51:00.000+0800", payload)),
+                "2026-05-25"
+        );
+        assertEquals("母乳", slots.eventPoints.get(0).summaryLabel);
+    }
+
+    private static void todayInitialFocusLooksBackTwoHours() {
+        BabyLogBabyDayTimelineSlots.TimelineSlots slots =
+                BabyLogBabyDayTimelineSlots.compute(Collections.emptyList(), "2026-05-25");
+        assertEquals(
+                810,
+                BabyLogBabyDayTimelineSlots.initialFocusMinute(slots, "2026-05-25", "2026-05-25T15:30:00.000+0800")
+        );
+        assertEquals(
+                0,
+                BabyLogBabyDayTimelineSlots.initialFocusMinute(slots, "2026-05-25", "2026-05-25T01:00:00.000+0800")
+        );
+    }
+
+    private static void pastDayInitialFocusUsesFirstSlotOrMorning() throws Exception {
+        BabyLogBabyDayTimelineSlots.TimelineSlots slots = BabyLogBabyDayTimelineSlots.compute(
+                Collections.singletonList(event("feed", "2026-05-25T06:15:00.000+0800", new JSONObject())),
+                "2026-05-25"
+        );
+        assertEquals(
+                375,
+                BabyLogBabyDayTimelineSlots.initialFocusMinute(slots, "2026-05-25", "2026-05-26T15:30:00.000+0800")
+        );
+        BabyLogBabyDayTimelineSlots.TimelineSlots emptySlots =
+                BabyLogBabyDayTimelineSlots.compute(Collections.emptyList(), "2026-05-25");
+        assertEquals(
+                480,
+                BabyLogBabyDayTimelineSlots.initialFocusMinute(emptySlots, "2026-05-25", "2026-05-26T15:30:00.000+0800")
+        );
     }
 
     private static BabyLogDomain.BabyLogEvent sleep(String startIso, String endIso) throws Exception {

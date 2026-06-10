@@ -7,6 +7,8 @@ import java.util.List;
 
 public final class BabyLogBabyDayTimelineSlots {
     static final int MINUTES_PER_DAY = 24 * 60;
+    private static final int TODAY_LOOKBACK_MINUTES = 2 * 60;
+    private static final int EMPTY_DAY_INITIAL_MINUTE = 8 * 60;
 
     private BabyLogBabyDayTimelineSlots() {
     }
@@ -37,6 +39,16 @@ public final class BabyLogBabyDayTimelineSlots {
                 .comparingInt((EventPoint point) -> point.minuteOfDay)
                 .thenComparing(point -> point.eventId));
         return new TimelineSlots(sleepSegments, eventPoints);
+    }
+
+    public static int initialFocusMinute(TimelineSlots slots, String dateInput, String nowIso) {
+        String day = BabyLogFormatters.isValidDateInput(dateInput) ? dateInput : BabyLogFormatters.todayDateInput();
+        String nowDay = BabyLogFormatters.recordDay(nowIso);
+        if (day.equals(nowDay)) {
+            return Math.max(0, isoMinuteOfDay(nowIso) - TODAY_LOOKBACK_MINUTES);
+        }
+        int firstMinute = firstSlotMinute(slots);
+        return firstMinute >= 0 ? firstMinute : EMPTY_DAY_INITIAL_MINUTE;
     }
 
     private static void addSleepSegment(
@@ -118,6 +130,30 @@ public final class BabyLogBabyDayTimelineSlots {
     private static int millisToMinuteOfDay(long millis, long dayStartMillis) {
         long raw = (millis - dayStartMillis) / 60_000L;
         return (int) Math.max(0L, Math.min(MINUTES_PER_DAY, raw));
+    }
+
+    private static int isoMinuteOfDay(String iso) {
+        long millis = BabyLogFormatters.parseIsoMillis(iso);
+        String day = BabyLogFormatters.recordDay(iso);
+        if (millis <= 0L || !BabyLogFormatters.isValidDateInput(day)) {
+            return EMPTY_DAY_INITIAL_MINUTE;
+        }
+        long dayStartMillis = BabyLogFormatters.parseIsoMillis(day + "T00:00:00.000+0800");
+        return millisToMinuteOfDay(millis, dayStartMillis);
+    }
+
+    private static int firstSlotMinute(TimelineSlots slots) {
+        if (slots == null) {
+            return -1;
+        }
+        int first = MINUTES_PER_DAY + 1;
+        for (SleepSegment segment : slots.sleepSegments) {
+            first = Math.min(first, segment.startMinuteOfDay);
+        }
+        for (EventPoint point : slots.eventPoints) {
+            first = Math.min(first, point.minuteOfDay);
+        }
+        return first > MINUTES_PER_DAY ? -1 : first;
     }
 
     private static boolean isBlank(String value) {
