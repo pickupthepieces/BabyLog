@@ -76,6 +76,13 @@ public final class BabyLogFormatters {
         return date + "T12:00:00.000+0800";
     }
 
+    public static String createOccurredAtFromDateTime(String date, String time) {
+        if (!isValidDateInput(date) || !isValidTimeInput(time)) {
+            return nowIso();
+        }
+        return date + "T" + time + ":00.000+0800";
+    }
+
     public static String normalizeBackendBaseUrl(String value) {
         if (value == null) {
             return "";
@@ -99,6 +106,15 @@ public final class BabyLogFormatters {
         } catch (ParseException ignored) {
             return false;
         }
+    }
+
+    public static boolean isValidTimeInput(String value) {
+        if (value == null || !value.matches("\\d{2}:\\d{2}")) {
+            return false;
+        }
+        int hour = Integer.parseInt(value.substring(0, 2));
+        int minute = Integer.parseInt(value.substring(3, 5));
+        return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
     }
 
     public static Integer parseGestationalAgeDays(String value) {

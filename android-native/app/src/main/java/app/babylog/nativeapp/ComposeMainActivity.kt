@@ -973,7 +973,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 val event = if (editing != null) {
                     service.updateBabyCareEvent(editing.id, input)
                 } else {
-                    service.recordBabyCareEvent(input)
+                    service.recordBabyCareEvent(input, selectedBabyDay)
                 }
                 runOnUiThread {
                     editingEvent = null

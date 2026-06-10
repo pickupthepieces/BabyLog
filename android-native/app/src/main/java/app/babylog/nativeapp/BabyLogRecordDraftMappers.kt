@@ -11,7 +11,11 @@ internal fun smartFormFields(vararg values: Pair<String, String?>): Map<String, 
 }
 
 internal fun draftFromBabyCareEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
-    return SmartEntryDraft(values = BabyLogService.babyCareDraftFields(event.eventType, event.payload))
+    return SmartEntryDraft(
+        values = BabyLogService.babyCareDraftFields(event.eventType, event.payload) + smartFormFields(
+            "occurredTime" to BabyLogFormatters.formatEventTime(event.occurredAt).takeUnless { it == "--:--" }
+        )
+    )
 }
 
 internal fun draftFromPregnancyEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {

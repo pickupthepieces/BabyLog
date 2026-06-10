@@ -77,6 +77,10 @@ public final class BabyLogService {
     }
 
     public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input) throws BabyLogException {
+        return recordBabyCareEvent(input, "");
+    }
+
+    public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input, String selectedDate) throws BabyLogException {
         if (!hasBabyCareMinimumContent(input)) {
             throw new BabyLogException.ValidationException("请至少填写一项记录内容");
         }
@@ -84,7 +88,7 @@ public final class BabyLogService {
             JSONObject payload = buildBabyCarePayload(input);
             BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
                     input.eventType,
-                    BabyLogFormatters.nowIso(),
+                    babyCareOccurredAt(input, selectedDate, ""),
                     payload,
                     Collections.emptyList(),
                     "manual"
@@ -106,7 +110,8 @@ public final class BabyLogService {
                     existing,
                     input.eventType,
                     buildBabyCarePayload(input),
-                    existing.attachmentIds
+                    existing.attachmentIds,
+                    babyCareOccurredAt(input, BabyLogFormatters.recordDay(existing.occurredAt), existing.occurredAt)
             );
             saveEventWithSyncChange(event);
             return event;
@@ -1141,6 +1146,15 @@ public final class BabyLogService {
         return existing;
     }
 
+    private static String babyCareOccurredAt(BabyCareInput input, String dateInput, String fallbackOccurredAt) {
+        if (input != null
+                && BabyLogFormatters.isValidDateInput(dateInput)
+                && BabyLogFormatters.isValidTimeInput(input.occurredTime)) {
+            return BabyLogFormatters.createOccurredAtFromDateTime(dateInput, input.occurredTime);
+        }
+        return isBlank(fallbackOccurredAt) ? BabyLogFormatters.nowIso() : fallbackOccurredAt;
+    }
+
     private static JSONObject buildUltrasoundPayload(UltrasoundInput input) throws JSONException {
         JSONObject payload = new JSONObject();
         payload.put("examDate", input.examDate);
@@ -1681,13 +1695,30 @@ public final class BabyLogService {
         public final String secondary;
         public final String tertiary;
         public final String note;
+        public final String occurredTime;
 
         private BabyCareInput(String eventType, String primary, String secondary, String tertiary, String note) {
+            this(eventType, primary, secondary, tertiary, note, "");
+        }
+
+        private BabyCareInput(
+                String eventType,
+                String primary,
+                String secondary,
+                String tertiary,
+                String note,
+                String occurredTime
+        ) {
             this.eventType = eventType;
             this.primary = primary;
             this.secondary = secondary;
             this.tertiary = tertiary;
             this.note = note;
+            this.occurredTime = occurredTime;
+        }
+
+        public BabyCareInput withOccurredTime(String occurredTime) {
+            return new BabyCareInput(eventType, primary, secondary, tertiary, note, occurredTime == null ? "" : occurredTime);
         }
 
         public static BabyCareInput feed(String feedType, String amountMl, String note) {

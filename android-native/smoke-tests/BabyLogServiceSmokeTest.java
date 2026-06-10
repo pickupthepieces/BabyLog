@@ -1,5 +1,6 @@
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogException;
+import app.babylog.nativeapp.BabyLogBabyDayTimelineSlots;
 import app.babylog.nativeapp.BabyLogFormatters;
 import app.babylog.nativeapp.BabyLogRepository;
 import app.babylog.nativeapp.BabyLogService;
@@ -344,6 +345,7 @@ public final class BabyLogServiceSmokeTest {
         assertDailyBabySummary();
         assertSuccessfulWriteTriggersSync();
         assertQuickSleepWakeClosure();
+        assertBabyCareOccurredTimeBackfill();
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -595,6 +597,28 @@ public final class BabyLogServiceSmokeTest {
         BabyLogDomain.BabyLogEvent afterSecondWake = repository.findEventById(openSleep.id);
         assertEquals(closedAt, afterSecondWake.payload.optString("sleepEnd"));
         assertEquals("", secondWake.payload.optString("note"));
+    }
+
+    private static void assertBabyCareOccurredTimeBackfill() throws Exception {
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        BabyLogService service = BabyLogService.forSmokeTest(repository);
+        BabyLogDomain.BabyLogEvent feed = service.recordBabyCareEvent(
+                BabyLogService.BabyCareInput.feed("奶瓶", "120", "").withOccurredTime("03:00"),
+                "2026-05-25"
+        );
+        assertEquals("2026-05-25T03:00:00.000+0800", feed.occurredAt);
+
+        BabyLogBabyDayTimelineSlots.TimelineSlots slots =
+                BabyLogBabyDayTimelineSlots.compute(repository.listEvents(), "2026-05-25");
+        assertEquals(1, slots.eventPoints.size());
+        assertEquals(180, slots.eventPoints.get(0).minuteOfDay);
+
+        BabyLogDomain.BabyLogEvent edited = service.updateBabyCareEvent(
+                feed.id,
+                BabyLogService.BabyCareInput.feed("奶瓶", "150", "").withOccurredTime("04:15")
+        );
+        assertEquals("2026-05-25T04:15:00.000+0800", edited.occurredAt);
+        assertEquals(feed.createdAt, edited.createdAt);
     }
 
     private static void assertServiceExceptionTypes() throws Exception {

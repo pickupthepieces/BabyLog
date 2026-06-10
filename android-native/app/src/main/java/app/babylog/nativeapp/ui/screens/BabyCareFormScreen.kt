@@ -29,6 +29,9 @@ internal fun BabyCareFormScreen(
     var secondary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["secondary"].orEmpty()) }
     var tertiary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["tertiary"].orEmpty()) }
     var note by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
+    var occurredTime by rememberSaveable(action.eventType, draft?.nonce) {
+        mutableStateOf(values["occurredTime"].orEmpty().ifBlank { currentBabyCareTimeInput() })
+    }
     var formError by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf("") }
     val labels = babyCareLabels(action.eventType)
 
@@ -38,7 +41,7 @@ internal fun BabyCareFormScreen(
         saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
         onSave = {
-            val input = buildBabyCareInput(action.eventType, primary, secondary, tertiary, note)
+            val input = buildBabyCareInput(action.eventType, primary, secondary, tertiary, note, occurredTime)
             if (!BabyLogService.hasBabyCareMinimumContent(input)) {
                 formError = "请至少填写一项记录内容"
             } else {
@@ -50,6 +53,14 @@ internal fun BabyCareFormScreen(
         item { Text("常用信息", color = ChestnutPalette.Ink) }
         if (formError.isNotBlank()) {
             item { Text(formError, color = ChestnutPalette.Danger) }
+        }
+        item {
+            TimeInputRow(
+                label = "发生时刻",
+                value = occurredTime,
+                onValueChange = { occurredTime = it },
+                allowClear = false
+            )
         }
         item {
             BabyCareConfiguredField(
@@ -112,6 +123,10 @@ internal fun BabyCareFormScreen(
             }
         }
     }
+}
+
+private fun currentBabyCareTimeInput(): String {
+    return BabyLogFormatters.formatEventTime(BabyLogFormatters.nowIso()).takeUnless { it == "--:--" }.orEmpty()
 }
 
 @Suppress("FunctionNaming", "LongParameterList")
