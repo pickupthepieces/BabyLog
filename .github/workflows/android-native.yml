@@ -91,8 +91,10 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryStringStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryCollectionStore.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogLegacyCollectionMigrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentBlobStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentInputBuilder.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogBabyDayTimelineSlots.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDailyBabySummaryBase.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDailySummaryCalculator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogBackupManager.java \
@@ -123,6 +125,8 @@ jobs:
             smoke-tests/BabyLogRemoteSyncClientSmokeTest.java \
             smoke-tests/BabyLogAttachmentBlobStoreSmokeTest.java \
             smoke-tests/BabyLogAttachmentInputBuilderSmokeTest.java \
+            smoke-tests/BabyLogBabyDayTimelineSlotsSmokeTest.java \
+            smoke-tests/BabyLogLegacyCollectionMigratorSmokeTest.java \
             smoke-tests/BabyLogRepositoryStorageSmokeTest.java \
             smoke-tests/BabyLogSyncPushOrchestratorSmokeTest.java \
             smoke-tests/BabyLogSyncPullOrchestratorSmokeTest.java \
@@ -150,6 +154,8 @@ jobs:
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRemoteSyncClientSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentBlobStoreSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentInputBuilderSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogBabyDayTimelineSlotsSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" app.babylog.nativeapp.BabyLogLegacyCollectionMigratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRepositoryStorageSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPushOrchestratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPullOrchestratorSmokeTest

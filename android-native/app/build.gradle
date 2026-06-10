@@ -79,10 +79,10 @@ detekt {
 }
 
 def babyLogFileLineLimits = [
-        'src/main/java/app/babylog/nativeapp/ComposeMainActivity.kt': 4500,
+        'src/main/java/app/babylog/nativeapp/ComposeMainActivity.kt': 2500,
         'src/main/java/app/babylog/nativeapp/BabyLogService.java'    : 2200,
         'src/main/java/app/babylog/nativeapp/BabyLogDomain.java'     : 1000,
-        'src/main/java/app/babylog/nativeapp/BabyLogRepository.java' : 700
+        'src/main/java/app/babylog/nativeapp/BabyLogRepository.java' : 600
 ]
 
 tasks.register('babyLogFileLengthCheck') {

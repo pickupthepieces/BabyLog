@@ -145,17 +145,21 @@ public final class BabyLogRoomCollectionStore implements BabyLogRepositoryCollec
         database.runInTransaction(new Runnable() {
             @Override
             public void run() {
-                BabyLogRepositoryStringStore.Editor editor = legacyStore.edit();
-                for (String key : COLLECTION_KEYS) {
-                    JSONArray legacyArray = BabyLogRepositoryCollectionStore.readArrayFromString(
-                            legacyStore.getString(key, "[]")
-                    );
-                    if (legacyArray.length() > 0 && dao.countRows(key) == 0) {
-                        upsertRows(rowsFor(key, legacyArray));
-                    }
-                    editor.remove(key);
-                }
-                editor.commit();
+                BabyLogLegacyCollectionMigrator.migrate(
+                        legacyStore,
+                        COLLECTION_KEYS,
+                        new BabyLogLegacyCollectionMigrator.TargetStore() {
+                            @Override
+                            public int countRows(String key) {
+                                return dao.countRows(key);
+                            }
+
+                            @Override
+                            public void upsertRows(String key, JSONArray rows) {
+                                BabyLogRoomCollectionStore.this.upsertRows(rowsFor(key, rows));
+                            }
+                        }
+                );
             }
         });
     }
