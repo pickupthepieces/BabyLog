@@ -193,14 +193,13 @@ internal fun PregnancyEventFormScreen(
         if (isCheckup) {
             item { DateInputRow("检查日期", primary, { primary = it }, allowClear = false) }
             item {
-                ChestnutTextField(
-                    "孕周，例如 22+5",
+                GestationalAgeInputRow(
+                    "孕周",
                     gestationalAge,
                     {
                         gestationalAgeEdited = true
                         gestationalAge = it
-                    },
-                    KeyboardType.Text
+                    }
                 )
             }
             item {
@@ -354,14 +353,13 @@ internal fun PregnancyEventFormScreen(
         } else if (isScreening) {
             item { DateInputRow("检查日期", primary, { primary = it }, allowClear = false) }
             item {
-                ChestnutTextField(
-                    "孕周，例如 22+5",
+                GestationalAgeInputRow(
+                    "孕周",
                     gestationalAge,
                     {
                         gestationalAgeEdited = true
                         gestationalAge = it
-                    },
-                    KeyboardType.Text
+                    }
                 )
             }
             item {

@@ -16,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -461,10 +460,9 @@ private fun UltrasoundExamDateInput(state: UltrasoundFormState) {
 
 @Composable
 private fun UltrasoundGestationalAgeInput(state: UltrasoundFormState) {
-    ChestnutTextField(
-        "孕周，例如 28+3",
+    GestationalAgeInputRow(
+        "孕周",
         state.gestationalAge,
-        state.updateGestationalAge,
-        KeyboardType.Text
+        state.updateGestationalAge
     )
 }

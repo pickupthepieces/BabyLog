@@ -111,7 +111,10 @@ public final class BabyLogFormatters {
                 .replace("周", "+")
                 .replace("週", "+")
                 .replace("W", "+")
-                .replace("w", "+");
+                .replace("w", "+")
+                .replace("天", "")
+                .replace("D", "")
+                .replace("d", "");
         if (normalized.endsWith("+")) {
             normalized = normalized.substring(0, normalized.length() - 1);
         }

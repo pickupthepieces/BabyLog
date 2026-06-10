@@ -72,6 +72,10 @@ internal typealias LongTextVoiceStart = ((String) -> Unit) -> Unit
 
 data class Option(val value: String, val label: String)
 
+private const val GESTATIONAL_WEEK_MAX_DIGITS = 2
+private const val GESTATIONAL_DAY_MAX_DIGITS = 1
+private const val GESTATIONAL_MAX_EXTRA_DAYS = 6
+
 @Composable
 internal fun Modifier.babyLogPressScale(
     interactionSource: InteractionSource,
@@ -286,13 +290,15 @@ fun BabyLogPullRefreshContainer(
     }
 }
 
+@Suppress("FunctionNaming", "LongParameterList")
 @Composable
 fun UnitInputRow(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     unit: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Decimal
 ) {
     Row(
         modifier = modifier
@@ -310,7 +316,7 @@ fun UnitInputRow(
             modifier = Modifier.weight(1f),
             singleLine = true,
             textStyle = TextStyle(fontFeatureSettings = "tnum"),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             colors = TextFieldDefaults.textFieldColors(
                 backgroundColor = ChestnutPalette.Surface,
                 focusedIndicatorColor = Color.Transparent,
@@ -338,6 +344,83 @@ fun UnitInputRow(
             }
         }
     }
+}
+
+@Suppress("FunctionNaming", "MagicNumber")
+@Composable
+fun GestationalAgeInputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val parts = remember(value) { splitGestationalAgeInput(value) }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        UnitInputRow(
+            label = "$label（周）",
+            value = parts.weeks,
+            onValueChange = {
+                val weeks = cleanGestationalNumber(it, maxLength = GESTATIONAL_WEEK_MAX_DIGITS)
+                onValueChange(joinGestationalAgeInput(weeks, parts.days))
+            },
+            unit = "周",
+            modifier = Modifier.weight(1f),
+            keyboardType = KeyboardType.Number
+        )
+        UnitInputRow(
+            label = "天（0-6）",
+            value = parts.days,
+            onValueChange = {
+                val days = cleanGestationalDays(it)
+                onValueChange(joinGestationalAgeInput(parts.weeks, days))
+            },
+            unit = "天",
+            modifier = Modifier.weight(1f),
+            keyboardType = KeyboardType.Number
+        )
+    }
+}
+
+private data class GestationalAgeParts(val weeks: String, val days: String)
+
+private fun splitGestationalAgeInput(value: String): GestationalAgeParts {
+    val normalized = value
+        .trim()
+        .replace(" ", "")
+        .replace("　", "")
+        .replace("＋", "+")
+        .replace("週", "+")
+        .replace("周", "+")
+        .replace("W", "+")
+        .replace("w", "+")
+        .replace("天", "")
+        .replace("D", "")
+        .replace("d", "")
+    val chunks = normalized.split("+", limit = 2)
+    val weeks = cleanGestationalNumber(chunks.getOrNull(0).orEmpty(), maxLength = GESTATIONAL_WEEK_MAX_DIGITS)
+    val days = cleanGestationalDays(chunks.getOrNull(1).orEmpty())
+    return GestationalAgeParts(weeks, days)
+}
+
+private fun joinGestationalAgeInput(weeks: String, days: String): String {
+    val cleanWeeks = cleanGestationalNumber(weeks, maxLength = GESTATIONAL_WEEK_MAX_DIGITS)
+    if (cleanWeeks.isBlank()) {
+        return ""
+    }
+    val cleanDays = cleanGestationalDays(days)
+    return if (cleanDays.isBlank()) cleanWeeks else "$cleanWeeks+$cleanDays"
+}
+
+private fun cleanGestationalNumber(value: String, maxLength: Int): String {
+    return value.filter { it.isDigit() }.take(maxLength)
+}
+
+private fun cleanGestationalDays(value: String): String {
+    val digits = cleanGestationalNumber(value, maxLength = GESTATIONAL_DAY_MAX_DIGITS)
+    return digits.takeIf { it.isBlank() || it.toInt() <= GESTATIONAL_MAX_EXTRA_DAYS }.orEmpty()
 }
 
 @Composable

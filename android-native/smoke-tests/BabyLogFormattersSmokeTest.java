@@ -6,7 +6,9 @@ public final class BabyLogFormattersSmokeTest {
         assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28+3"));
         assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28＋3"));
         assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28周3"));
+        assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28周3天"));
         assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28w3"));
+        assertEquals(199, BabyLogFormatters.parseGestationalAgeDays("28W3D"));
         assertEquals(196, BabyLogFormatters.parseGestationalAgeDays("28"));
         assertEquals(196, BabyLogFormatters.parseGestationalAgeDays("28周"));
         assertEquals(null, BabyLogFormatters.parseGestationalAgeDays("28+x"));
