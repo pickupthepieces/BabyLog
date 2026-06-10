@@ -124,7 +124,7 @@ internal fun ReminderCenterScreen(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         DateInputRow("日期", dueDate, { dueDate = it }, modifier = Modifier.weight(1f), allowClear = false)
-                        ChestnutTextField("时间 HH:mm", dueTime, { dueTime = it }, KeyboardType.Text, modifier = Modifier.weight(1f))
+                        TimeInputRow("时间", dueTime, { dueTime = it }, modifier = Modifier.weight(1f), allowClear = false)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(

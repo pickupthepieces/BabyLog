@@ -535,7 +535,13 @@ internal fun PregnancyEventFormScreen(
                 }
             }
         } else {
-            item { ChestnutTextField(labels.primary, primary, { primary = it }, labels.primaryKeyboard) }
+            item {
+                when (action.eventType) {
+                    "fetal_movement" -> FetalMovementWindowInput(primary, { primary = it })
+                    "contraction" -> TimeInputRow(labels.primary, primary, { primary = it })
+                    else -> ChestnutTextField(labels.primary, primary, { primary = it }, labels.primaryKeyboard)
+                }
+            }
             item { ChestnutTextField(labels.secondary, secondary, { secondary = it }, labels.secondaryKeyboard) }
             if (labels.tertiary != null) {
                 item { ChestnutTextField(labels.tertiary, tertiary, { tertiary = it }, labels.tertiaryKeyboard) }
@@ -568,6 +574,29 @@ private fun VoiceLongTextField(
         onVoiceStart = onLongTextVoiceStart,
         onVoiceStop = onLongTextVoiceStop
     )
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun FetalMovementWindowInput(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    val (start, end) = splitFetalMovementWindow(value)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        TimeInputRow(
+            label = "开始时间",
+            value = start,
+            onValueChange = { onValueChange(joinFetalMovementWindow(it, end)) },
+            modifier = Modifier.weight(1f)
+        )
+        TimeInputRow(
+            label = "结束时间",
+            value = end,
+            onValueChange = { onValueChange(joinFetalMovementWindow(start, it)) },
+            modifier = Modifier.weight(1f)
+        )
+    }
 }
 
 @Composable
@@ -713,4 +742,24 @@ private fun screeningValues(
     }
     put("attachmentNote", attachmentNote)
     return values
+}
+
+@Suppress("MagicNumber")
+private fun splitFetalMovementWindow(value: String): Pair<String, String> {
+    val parts = value.split("-", limit = 2).map { it.trim() }
+    return if (parts.size == 2) {
+        parts[0] to parts[1]
+    } else {
+        value to ""
+    }
+}
+
+private fun joinFetalMovementWindow(start: String, end: String): String {
+    val cleanStart = start.trim()
+    val cleanEnd = end.trim()
+    return when {
+        cleanStart.isBlank() -> cleanEnd
+        cleanEnd.isBlank() -> cleanStart
+        else -> "$cleanStart-$cleanEnd"
+    }
 }
