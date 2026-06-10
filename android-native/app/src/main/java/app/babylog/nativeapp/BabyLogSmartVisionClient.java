@@ -2,20 +2,19 @@ package app.babylog.nativeapp;
 
 import android.util.Base64;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,8 +25,9 @@ import java.util.Map;
 public final class BabyLogSmartVisionClient {
     private static final int CONNECT_TIMEOUT_MS = 20_000;
     private static final int READ_TIMEOUT_MS = 60_000;
-    private static final int MAX_ERROR_BODY_CHARS = 480;
+    private static final int MAX_RESPONSE_CHARS = 1024 * 1024;
     private final UploadImagePreparer uploadImagePreparer;
+    private final OkHttpClient httpClient = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
     public BabyLogSmartVisionClient() {
         this(BabyLogSmartVisionClient::compressImageToTemporaryJpeg);
@@ -79,10 +79,10 @@ public final class BabyLogSmartVisionClient {
             throw new IOException("请先配置多模态模型 API");
         }
 
-        File uploadImage = prepareImageForUpload(image);
+            File uploadImage = prepareImageForUpload(image);
         try {
             JSONObject request = buildPregnancyDocumentChatCompletionsRequest(config.getModel(), imageToDataUrl(uploadImage));
-            String response = postJson(resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+            String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
             try {
                 return parsePregnancyDocumentResponse(response);
             } catch (IllegalArgumentException error) {
@@ -127,7 +127,7 @@ public final class BabyLogSmartVisionClient {
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject()
                 .put("role", "system")
-                .put("content", "你是 BabyLog 孕期报告 OCR 助手。你只从用户主动上传的 B 超单、产检检查单或母子健康手册照片中提取可见字段。不要诊断，不要推测。必须只返回 JSON object。"));
+                .put("content", "你是栗记孕期报告 OCR 助手。你只从用户主动上传的 B 超单、产检检查单或母子健康手册照片中提取可见字段。不要诊断，不要推测。必须只返回 JSON object。"));
 
         JSONArray userContent = new JSONArray();
         userContent.put(new JSONObject()
@@ -355,31 +355,6 @@ public final class BabyLogSmartVisionClient {
         }
     }
 
-    public static String resolveChatCompletionsUrl(String baseUrl) {
-        String normalized = BabyLogFormatters.normalizeBackendBaseUrl(baseUrl);
-        if (normalized.endsWith("/chat/completions")) {
-            return normalized;
-        }
-        if (normalized.endsWith("/v1")) {
-            return normalized + "/chat/completions";
-        }
-        return normalized + "/v1/chat/completions";
-    }
-
-    public static String formatApiErrorMessage(int code, String response) {
-        String body = response == null ? "" : response.trim();
-        if (body.isEmpty()) {
-            body = "无响应内容";
-        }
-        body = body
-                .replaceAll("sk-[A-Za-z0-9_\\-]{8,}", "sk-***")
-                .replaceAll("Bearer\\s+[A-Za-z0-9._\\-]{8,}", "Bearer ***");
-        if (body.length() > MAX_ERROR_BODY_CHARS) {
-            body = body.substring(0, MAX_ERROR_BODY_CHARS) + "…";
-        }
-        return "模型 API 返回 " + code + "：" + body;
-    }
-
     private static String imageToDataUrl(File image) throws IOException {
         return "data:image/jpeg;base64," + Base64.encodeToString(readAllBytes(image), Base64.NO_WRAP);
     }
@@ -411,42 +386,20 @@ public final class BabyLogSmartVisionClient {
         }
     }
 
-    private static String postJson(String url, String apiKey, JSONObject body) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
-
-        byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
-        connection.setFixedLengthStreamingMode((long) payload.length);
-        try (OutputStream out = connection.getOutputStream()) {
-            out.write(payload);
+    private String postJson(String url, String apiKey, JSONObject body) throws IOException {
+        RequestBody requestBody = RequestBody.create(
+                body.toString().getBytes(StandardCharsets.UTF_8),
+                BabyLogHttpClient.JSON_MEDIA_TYPE
+        );
+        Request request = BabyLogHttpClient.requestBuilder(url)
+                .header("Authorization", "Bearer " + apiKey)
+                .post(requestBody)
+                .build();
+        BabyLogHttpClient.HttpResponse response = BabyLogHttpClient.executeText(httpClient, request, MAX_RESPONSE_CHARS);
+        if (!response.isSuccessful()) {
+            throw new IOException(BabyLogSmartApi.formatApiErrorMessage(response.statusCode, response.body));
         }
-
-        int code = connection.getResponseCode();
-        InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-        String response = readResponse(stream);
-        if (code < 200 || code >= 300) {
-            throw new IOException(formatApiErrorMessage(code, response));
-        }
-        return response;
-    }
-
-    private static String readResponse(InputStream stream) throws IOException {
-        if (stream == null) {
-            return "";
-        }
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                builder.append(line);
-            }
-        }
-        return builder.toString();
+        return response.body;
     }
 
     public interface UploadImagePreparer {

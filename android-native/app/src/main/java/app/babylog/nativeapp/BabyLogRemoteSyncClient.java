@@ -1,30 +1,30 @@
 package app.babylog.nativeapp;
 
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.Socket;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
-import javax.net.ssl.SSLSocketFactory;
 
 public final class BabyLogRemoteSyncClient {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 15_000;
     private static final int MAX_BODY_CHARS = 1024 * 1024;
     private static final int MAX_FILE_BODY_BYTES = 6 * 1024 * 1024;
+
+    private final OkHttpClient httpClient = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
     public ConnectionResult checkConnection(String backendBaseUrl, String familyKey) throws IOException {
         String normalizedUrl = BabyLogFormatters.normalizeBackendBaseUrl(backendBaseUrl);
@@ -47,7 +47,7 @@ public final class BabyLogRemoteSyncClient {
     }
 
     public ConnectionResult checkHealth(String backendBaseUrl, String familyKey) throws IOException {
-        HttpResponse response = get(healthUrl(backendBaseUrl), familyKey);
+        BabyLogHttpClient.HttpResponse response = get(healthUrl(backendBaseUrl), familyKey);
         if (response.statusCode >= 200 && response.statusCode < 300) {
             return ConnectionResult.ok("服务器可达");
         }
@@ -56,7 +56,7 @@ public final class BabyLogRemoteSyncClient {
 
     public ConnectionResult checkFamily(String backendBaseUrl, String familyKey) throws IOException {
         String normalizedKey = BabyLogSyncProtocol.normalizeFamilyKeyForTransport(familyKey);
-        HttpResponse response = get(familyLookupUrl(backendBaseUrl, normalizedKey), normalizedKey);
+        BabyLogHttpClient.HttpResponse response = get(familyLookupUrl(backendBaseUrl, normalizedKey), normalizedKey);
         if (response.statusCode < 200 || response.statusCode >= 300) {
             return ConnectionResult.failed("家庭查询失败：" + response.statusCode);
         }
@@ -112,7 +112,7 @@ public final class BabyLogRemoteSyncClient {
         if (!BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
             return PullResult.failed("FAMILY_KEY_MISSING");
         }
-        HttpResponse response = get(encryptedRecordsPullUrl(normalizedUrl, familyKey, sinceCursor, page, perPage), familyKey);
+        BabyLogHttpClient.HttpResponse response = get(encryptedRecordsPullUrl(normalizedUrl, familyKey, sinceCursor, page, perPage), familyKey);
         if (response.statusCode < 200 || response.statusCode >= 300) {
             return PullResult.failed("HTTP_" + response.statusCode);
         }
@@ -163,7 +163,7 @@ public final class BabyLogRemoteSyncClient {
         String url = encryptedRecordsUrl(normalizedUrl)
                 + "/"
                 + URLEncoder.encode(safeRecordId, "UTF-8");
-        HttpResponse response = rawPatch(url, familyKey, "multipart/form-data; boundary=" + boundary, body);
+        BabyLogHttpClient.HttpResponse response = request("PATCH", url, familyKey, MediaType.get("multipart/form-data; boundary=" + boundary), body);
         if (response.statusCode >= 200 && response.statusCode < 300) {
             return RecordPushResult.ok(safeRecordId);
         }
@@ -245,14 +245,14 @@ public final class BabyLogRemoteSyncClient {
     }
 
     private RecordPushResult pushOne(String backendBaseUrl, String familyKey, EncryptedRecord record) throws IOException {
-        HttpResponse response = request("POST", encryptedRecordsUrl(backendBaseUrl), familyKey, record.toJson().toString());
+        BabyLogHttpClient.HttpResponse response = request("POST", encryptedRecordsUrl(backendBaseUrl), familyKey, record.toJson().toString());
         if (response.statusCode >= 200 && response.statusCode < 300) {
             return RecordPushResult.ok(record.clientId, remoteIdFromBody(response.body));
         }
         if (response.statusCode == 409) {
             String remoteId = findRemoteRecordId(backendBaseUrl, familyKey, record.clientId);
             if (!remoteId.isEmpty()) {
-                HttpResponse patched = request(
+                BabyLogHttpClient.HttpResponse patched = request(
                         "PATCH",
                         encryptedRecordsUrl(backendBaseUrl) + "/" + URLEncoder.encode(remoteId, "UTF-8"),
                         familyKey,
@@ -272,7 +272,7 @@ public final class BabyLogRemoteSyncClient {
         String url = encryptedRecordsUrl(backendBaseUrl)
                 + "?filter="
                 + URLEncoder.encode(filter, "UTF-8");
-        HttpResponse response = get(url, familyKey);
+        BabyLogHttpClient.HttpResponse response = get(url, familyKey);
         if (response.statusCode < 200 || response.statusCode >= 300) {
             return "";
         }
@@ -286,69 +286,49 @@ public final class BabyLogRemoteSyncClient {
         }
     }
 
-    private HttpResponse get(String url, String familyKey) throws IOException {
+    private BabyLogHttpClient.HttpResponse get(String url, String familyKey) throws IOException {
         return request("GET", url, familyKey, null);
     }
 
     private byte[] getBytes(String url, String familyKey) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setRequestProperty(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA, String.valueOf(BabyLogDomain.SCHEMA_VERSION));
-        if (BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
-            connection.setRequestProperty(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey));
+        Request request = requestBuilder(url, familyKey).get().build();
+        try {
+            return BabyLogHttpClient.executeBytes(httpClient, request, MAX_FILE_BODY_BYTES, MAX_BODY_CHARS);
+        } catch (IOException error) {
+            if ("RESPONSE_TOO_LARGE".equals(error.getMessage())) {
+                throw new IOException("ATTACHMENT_FILE_TOO_LARGE", error);
+            }
+            throw error;
         }
-        int statusCode = connection.getResponseCode();
-        if (statusCode < 200 || statusCode >= 300) {
-            String errorBody = readLimited(connection.getErrorStream());
-            connection.disconnect();
-            throw new IOException("HTTP_" + statusCode + (errorBody.isEmpty() ? "" : ":" + errorBody));
-        }
-        byte[] bytes = readBytesLimited(connection.getInputStream());
-        connection.disconnect();
-        return bytes;
     }
 
-    private HttpResponse rawPatch(String url, String familyKey, String contentType, byte[] body) throws IOException {
-        URI uri = URI.create(url);
-        boolean https = "https".equalsIgnoreCase(uri.getScheme());
-        int port = uri.getPort() > 0 ? uri.getPort() : (https ? 443 : 80);
-        String path = uri.getRawPath();
-        if (uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
-            path += "?" + uri.getRawQuery();
+    private BabyLogHttpClient.HttpResponse request(String method, String url, String familyKey, String body) throws IOException {
+        return request(
+                method,
+                url,
+                familyKey,
+                BabyLogHttpClient.JSON_MEDIA_TYPE,
+                body == null ? null : body.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private BabyLogHttpClient.HttpResponse request(String method, String url, String familyKey, MediaType contentType, byte[] body) throws IOException {
+        RequestBody requestBody = body == null
+                ? null
+                : RequestBody.create(body, contentType);
+        Request request = requestBuilder(url, familyKey)
+                .method(method, requestBody)
+                .build();
+        return BabyLogHttpClient.executeText(httpClient, request, MAX_BODY_CHARS);
+    }
+
+    private Request.Builder requestBuilder(String url, String familyKey) throws IOException {
+        Request.Builder builder = BabyLogHttpClient.requestBuilder(url)
+                .header(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA, String.valueOf(BabyLogDomain.SCHEMA_VERSION));
+        if (BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
+            builder.header(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey));
         }
-        Socket socket = https
-                ? SSLSocketFactory.getDefault().createSocket(uri.getHost(), port)
-                : new Socket(uri.getHost(), port);
-        socket.setSoTimeout(READ_TIMEOUT_MS);
-        try (Socket closeable = socket;
-             OutputStream output = closeable.getOutputStream();
-             InputStream input = closeable.getInputStream()) {
-            byte[] safeBody = body == null ? new byte[0] : body;
-            StringBuilder headers = new StringBuilder();
-            headers.append("PATCH ").append(path).append(" HTTP/1.1\r\n");
-            headers.append("Host: ").append(uri.getHost());
-            if (uri.getPort() > 0) {
-                headers.append(":").append(uri.getPort());
-            }
-            headers.append("\r\n");
-            headers.append(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA)
-                    .append(": ")
-                    .append(BabyLogDomain.SCHEMA_VERSION)
-                    .append("\r\n");
-            headers.append(BabyLogSyncProtocol.HEADER_FAMILY_KEY)
-                    .append(": ")
-                    .append(BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey))
-                    .append("\r\n");
-            headers.append("Content-Type: ").append(contentType).append("\r\n");
-            headers.append("Content-Length: ").append(safeBody.length).append("\r\n");
-            headers.append("Connection: close\r\n\r\n");
-            output.write(headers.toString().getBytes(StandardCharsets.UTF_8));
-            output.write(safeBody);
-            output.flush();
-            return readRawHttpResponse(input);
-        }
+        return builder;
     }
 
     private String remoteIdFromBody(String body) {
@@ -357,34 +337,6 @@ public final class BabyLogRemoteSyncClient {
         } catch (JSONException ignored) {
             return "";
         }
-    }
-
-    private static HttpResponse readRawHttpResponse(InputStream input) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
-        String statusLine = reader.readLine();
-        int statusCode = 0;
-        if (statusLine != null) {
-            String[] parts = statusLine.split(" ");
-            if (parts.length >= 2) {
-                try {
-                    statusCode = Integer.parseInt(parts[1]);
-                } catch (NumberFormatException ignored) {
-                    statusCode = 0;
-                }
-            }
-        }
-        String line;
-        while ((line = reader.readLine()) != null && !line.isEmpty()) {
-            // Skip headers.
-        }
-        StringBuilder body = new StringBuilder();
-        char[] buffer = new char[512];
-        int read;
-        while ((read = reader.read(buffer)) != -1 && body.length() < MAX_BODY_CHARS) {
-            int remaining = MAX_BODY_CHARS - body.length();
-            body.append(buffer, 0, Math.min(read, remaining));
-        }
-        return new HttpResponse(statusCode, body.toString());
     }
 
     private static byte[] multipartAttachmentBody(
@@ -407,74 +359,6 @@ public final class BabyLogRemoteSyncClient {
 
     private static void writeUtf8(OutputStream output, String value) throws IOException {
         output.write((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private HttpResponse request(String method, String url, String familyKey, String body) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setRequestMethod(method);
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setRequestProperty(BabyLogSyncProtocol.HEADER_CLIENT_SCHEMA, String.valueOf(BabyLogDomain.SCHEMA_VERSION));
-        if (BabyLogSyncProtocol.hasFamilyKey(familyKey)) {
-            connection.setRequestProperty(BabyLogSyncProtocol.HEADER_FAMILY_KEY, BabyLogSyncProtocol.hashFamilyKeyForLookup(familyKey));
-        }
-        if (body != null) {
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            connection.setFixedLengthStreamingMode(bytes.length);
-            try (OutputStream output = connection.getOutputStream()) {
-                output.write(bytes);
-            }
-        }
-        int statusCode = connection.getResponseCode();
-        String responseBody = readLimited(statusCode >= 400 ? connection.getErrorStream() : connection.getInputStream());
-        connection.disconnect();
-        return new HttpResponse(statusCode, responseBody);
-    }
-
-    private static String readLimited(InputStream stream) throws IOException {
-        if (stream == null) {
-            return "";
-        }
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            char[] buffer = new char[512];
-            int read;
-            while ((read = reader.read(buffer)) != -1 && builder.length() < MAX_BODY_CHARS) {
-                int remaining = MAX_BODY_CHARS - builder.length();
-                builder.append(buffer, 0, Math.min(read, remaining));
-            }
-        }
-        return builder.toString();
-    }
-
-    private static byte[] readBytesLimited(InputStream stream) throws IOException {
-        if (stream == null) {
-            return new byte[0];
-        }
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int total = 0;
-        int read;
-        while ((read = stream.read(buffer)) != -1) {
-            total += read;
-            if (total > MAX_FILE_BODY_BYTES) {
-                throw new IOException("ATTACHMENT_FILE_TOO_LARGE");
-            }
-            output.write(buffer, 0, read);
-        }
-        return output.toByteArray();
-    }
-
-    private static final class HttpResponse {
-        final int statusCode;
-        final String body;
-
-        HttpResponse(int statusCode, String body) {
-            this.statusCode = statusCode;
-            this.body = body == null ? "" : body;
-        }
     }
 
     public static final class ConnectionResult {

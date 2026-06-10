@@ -9,7 +9,7 @@ public final class BabyLogDueDateCalculator {
     public static final double MIN_CRL_MM = 10.0;
     public static final double MAX_CRL_MM = 84.0;
     public static final String CLINICAL_NOTE =
-            "临床上两者差异较大时通常以早 B 超为准，请以您的医生意见为最终依据。";
+            "两种推算结果差异较大时，可在产检时带上记录一起确认。";
 
     private BabyLogDueDateCalculator() {
     }

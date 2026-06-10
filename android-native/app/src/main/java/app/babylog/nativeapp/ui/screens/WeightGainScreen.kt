@@ -69,18 +69,18 @@ internal fun WeightGainScreen(
 
     SettingsPageScaffold(
         title = "孕期增重曲线",
-        subtitle = "IOM 参考区间，仅用于家庭记录",
+        subtitle = "IOM 参考区间，便于复诊沟通",
         onBack = onBack
     ) {
         item {
             Text(
-                text = "本页只展示数值与公开参考区间，不用于诊断、判断或替代医生意见。",
+                text = "展示公开参考区间，便于复诊时对照体重历史。",
                 color = Color(0xFF7C4A21),
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFFFEBCB), RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFFEBCB), RoundedCornerShape(ChestnutRadius.Small))
                     .padding(12.dp)
             )
         }
@@ -90,7 +90,7 @@ internal fun WeightGainScreen(
                 Panel {
                     SectionHeader("档案待补")
                     Text(
-                        "请先在档案中补充孕前体重与身高；补完后这里会显示 IOM 参考带和孕妈体重历史。",
+                        "补充孕前体重和身高后，将显示 IOM 参考带与体重历史。",
                         color = ChestnutPalette.Muted,
                         fontSize = 14.sp,
                         lineHeight = 21.sp
@@ -147,7 +147,7 @@ internal fun WeightGainScreen(
                 currentRange?.let {
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        text = "当前孕周对应参考累计增重：${it.label()}。本应用按单胎公开标准展示，仅供家庭记录参考。",
+                        text = "当前孕周参考累计增重：${it.label()}。",
                         color = ChestnutPalette.Muted,
                         fontSize = 12.sp,
                         lineHeight = 18.sp
@@ -161,7 +161,7 @@ internal fun WeightGainScreen(
                 SectionHeader("曲线")
                 Spacer(Modifier.height(10.dp))
                 if (!BabyLogFormatters.isValidDateInput(profile.expectedDueDate)) {
-                    EmptyPanel("预产期待补，补充后可按孕周显示体重历史")
+                    EmptyPanel("补充预产期后显示孕周曲线")
                 } else {
                     WeightGainChart(
                         prePregnancyWeightKg = preWeight,
@@ -176,9 +176,9 @@ internal fun WeightGainScreen(
                     }
                     Text(
                         text = if (points.isEmpty()) {
-                            "还没有孕妈体重记录。保存孕妈指标中的体重后，这里会叠加体重点。"
+                            "保存孕妈体重后显示曲线点。"
                         } else {
-                            "共 ${points.size} 个体重点；浅色区域为 IOM 参考带。"
+                            "已记录 ${points.size} 个体重点；浅色区域为 IOM 参考带。"
                         },
                         color = ChestnutPalette.Text3,
                         fontSize = 12.sp
@@ -210,7 +210,7 @@ private fun WeightGainChart(
         modifier = Modifier
             .fillMaxWidth()
             .height(230.dp)
-            .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(14.dp))
+            .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(ChestnutRadius.Control))
             .padding(12.dp)
     ) {
         val left = 34.dp.toPx()

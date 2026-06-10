@@ -48,7 +48,7 @@ internal fun SyncSettingsScreen(
 
     SettingsPageScaffold(
         title = "同步设置",
-        subtitle = "配置家庭共享后端地址和家庭密钥",
+        subtitle = "家庭共享后端与密钥",
         onBack = onBack,
         onSave = { onSave(backendBaseUrl, familyKey) }
     ) {
@@ -71,7 +71,7 @@ internal fun SyncSettingsScreen(
             )
         }
         item {
-            Text("留空后端地址会关闭同步。家庭密钥只保存在本机加密存储中，不进入导出、备份或家庭同步。", color = ChestnutPalette.Muted, fontSize = 13.sp)
+            Text("后端地址留空即关闭同步；家庭密钥仅保存在本机。", color = ChestnutPalette.Muted, fontSize = 13.sp)
         }
         item {
             OutlinedButton(

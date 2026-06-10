@@ -86,7 +86,7 @@ internal fun VisitSummaryScreen(
 
     SettingsPageScaffold(
         title = "复诊汇总导出",
-        subtitle = "可编辑 Markdown，复制或分享给医生前请人工核对",
+        subtitle = "生成可编辑 Markdown，分享前请核对",
         onBack = onBack
     ) {
         item {
@@ -133,7 +133,7 @@ internal fun VisitSummaryScreen(
         item {
             SettingsPanel("预览") {
                 Text(
-                    text = "只列已填写字段；筛查分级和风险值保留“报告原文”标注。",
+                    text = "仅列已填写字段；筛查结果保留报告原文。",
                     color = ChestnutPalette.Muted,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -190,7 +190,7 @@ internal fun VisitSummaryScreen(
                             onClick = { onCopy(preview) }
                         )
                         VisitSummaryActionButton(
-                            text = "系统分享",
+                            text = "分享",
                             modifier = Modifier.weight(1f),
                             onClick = { onShare(preview) }
                         )
@@ -202,7 +202,7 @@ internal fun VisitSummaryScreen(
                             onClick = { onSaveFile(preview) }
                         )
                         VisitSummaryActionButton(
-                            text = if (polishing) "润色中..." else "用大模型润色",
+                            text = if (polishing) "润色中..." else "AI 润色",
                             modifier = Modifier.weight(1f),
                             enabled = !polishing,
                             primary = true,
@@ -219,7 +219,7 @@ internal fun VisitSummaryScreen(
                         )
                     }
                     Text(
-                        text = "大模型润色只在你点按后发送当前预览文本；结果不会入库，可继续手动编辑。",
+                        text = "润色仅发送当前预览文本，不会写入记录。",
                         color = ChestnutPalette.Muted,
                         fontSize = 12.sp
                     )

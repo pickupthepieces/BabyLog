@@ -238,7 +238,7 @@ private fun PregnancyQuietCard(stage: String) {
     Panel {
         SectionHeader(if (stage == BabyLogDomain.STAGE_PAUSED) "记录已暂停提醒" else "妊娠记录已静音")
         Text(
-            "记录会保留，时间线、详情和导出仍可使用。你可以在档案里切换状态。",
+            "记录仍会保留，可在档案中恢复提醒。",
             color = ChestnutPalette.Muted,
             fontSize = 13.sp
         )
@@ -258,9 +258,9 @@ private fun PrenatalScreeningTodoPanel(
         .filterNot { completed.contains(it.eventType) }
     if (suggestions.isEmpty()) return
     Panel {
-        SectionHeader("专项清单", action = "忽略", onAction = { hidden = true })
+        SectionHeader("孕周清单", action = "忽略", onAction = { hidden = true })
         Text(
-            "按当前孕周给出的中性提醒，可按医生安排决定是否记录；App 不判断风险。",
+            "按当前孕周提示可记录项目；是否检查以医生安排为准。",
             color = ChestnutPalette.Muted,
             fontSize = 12.sp
         )

@@ -1,23 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#FBF3E9</color>
+    <color name="bg">#FFF7EE</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_2">#F4EADC</color>
-    <color name="border">#EFE3D2</color>
-    <color name="ink">#2A1E14</color>
-    <color name="muted">#7A6452</color>
-    <color name="text_3">#AE9A86</color>
-    <color name="primary">#E8896B</color>
-    <color name="primary_soft">#FBE3DA</color>
-    <color name="accent">#D98A4A</color>
-    <color name="accent_soft">#FFE9C6</color>
-    <color name="rose">#E79399</color>
-    <color name="blue">#8AA9CF</color>
-    <color name="violet">#B99BC5</color>
-    <color name="green">#88B47D</color>
-    <color name="yellow">#E9C865</color>
-    <color name="peach">#E8A173</color>
-    <color name="danger">#C9544A</color>
-    <color name="disclaimer">#7C4A21</color>
-    <color name="disclaimer_bg">#FFEBCB</color>
+    <color name="surface_2">#F8EDDF</color>
+    <color name="border">#E9D9C6</color>
+    <color name="ink">#2A1B12</color>
+    <color name="muted">#7A6250</color>
+    <color name="text_3">#A48B76</color>
+    <color name="primary">#8B4A24</color>
+    <color name="splash_bg">#FFEFE5</color>
+    <color name="primary_soft">#F8E3D4</color>
+    <color name="accent">#D9823B</color>
+    <color name="accent_soft">#FFE8C7</color>
+    <color name="rose">#C95C54</color>
+    <color name="blue">#4F8F9D</color>
+    <color name="violet">#8A6E9F</color>
+    <color name="green">#5F8B57</color>
+    <color name="yellow">#E8B94A</color>
+    <color name="peach">#E28A4F</color>
+    <color name="danger">#C94A3A</color>
+    <color name="disclaimer">#8B4A24</color>
+    <color name="disclaimer_bg">#FFF0D6</color>
 </resources>

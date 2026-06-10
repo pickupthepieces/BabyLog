@@ -1,7 +1,9 @@
 import app.babylog.nativeapp.BabyLogDomain;
+import app.babylog.nativeapp.BabyLogException;
 import app.babylog.nativeapp.BabyLogFormatters;
 import app.babylog.nativeapp.BabyLogRepository;
 import app.babylog.nativeapp.BabyLogService;
+import app.babylog.nativeapp.BabyLogSyncTrigger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -56,10 +58,15 @@ public final class BabyLogServiceSmokeTest {
         JSONObject diaperPayload = BabyLogService.buildBabyCarePayload(
                 BabyLogService.BabyCareInput.diaper("便", "量多", "黄色偏稀", "晨起")
         );
+        assertEquals("poop", diaperPayload.optString("diaperKind"));
         assertEquals("黄", diaperPayload.optString("color"));
         assertEquals("稀", diaperPayload.optString("consistency"));
         assertEquals("黄色偏稀", diaperPayload.optString("diaperObservation"));
         assertTrue(diaperPayload.optString("summary").contains("黄色偏稀"));
+        JSONObject smallPeePayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.diaper("小便", "偏多", "", "")
+        );
+        assertEquals("pee", smallPeePayload.optString("diaperKind"));
 
         JSONObject oldDiaperPayload = new JSONObject();
         oldDiaperPayload.put("diaperType", "尿");
@@ -321,7 +328,9 @@ public final class BabyLogServiceSmokeTest {
 
         assertRepositorySupportsAtomicEventAttachmentSyncWrites(original);
         assertCreateEventPlansSyncChange(original);
+        assertServiceExceptionTypes();
         assertDailyBabySummary();
+        assertSuccessfulWriteTriggersSync();
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -429,6 +438,18 @@ public final class BabyLogServiceSmokeTest {
         throw new AssertionError("expected exception");
     }
 
+    private static void assertThrowsType(Class<?> expectedType, ThrowingRunnable action) throws Exception {
+        try {
+            action.run();
+        } catch (Exception actual) {
+            if (expectedType.isInstance(actual)) {
+                return;
+            }
+            throw new AssertionError("expected " + expectedType.getSimpleName() + " but got " + actual.getClass().getSimpleName());
+        }
+        throw new AssertionError("expected " + expectedType.getSimpleName());
+    }
+
     private static BabyLogDomain.BabyLogEvent sleepEvent(String startIso, String endIso) throws Exception {
         JSONObject payload = new JSONObject();
         payload.put("sleepStart", startIso);
@@ -472,6 +493,9 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.quick("poop", "软便", ""))));
         repository.putEvent(babyEvent("diaper", "2026-05-25T15:30:00.000+0800",
                 BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.diaper("尿便混合", "量多", "黄色软便", ""))));
+        JSONObject legacySmallPeePayload = new JSONObject();
+        legacySmallPeePayload.put("diaperType", "小便");
+        repository.putEvent(babyEvent("diaper", "2026-05-25T15:40:00.000+0800", legacySmallPeePayload));
         repository.putEvent(babyEvent("temperature", "2026-05-25T09:00:00.000+0800",
                 BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.temperature("36.7", "腋温", ""))));
         repository.putEvent(babyEvent("temperature", "2026-05-25T14:00:00.000+0800",
@@ -493,9 +517,9 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("2026-05-25T11:00:00.000+0800", day.feedLastTime);
         assertEquals(450, day.sleepTotalMinutes);
         assertEquals(1, day.sleepIncompleteCount);
-        assertEquals(2, day.peeCount);
+        assertEquals(3, day.peeCount);
         assertEquals(2, day.poopCount);
-        assertEquals(1, day.diaperCount);
+        assertEquals(2, day.diaperCount);
         assertEquals(37.4, day.temperatureMax);
         assertEquals(36.7, day.temperatureMin);
         assertEquals("2026-05-25T14:00:00.000+0800", day.temperatureLastTime);
@@ -512,8 +536,49 @@ public final class BabyLogServiceSmokeTest {
         return BabyLogDomain.createEvent(eventType, occurredAt, payload, Collections.emptyList(), "manual");
     }
 
+    private static void assertSuccessfulWriteTriggersSync() throws Exception {
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        CountingSyncTrigger trigger = new CountingSyncTrigger();
+        BabyLogService service = BabyLogService.forSmokeTest(repository, trigger);
+        service.saveEventWithSyncChange(babyEvent(
+                "note",
+                "2026-06-09T09:00:00.000+0800",
+                new JSONObject().put("summary", "sync trigger smoke")
+        ));
+        assertEquals(1, trigger.count);
+    }
+
+    private static void assertServiceExceptionTypes() throws Exception {
+        BabyLogService service = BabyLogService.forSmokeTest(BabyLogRepository.forSmokeTest());
+        assertThrowsType(
+                BabyLogException.ValidationException.class,
+                () -> service.recordBabyCareEvent(BabyLogService.BabyCareInput.feed("", "", ""))
+        );
+        assertThrowsType(
+                BabyLogException.NotFoundException.class,
+                () -> service.deleteEvent("missing-event")
+        );
+        assertThrowsType(
+                BabyLogException.ValidationException.class,
+                () -> service.saveEventWithSyncChange(null)
+        );
+        assertThrowsType(
+                BabyLogException.ValidationException.class,
+                () -> service.importBackupJson("{}")
+        );
+    }
+
     private interface ThrowingRunnable {
         void run() throws Exception;
+    }
+
+    private static final class CountingSyncTrigger implements BabyLogSyncTrigger {
+        int count;
+
+        @Override
+        public void triggerAfterLocalWrite() {
+            count += 1;
+        }
     }
 
     private static void assertRepositorySupportsAtomicEventAttachmentSyncWrites(BabyLogDomain.BabyLogEvent event) throws Exception {

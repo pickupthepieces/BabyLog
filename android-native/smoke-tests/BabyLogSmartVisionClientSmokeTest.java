@@ -1,15 +1,16 @@
 import app.babylog.nativeapp.BabyLogSmartVisionClient;
+import app.babylog.nativeapp.BabyLogSmartApi;
 
 import java.io.File;
 
 public final class BabyLogSmartVisionClientSmokeTest {
     public static void main(String[] args) throws Exception {
         assertEquals("https://api.example.com/v1/chat/completions",
-                BabyLogSmartVisionClient.resolveChatCompletionsUrl("https://api.example.com"));
+                BabyLogSmartApi.resolveChatCompletionsUrl("https://api.example.com"));
         assertEquals("https://api.example.com/v1/chat/completions",
-                BabyLogSmartVisionClient.resolveChatCompletionsUrl("https://api.example.com/v1"));
+                BabyLogSmartApi.resolveChatCompletionsUrl("https://api.example.com/v1"));
         assertEquals("https://api.example.com/custom/chat/completions",
-                BabyLogSmartVisionClient.resolveChatCompletionsUrl("https://api.example.com/custom/chat/completions"));
+                BabyLogSmartApi.resolveChatCompletionsUrl("https://api.example.com/custom/chat/completions"));
         String prompt = BabyLogSmartVisionClient.ultrasoundRecognitionPrompt();
         assertTrue(prompt.contains("bpdMm"));
         assertTrue(prompt.contains("fetalHeartRateBpm"));
@@ -80,7 +81,7 @@ public final class BabyLogSmartVisionClientSmokeTest {
         for (int i = 0; i < 700; i++) {
             longError.append('x');
         }
-        String formatted = BabyLogSmartVisionClient.formatApiErrorMessage(403, longError.toString());
+        String formatted = BabyLogSmartApi.formatApiErrorMessage(403, longError.toString());
         assertTrue(formatted.contains("模型 API 返回 403"));
         assertFalse(formatted.contains("sk-12345678901234567890"));
         assertTrue(formatted.length() < 620);

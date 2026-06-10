@@ -33,12 +33,12 @@ internal fun SpeechSettingsScreen(
 ) {
     if (config == null) {
         SettingsPageScaffold(
-            title = "语音转文字 STT",
+            title = "语音转文字",
             subtitle = "配置读取中",
             onBack = onBack
         ) {
             item {
-                Text("正在读取本机加密配置，请稍后。", color = ChestnutPalette.Muted)
+                Text("正在读取本机配置。", color = ChestnutPalette.Muted)
             }
         }
         return
@@ -51,8 +51,8 @@ internal fun SpeechSettingsScreen(
     var apiKey by remember(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
 
     SettingsPageScaffold(
-        title = "语音转文字 STT",
-        subtitle = "按住说话后云端转写",
+        title = "语音转文字",
+        subtitle = "按住说话时转写",
         onBack = onBack,
         onSave = {
             onSave(
@@ -81,7 +81,7 @@ internal fun SpeechSettingsScreen(
                 Text("DashScope Paraformer", color = ChestnutPalette.Ink, fontSize = 12.sp)
             }
             Text(
-                "首版使用 DashScope Paraformer WebSocket；API Key 与 OCR/智能解析可相同，也可以单独填写。",
+                "使用 DashScope Paraformer；API Key 可与智能解析共用。",
                 color = ChestnutPalette.Muted,
                 fontSize = 12.sp
             )
@@ -105,13 +105,13 @@ internal fun SpeechSettingsScreen(
         }
         item {
             Text(
-                "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。只有你主动按住说话时，本次语音才会发送给语音识别服务商。",
+                "Key 仅保存在本机。只有按住说话时，本次语音才会发送给识别服务商。",
                 color = Color(0xFF7C4A21),
                 fontSize = 13.sp,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(ChestnutRadius.Small))
                     .background(Color(0xFFFFEBCB))
-                    .border(1.dp, Color(0xFFFFD89C), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFFFD89C), RoundedCornerShape(ChestnutRadius.Small))
                     .padding(12.dp)
             )
         }

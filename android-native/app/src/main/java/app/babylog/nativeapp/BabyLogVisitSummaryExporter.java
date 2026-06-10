@@ -83,7 +83,7 @@ public final class BabyLogVisitSummaryExporter {
         }
 
         StringBuilder markdown = new StringBuilder();
-        markdown.append("# BabyLog 复诊汇总（").append(rangeLabel(startDate, endDate)).append("）\n");
+        markdown.append("# 栗记复诊汇总（").append(rangeLabel(startDate, endDate)).append("）\n");
         markdown.append(DISCLAIMER_LINE).append("\n");
 
         appendPreVisitQuestionSection(markdown, preVisitQuestions);

@@ -23,7 +23,7 @@ internal fun SyncConfirmDialogs(
     syncConfirmState?.let { confirm ->
         ConfirmDialog(
             title = "确认启用同步",
-            message = "启用后会按你配置的地址和家庭密钥尝试同步。家庭密钥仅保存在本机加密存储中，不会进入导出、备份或家庭同步；当前真实推拉仍在接入中，记录会保留在本机待同步队列中。请确认服务器地址、家庭密钥和医疗数据跨设备风险都已知晓。",
+            message = "启用后会按当前地址和家庭密钥同步。密钥仅保存在本机，记录会进入待同步队列。请确认服务器、密钥和跨设备数据风险均已知晓。",
             confirmText = "我已知晓并保存",
             destructive = false,
             onDismiss = onDismissSyncConfirm,
@@ -53,7 +53,7 @@ internal fun ComposeMainActivity.requestPushSyncNow() {
     }
     val config = uiState.syncConfig
     if (!config.enabled || config.backendBaseUrl.isBlank()) {
-        showInfo("同步未配置", "请先在同步设置里填写家庭后端地址和家庭密钥。")
+        showInfo("同步未配置", "请先填写家庭后端地址和密钥。")
         return
     }
     if ((dashboard?.syncedSyncCount ?: 0) == 0) {
@@ -127,7 +127,7 @@ internal fun ComposeMainActivity.pullSyncNow(silent: Boolean) {
     if (syncPullRunning) return
     if (!shouldAutoPullSync()) {
         if (!silent) {
-            showInfo("同步未配置", "请先在同步设置里填写家庭后端地址和家庭密钥。")
+            showInfo("同步未配置", "请先填写家庭后端地址和密钥。")
         }
         return
     }

@@ -97,7 +97,7 @@ private fun TimelineSearchPanel(
     onEndDateChange: (String) -> Unit
 ) {
     Panel {
-        SectionHeader("本地检索")
+        SectionHeader("时间线筛选")
         Spacer(Modifier.height(10.dp))
         ChestnutTextField(
             label = "关键词",

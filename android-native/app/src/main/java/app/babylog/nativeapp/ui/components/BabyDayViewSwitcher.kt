@@ -54,7 +54,7 @@ private fun BabyDayModeButton(
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
+        shape = RoundedCornerShape(ChestnutRadius.Sheet),
         colors = ButtonDefaults.outlinedButtonColors(
             backgroundColor = if (selected) ChestnutPalette.Primary else ChestnutPalette.Surface,
             contentColor = if (selected) androidx.compose.ui.graphics.Color.White else ChestnutPalette.Muted

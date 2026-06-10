@@ -41,7 +41,7 @@ internal fun SmartModelSettingsScreen(
             onBack = onBack
         ) {
             item {
-                Text("正在读取本机加密配置，请稍后。", color = ChestnutPalette.Muted)
+                Text("正在读取本机配置。", color = ChestnutPalette.Muted)
             }
         }
         return
@@ -54,7 +54,7 @@ internal fun SmartModelSettingsScreen(
 
     SettingsPageScaffold(
         title = "OCR / 智能解析模型",
-        subtitle = "用于 B 超 OCR 和智能录入",
+        subtitle = "用于 OCR 和智能录入",
         onBack = onBack,
         onSave = {
             onSave(
@@ -93,7 +93,7 @@ internal fun SmartModelSettingsScreen(
                 }
             }
             Text(
-                "预设只填 Base URL 和模型名，API Key 仍需你手动填写。",
+                "预设会填入地址和模型，API Key 需手动填写。",
                 color = ChestnutPalette.Muted,
                 fontSize = 12.sp
             )
@@ -125,13 +125,13 @@ internal fun SmartModelSettingsScreen(
         }
         item {
             Text(
-                "Key 只保存在本机加密存储中，不进入 BabyLog 备份、家庭同步或日志。图片和文字只会在你主动点击 B 超识别或智能录入时发送给该模型服务商。",
+                "Key 仅保存在本机。识别或智能录入时，图片和文字才会发送给模型服务商。",
                 color = Color(0xFF7C4A21),
                 fontSize = 13.sp,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(ChestnutRadius.Small))
                     .background(Color(0xFFFFEBCB))
-                    .border(1.dp, Color(0xFFFFD89C), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFFFD89C), RoundedCornerShape(ChestnutRadius.Small))
                     .padding(12.dp)
             )
         }

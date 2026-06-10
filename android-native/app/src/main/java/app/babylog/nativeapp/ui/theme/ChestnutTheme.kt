@@ -1,41 +1,51 @@
+@file:Suppress("MagicNumber")
+
 package app.babylog.nativeapp
 
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 object ChestnutPalette {
-    val Bg = Color(0xFFFBF3E9)
+    val Bg = Color(0xFFFFF7EE)
     val Surface = Color(0xFFFFFFFF)
-    val Surface2 = Color(0xFFF4EADC)
-    val Border = Color(0xFFEFE3D2)
-    val Ink = Color(0xFF2A1E14)
-    val Muted = Color(0xFF7A6452)
-    val Text3 = Color(0xFFAE9A86)
-    val Primary = Color(0xFFE8896B)
-    val SplashBg = Color(0xFFF5BDAE)
-    val PrimarySoft = Color(0xFFFBE3DA)
-    val Accent = Color(0xFFD98A4A)
-    val AccentSoft = Color(0xFFFFE9C6)
-    val Rose = Color(0xFFE79399)
-    val Blue = Color(0xFF8AA9CF)
-    val Violet = Color(0xFFB99BC5)
-    val Green = Color(0xFF88B47D)
-    val Yellow = Color(0xFFE9C865)
-    val Peach = Color(0xFFE8A173)
-    val Danger = Color(0xFFC9544A)
+    val Surface2 = Color(0xFFF8EDDF)
+    val Border = Color(0xFFE9D9C6)
+    val Ink = Color(0xFF2A1B12)
+    val Muted = Color(0xFF7A6250)
+    val Text3 = Color(0xFFA48B76)
+    val Primary = Color(0xFF8B4A24)
+    val SplashBg = Color(0xFFFFEFE5)
+    val PrimarySoft = Color(0xFFF8E3D4)
+    val Accent = Color(0xFFD9823B)
+    val AccentSoft = Color(0xFFFFE8C7)
+    val Rose = Color(0xFFC95C54)
+    val Blue = Color(0xFF4F8F9D)
+    val Violet = Color(0xFF8A6E9F)
+    val Green = Color(0xFF5F8B57)
+    val Yellow = Color(0xFFE8B94A)
+    val Peach = Color(0xFFE28A4F)
+    val Danger = Color(0xFFC94A3A)
 
-    val BgArgb = 0xFFFBF3E9.toInt()
+    val BgArgb = 0xFFFFF7EE.toInt()
     val SurfaceArgb = 0xFFFFFFFF.toInt()
-    val RoseArgb = 0xFFE79399.toInt()
-    val PrimaryArgb = 0xFFE8896B.toInt()
-    val SplashBgArgb = 0xFFF5BDAE.toInt()
-    val BlueArgb = 0xFF8AA9CF.toInt()
-    val VioletArgb = 0xFFB99BC5.toInt()
-    val GreenArgb = 0xFF88B47D.toInt()
-    val YellowArgb = 0xFFE9C865.toInt()
-    val PeachArgb = 0xFFE8A173.toInt()
+    val RoseArgb = 0xFFC95C54.toInt()
+    val PrimaryArgb = 0xFF8B4A24.toInt()
+    val SplashBgArgb = 0xFFFFEFE5.toInt()
+    val BlueArgb = 0xFF4F8F9D.toInt()
+    val VioletArgb = 0xFF8A6E9F.toInt()
+    val GreenArgb = 0xFF5F8B57.toInt()
+    val YellowArgb = 0xFFE8B94A.toInt()
+    val PeachArgb = 0xFFE28A4F.toInt()
+}
+
+object ChestnutRadius {
+    val Small = 12.dp
+    val Control = 16.dp
+    val Card = 20.dp
+    val Sheet = 28.dp
 }
 
 @Composable

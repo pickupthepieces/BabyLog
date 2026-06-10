@@ -11,7 +11,7 @@ public final class BabyLogFetalGrowthReference {
     public static final String DEFAULT_STANDARD = STANDARD_HONG_KONG;
 
     private static final String HONG_KONG_LABEL = "香港近似参考";
-    private static final String APPROXIMATION_NOTICE = "未校准近似引擎：当前百分位/Z-score 由公式和小程序截图靶值拟合，尚未接入 Leung 2008 / CUHK 完整参数；仅供家庭记录和复诊沟通参考，不能替代医生判断。";
+    private static final String APPROXIMATION_NOTICE = "未校准近似参考：当前百分位/Z-score 由公式和靶值拟合，尚未接入完整参数；请按报告原文复核。";
     private static final int FIRST_WEEK = 14;
     private static final int LAST_WEEK = 40;
     private static final double Z10 = -1.2815515655446004;

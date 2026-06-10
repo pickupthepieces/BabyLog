@@ -1,6 +1,7 @@
 package app.babylog.nativeapp;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.work.Constraints;
@@ -12,6 +13,7 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 public final class BabyLogSyncPushWorker extends Worker {
+    private static final String TAG = "BabyLog";
     private static final String UNIQUE_PUSH_WORK = "babylog_sync_push";
 
     public BabyLogSyncPushWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
@@ -69,8 +71,8 @@ public final class BabyLogSyncPushWorker extends Worker {
                     ExistingWorkPolicy.REPLACE,
                     request
             );
-        } catch (RuntimeException ignored) {
-            // Auto sync must never break the local save path.
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Failed to enqueue sync push work", error);
         }
     }
 }

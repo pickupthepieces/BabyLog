@@ -2,15 +2,14 @@ package app.babylog.nativeapp;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,41 +24,58 @@ public final class BabyLogService {
     public static final String BACKUP_FORMAT = "babylog.backup";
     public static final int BACKUP_VERSION = 1;
     public static final int TRASH_RETENTION_DAYS = 7;
-    private static final String LAST_IMPORT_UNDO_FILE = "last-import-undo.json";
+    private static final String TAG = "BabyLog";
     private static final long TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24L * 60L * 60L * 1000L;
 
     private final Context context;
     private final BabyLogRepository repository;
     private final BabyLogAttachmentInputBuilder attachmentBuilder;
+    private final BabyLogBackupManager backupManager;
+    private final BabyLogSyncTrigger syncTrigger;
 
-    public BabyLogService(Context context, BabyLogRepository repository) {
+    public BabyLogService(Context context, BabyLogRepository repository) { this(context, repository, BabyLogSyncTrigger.noop()); }
+
+    public BabyLogService(Context context, BabyLogRepository repository, BabyLogSyncTrigger syncTrigger) {
         this.context = context.getApplicationContext();
         this.repository = repository;
         this.attachmentBuilder = new BabyLogAttachmentInputBuilder(this.context);
+        this.backupManager = new BabyLogBackupManager(this.context, repository, attachmentBuilder);
+        this.syncTrigger = syncTrigger == null ? BabyLogSyncTrigger.noop() : syncTrigger;
     }
 
-    private BabyLogService(BabyLogRepository repository) {
-        this.context = null; this.repository = repository; this.attachmentBuilder = null;
-    }
+    private BabyLogService(BabyLogRepository repository) { this(repository, BabyLogSyncTrigger.noop()); }
 
     public static BabyLogService forSmokeTest(BabyLogRepository repository) { return new BabyLogService(repository); }
+    public static BabyLogService forSmokeTest(BabyLogRepository repository, BabyLogSyncTrigger syncTrigger) { return new BabyLogService(repository, syncTrigger); }
+    private BabyLogService(BabyLogRepository repository, BabyLogSyncTrigger syncTrigger) {
+        this.context = null; this.repository = repository; this.attachmentBuilder = null;
+        this.backupManager = new BabyLogBackupManager(null, repository, null);
+        this.syncTrigger = syncTrigger == null ? BabyLogSyncTrigger.noop() : syncTrigger;
+    }
 
-    public BabyLogDomain.BabyLogEvent recordQuickEvent(QuickAction action) throws JSONException {
-        JSONObject payload = new JSONObject();
-        payload.put("summary", action.label);
-        payload.put("quickAction", action.label);
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                action.eventType,
-                BabyLogFormatters.nowIso(),
-                payload,
-                Collections.emptyList(),
-                "manual"
-        );
-        BabyLogDomain.ChildProfile profileUpdate = "birth".equals(event.eventType)
-                ? withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt)
-                : null;
-        saveEventWithAttachmentsAndOptionalChildProfile(event, Collections.emptyList(), profileUpdate);
-        return event;
+    public BabyLogDomain.BabyLogEvent recordQuickEvent(QuickAction action) throws BabyLogException {
+        if (action == null) {
+            throw new BabyLogException.ValidationException("快捷记录不能为空");
+        }
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("summary", action.label);
+            payload.put("quickAction", action.label);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                    action.eventType,
+                    BabyLogFormatters.nowIso(),
+                    payload,
+                    Collections.emptyList(),
+                    "manual"
+            );
+            BabyLogDomain.ChildProfile profileUpdate = "birth".equals(event.eventType)
+                    ? withBirthDateFromBirthEvent(repository.loadChildProfile(), event.occurredAt)
+                    : null;
+            saveEventWithAttachmentsAndOptionalChildProfile(event, Collections.emptyList(), profileUpdate);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("保存快捷记录失败", error);
+        }
     }
 
     public static BabyLogDomain.ChildProfile withBirthDateFromBirthEvent(
@@ -72,156 +88,188 @@ public final class BabyLogService {
         return (profile == null ? BabyLogDomain.ChildProfile.empty() : profile).withBirthDate(birthDate);
     }
 
-    public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input) throws JSONException {
+    public BabyLogDomain.BabyLogEvent recordBabyCareEvent(BabyCareInput input) throws BabyLogException {
         if (!hasBabyCareMinimumContent(input)) {
-            throw new IllegalArgumentException("请至少填写一项记录内容");
+            throw new BabyLogException.ValidationException("请至少填写一项记录内容");
         }
-        JSONObject payload = buildBabyCarePayload(input);
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                input.eventType,
-                BabyLogFormatters.nowIso(),
-                payload,
-                Collections.emptyList(),
-                "manual"
-        );
-        saveEventWithSyncChange(event);
-        return event;
-    }
-
-    public BabyLogDomain.BabyLogEvent updateBabyCareEvent(String eventId, BabyCareInput input) throws JSONException {
-        if (!hasBabyCareMinimumContent(input)) {
-            throw new IllegalArgumentException("请至少填写一项记录内容");
-        }
-        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
-        BabyLogDomain.BabyLogEvent event = createEditedEvent(
-                existing,
-                input.eventType,
-                buildBabyCarePayload(input),
-                existing.attachmentIds
-        );
-        saveEventWithSyncChange(event);
-        return event;
-    }
-
-    public BabyLogDomain.BabyLogEvent recordPregnancyEvent(PregnancyInput input) throws JSONException {
-        if (!hasPregnancyMinimumContent(input)) {
-            throw new IllegalArgumentException("请至少填写一项记录内容");
-        }
-        JSONObject payload = buildPregnancyPayload(input);
-        String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
-                ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
-                : BabyLogFormatters.nowIso();
-        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createPregnancyAttachments(input);
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                input.eventType,
-                occurredAt,
-                payload,
-                BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments),
-                "manual"
-        );
-        saveEventWithAttachmentsAndSyncChanges(event, attachments);
-        return event;
-    }
-
-    public BabyLogDomain.BabyLogEvent updatePregnancyEvent(String eventId, PregnancyInput input) throws JSONException {
-        if (!hasPregnancyMinimumContent(input)) {
-            throw new IllegalArgumentException("请至少填写一项记录内容");
-        }
-        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
-        List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
-        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createPregnancyAttachments(input);
-        attachmentIds.addAll(BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments));
-        String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
-                ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
-                : existing.occurredAt;
-        JSONObject payload = buildPregnancyPayload(input);
-        if ("contraction".equals(input.eventType)) {
-            preserveContractionSessionFields(existing.payload, payload);
-        }
-        BabyLogDomain.BabyLogEvent event = createEditedEvent(
-                existing,
-                input.eventType,
-                payload,
-                attachmentIds,
-                occurredAt
-        );
-        saveEventWithAttachmentsAndSyncChanges(event, attachments);
-        return event;
-    }
-
-    public BabyLogDomain.BabyLogEvent recordFetalMovementSession(FetalMovementSessionInput input) throws JSONException {
-        JSONObject payload = buildFetalMovementSessionPayload(input);
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                "fetal_movement",
-                isBlank(input.endedAtIso) ? BabyLogFormatters.nowIso() : input.endedAtIso,
-                payload,
-                Collections.emptyList(),
-                "manual"
-        );
-        saveEventWithSyncChange(event);
-        return event;
-    }
-
-    public List<BabyLogDomain.BabyLogEvent> recordContractionSession(ContractionSessionInput input) throws JSONException {
-        if (input == null || input.entries.isEmpty()) {
-            throw new IllegalArgumentException("请至少记录一次宫缩");
-        }
-        List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
-        List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
-        for (ContractionEntryInput entry : input.entries) {
-            JSONObject payload = buildContractionSessionPayload(input.sessionId, entry);
+        try {
+            JSONObject payload = buildBabyCarePayload(input);
             BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                    "contraction",
-                    isBlank(entry.endIso) ? BabyLogFormatters.nowIso() : entry.endIso,
+                    input.eventType,
+                    BabyLogFormatters.nowIso(),
                     payload,
                     Collections.emptyList(),
                     "manual"
             );
-            events.add(event);
-            changes.add(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+            saveEventWithSyncChange(event);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("保存记录失败", error);
         }
-        if (!repository.putEventsWithSyncChanges(events, changes)) {
-            throw new JSONException("保存宫缩会话失败");
-        }
-        onSuccessfulWrite();
-        return events;
     }
 
-    public BabyLogDomain.BabyLogEvent recordMaternalMetric(MaternalMetricInput input) throws JSONException {
-        if (!hasMaternalMetricMinimumContent(input)) {
-            throw new IllegalArgumentException("请至少填写一项孕妈指标或备注");
+    public BabyLogDomain.BabyLogEvent updateBabyCareEvent(String eventId, BabyCareInput input) throws BabyLogException {
+        if (!hasBabyCareMinimumContent(input)) {
+            throw new BabyLogException.ValidationException("请至少填写一项记录内容");
         }
-        JSONObject payload = buildMaternalMetricPayload(input);
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                "maternal_metric",
-                BabyLogFormatters.nowIso(),
-                payload,
-                Collections.emptyList(),
-                "manual"
-        );
-        saveEventWithSyncChange(event);
-        return event;
+        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
+        try {
+            BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                    existing,
+                    input.eventType,
+                    buildBabyCarePayload(input),
+                    existing.attachmentIds
+            );
+            saveEventWithSyncChange(event);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("更新记录失败", error);
+        }
     }
 
-    public BabyLogDomain.BabyLogEvent updateMaternalMetric(String eventId, MaternalMetricInput input) throws JSONException {
+    public BabyLogDomain.BabyLogEvent recordPregnancyEvent(PregnancyInput input) throws BabyLogException {
+        if (!hasPregnancyMinimumContent(input)) {
+            throw new BabyLogException.ValidationException("请至少填写一项记录内容");
+        }
+        try {
+            JSONObject payload = buildPregnancyPayload(input);
+            String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
+                    ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
+                    : BabyLogFormatters.nowIso();
+            List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createPregnancyAttachments(input);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                    input.eventType,
+                    occurredAt,
+                    payload,
+                    BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments),
+                    "manual"
+            );
+            saveEventWithAttachmentsAndSyncChanges(event, attachments);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("保存记录失败", error);
+        }
+    }
+
+    public BabyLogDomain.BabyLogEvent updatePregnancyEvent(String eventId, PregnancyInput input) throws BabyLogException {
+        if (!hasPregnancyMinimumContent(input)) {
+            throw new BabyLogException.ValidationException("请至少填写一项记录内容");
+        }
+        BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, input.eventType);
+        try {
+            List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
+            List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createPregnancyAttachments(input);
+            attachmentIds.addAll(BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments));
+            String occurredAt = isPregnancyDocumentEvent(input.eventType) && BabyLogFormatters.isValidDateInput(input.primary)
+                    ? BabyLogFormatters.createOccurredAtFromDate(input.primary)
+                    : existing.occurredAt;
+            JSONObject payload = buildPregnancyPayload(input);
+            if ("contraction".equals(input.eventType)) {
+                preserveContractionSessionFields(existing.payload, payload);
+            }
+            BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                    existing,
+                    input.eventType,
+                    payload,
+                    attachmentIds,
+                    occurredAt
+            );
+            saveEventWithAttachmentsAndSyncChanges(event, attachments);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("更新记录失败", error);
+        }
+    }
+
+    public BabyLogDomain.BabyLogEvent recordFetalMovementSession(FetalMovementSessionInput input) throws BabyLogException {
+        try {
+            JSONObject payload = buildFetalMovementSessionPayload(input);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                    "fetal_movement",
+                    isBlank(input.endedAtIso) ? BabyLogFormatters.nowIso() : input.endedAtIso,
+                    payload,
+                    Collections.emptyList(),
+                    "manual"
+            );
+            saveEventWithSyncChange(event);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("保存胎动计数失败", error);
+        }
+    }
+
+    public List<BabyLogDomain.BabyLogEvent> recordContractionSession(ContractionSessionInput input) throws BabyLogException {
+        if (input == null || input.entries.isEmpty()) {
+            throw new BabyLogException.ValidationException("请至少记录一次宫缩");
+        }
+        try {
+            List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
+            List<BabyLogDomain.SyncChange> changes = new ArrayList<>();
+            for (ContractionEntryInput entry : input.entries) {
+                JSONObject payload = buildContractionSessionPayload(input.sessionId, entry);
+                BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                        "contraction",
+                        isBlank(entry.endIso) ? BabyLogFormatters.nowIso() : entry.endIso,
+                        payload,
+                        Collections.emptyList(),
+                        "manual"
+                );
+                events.add(event);
+                changes.add(BabyLogDomain.createSyncChange("event", event.id, "upsert"));
+            }
+            if (!repository.putEventsWithSyncChanges(events, changes)) {
+                throw new BabyLogException.StorageException("保存宫缩会话失败");
+            }
+            onSuccessfulWrite();
+            return events;
+        } catch (JSONException error) {
+            throw storageFailure("保存宫缩会话失败", error);
+        }
+    }
+
+    public BabyLogDomain.BabyLogEvent recordMaternalMetric(MaternalMetricInput input) throws BabyLogException {
         if (!hasMaternalMetricMinimumContent(input)) {
-            throw new IllegalArgumentException("请至少填写一项孕妈指标或备注");
+            throw new BabyLogException.ValidationException("请至少填写一项孕妈指标或备注");
+        }
+        try {
+            JSONObject payload = buildMaternalMetricPayload(input);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                    "maternal_metric",
+                    BabyLogFormatters.nowIso(),
+                    payload,
+                    Collections.emptyList(),
+                    "manual"
+            );
+            saveEventWithSyncChange(event);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("保存孕妈指标失败", error);
+        }
+    }
+
+    public BabyLogDomain.BabyLogEvent updateMaternalMetric(String eventId, MaternalMetricInput input) throws BabyLogException {
+        if (!hasMaternalMetricMinimumContent(input)) {
+            throw new BabyLogException.ValidationException("请至少填写一项孕妈指标或备注");
         }
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, "maternal_metric");
-        BabyLogDomain.BabyLogEvent event = createEditedEvent(
-                existing,
-                "maternal_metric",
-                buildMaternalMetricPayload(input),
-                existing.attachmentIds
-        );
-        saveEventWithSyncChange(event);
-        return event;
+        try {
+            BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                    existing,
+                    "maternal_metric",
+                    buildMaternalMetricPayload(input),
+                    existing.attachmentIds
+            );
+            saveEventWithSyncChange(event);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("更新孕妈指标失败", error);
+        }
     }
 
-    public BabyLogDomain.BabyLogEvent deleteEvent(String eventId) throws JSONException {
+    public BabyLogDomain.BabyLogEvent deleteEvent(String eventId) throws BabyLogException {
         BabyLogDomain.BabyLogEvent event = repository.findEventById(eventId);
         if (event == null || event.deletedAt != null) {
-            throw new JSONException("记录不存在或已删除");
+            throw new BabyLogException.NotFoundException("记录不存在或已删除");
         }
         String deletedAt = BabyLogFormatters.nowIso();
         BabyLogDomain.BabyLogEvent deleted = event.withDeletedAt(deletedAt);
@@ -241,17 +289,21 @@ public final class BabyLogService {
             profileUpdate = repository.loadChildProfile().withBirthDate("");
             changes.add(BabyLogDomain.createSyncChange("childProfile", profileUpdate.id, "upsert"));
         }
-        if (!repository.putEventProfileAttachmentsAndSyncChanges(deleted, profileUpdate, attachments, changes)) {
-            throw new JSONException("删除记录失败");
+        try {
+            if (!repository.putEventProfileAttachmentsAndSyncChanges(deleted, profileUpdate, attachments, changes)) {
+                throw new BabyLogException.StorageException("删除记录失败");
+            }
+        } catch (JSONException error) {
+            throw storageFailure("删除记录失败", error);
         }
         onSuccessfulWrite();
         return deleted;
     }
 
-    public BabyLogDomain.BabyLogEvent restoreEvent(String eventId) throws JSONException {
+    public BabyLogDomain.BabyLogEvent restoreEvent(String eventId) throws BabyLogException {
         BabyLogDomain.BabyLogEvent event = repository.findEventById(eventId);
         if (event == null || event.deletedAt == null) {
-            throw new JSONException("记录不存在或不在回收站");
+            throw new BabyLogException.NotFoundException("记录不存在或不在回收站");
         }
         String restoredAt = BabyLogFormatters.nowIso();
         BabyLogDomain.BabyLogEvent restored = event.withRestoredAt(restoredAt);
@@ -271,28 +323,36 @@ public final class BabyLogService {
             profileUpdate = withBirthDateFromBirthEvent(repository.loadChildProfile(), restored.occurredAt);
             changes.add(BabyLogDomain.createSyncChange("childProfile", profileUpdate.id, "upsert"));
         }
-        if (!repository.putEventProfileAttachmentsAndSyncChanges(restored, profileUpdate, attachments, changes)) {
-            throw new JSONException("恢复记录失败");
+        try {
+            if (!repository.putEventProfileAttachmentsAndSyncChanges(restored, profileUpdate, attachments, changes)) {
+                throw new BabyLogException.StorageException("恢复记录失败");
+            }
+        } catch (JSONException error) {
+            throw storageFailure("恢复记录失败", error);
         }
         onSuccessfulWrite();
         return restored;
     }
 
-    private void saveChildProfileWithSync(BabyLogDomain.ChildProfile profile) throws JSONException {
+    private void saveChildProfileWithSync(BabyLogDomain.ChildProfile profile) throws BabyLogException {
         BabyLogDomain.ChildProfile next = profile == null ? BabyLogDomain.ChildProfile.empty() : profile;
-        repository.saveChildProfile(next);
-        repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", next.id, "upsert"));
+        try {
+            repository.saveChildProfile(next);
+            repository.putSyncChange(BabyLogDomain.createSyncChange("childProfile", next.id, "upsert"));
+        } catch (JSONException error) {
+            throw storageFailure("保存档案失败", error);
+        }
         onSuccessfulWrite();
     }
 
-    public boolean saveEventWithSyncChange(BabyLogDomain.BabyLogEvent event) throws JSONException {
+    public boolean saveEventWithSyncChange(BabyLogDomain.BabyLogEvent event) throws BabyLogException {
         return saveEventWithAttachmentsAndSyncChanges(event, Collections.emptyList());
     }
 
     private boolean saveEventWithAttachmentsAndSyncChanges(
             BabyLogDomain.BabyLogEvent event,
             List<BabyLogDomain.AttachmentRecord> attachments
-    ) throws JSONException {
+    ) throws BabyLogException {
         return saveEventWithAttachmentsAndOptionalChildProfile(event, attachments, null);
     }
 
@@ -300,29 +360,29 @@ public final class BabyLogService {
             BabyLogDomain.BabyLogEvent event,
             List<BabyLogDomain.AttachmentRecord> attachments,
             BabyLogDomain.ChildProfile childProfile
-    ) throws JSONException {
+    ) throws BabyLogException {
         if (event == null) {
-            throw new JSONException("记录不能为空");
+            throw new BabyLogException.ValidationException("记录不能为空");
         }
         List<BabyLogDomain.SyncChange> changes = createSyncChangesForEventUpsert(event, attachments, childProfile);
-        boolean ok = repository.putEventProfileAttachmentsAndSyncChanges(event, childProfile, attachments, changes);
-        if (!ok) {
-            throw new JSONException("保存记录失败");
+        try {
+            boolean ok = repository.putEventProfileAttachmentsAndSyncChanges(event, childProfile, attachments, changes);
+            if (!ok) {
+                throw new BabyLogException.StorageException("保存记录失败");
+            }
+        } catch (JSONException error) {
+            throw storageFailure("保存记录失败", error);
         }
         onSuccessfulWrite();
         return true;
     }
 
     private void onSuccessfulWrite() {
-        if (context == null) {
-            return;
-        }
-        try {
-            Class<?> worker = Class.forName("app.babylog.nativeapp.BabyLogSyncPushWorker");
-            worker.getMethod("enqueueIfConfigured", Context.class).invoke(null, context);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            // Auto sync must never break the local save path or JVM smoke compilation.
-        }
+        try { syncTrigger.triggerAfterLocalWrite(); } catch (RuntimeException error) { Log.w(TAG, "Sync trigger failed after local write", error); }
+    }
+
+    private static BabyLogException.StorageException storageFailure(String message, JSONException error) {
+        return new BabyLogException.StorageException(message, error);
     }
 
     public static List<BabyLogDomain.SyncChange> createSyncChangesForEventUpsert(
@@ -443,6 +503,7 @@ public final class BabyLogService {
             putStringIfNotBlank(payload, "note", input.note);
         } else if ("diaper".equals(input.eventType)) {
             putStringIfNotBlank(payload, "diaperType", input.primary);
+            putStringIfNotBlank(payload, "diaperKind", BabyLogDiaperKind.normalize(input.primary));
             putStringIfNotBlank(payload, "diaperDetail", input.secondary);
             putStringIfNotBlank(payload, "diaperObservation", input.tertiary);
             putStringIfNotBlank(payload, "color", normalizeDiaperColor(input.tertiary));
@@ -996,42 +1057,50 @@ public final class BabyLogService {
         return summary.toString();
     }
 
-    public BabyLogDomain.BabyLogEvent recordUltrasound(UltrasoundInput input) throws JSONException {
+    public BabyLogDomain.BabyLogEvent recordUltrasound(UltrasoundInput input) throws BabyLogException {
         if (!hasUltrasoundMinimumContent(input)) {
-            throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
+            throw new BabyLogException.ValidationException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
-        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createUltrasoundAttachments(input);
-        BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
-                "ultrasound",
-                BabyLogFormatters.createOccurredAtFromDate(input.examDate),
-                buildUltrasoundPayload(input),
-                BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments),
-                "manual"
-        );
-        saveEventWithAttachmentsAndSyncChanges(event, attachments);
-        return event;
+        try {
+            List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createUltrasoundAttachments(input);
+            BabyLogDomain.BabyLogEvent event = BabyLogDomain.createEvent(
+                    "ultrasound",
+                    BabyLogFormatters.createOccurredAtFromDate(input.examDate),
+                    buildUltrasoundPayload(input),
+                    BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments),
+                    "manual"
+            );
+            saveEventWithAttachmentsAndSyncChanges(event, attachments);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("保存 B 超记录失败", error);
+        }
     }
 
-    public BabyLogDomain.BabyLogEvent updateUltrasound(String eventId, UltrasoundInput input) throws JSONException {
+    public BabyLogDomain.BabyLogEvent updateUltrasound(String eventId, UltrasoundInput input) throws BabyLogException {
         BabyLogDomain.BabyLogEvent existing = requireEditableEvent(eventId, "ultrasound");
         if (!hasUltrasoundMinimumContent(input) && existing.attachmentIds.isEmpty()) {
-            throw new IllegalArgumentException("请先选择 B 超单图片，或填写至少一个生长指标");
+            throw new BabyLogException.ValidationException("请先选择 B 超单图片，或填写至少一个生长指标");
         }
-        List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
-        List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createUltrasoundAttachments(input);
-        attachmentIds.addAll(BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments));
-        String occurredAt = BabyLogFormatters.isValidDateInput(input.examDate)
-                ? BabyLogFormatters.createOccurredAtFromDate(input.examDate)
-                : existing.occurredAt;
-        BabyLogDomain.BabyLogEvent event = createEditedEvent(
-                existing,
-                "ultrasound",
-                buildUltrasoundPayload(input),
-                attachmentIds,
-                occurredAt
-        );
-        saveEventWithAttachmentsAndSyncChanges(event, attachments);
-        return event;
+        try {
+            List<String> attachmentIds = new ArrayList<>(existing.attachmentIds);
+            List<BabyLogDomain.AttachmentRecord> attachments = attachmentBuilder.createUltrasoundAttachments(input);
+            attachmentIds.addAll(BabyLogAttachmentInputBuilder.attachmentIdsFromRecords(attachments));
+            String occurredAt = BabyLogFormatters.isValidDateInput(input.examDate)
+                    ? BabyLogFormatters.createOccurredAtFromDate(input.examDate)
+                    : existing.occurredAt;
+            BabyLogDomain.BabyLogEvent event = createEditedEvent(
+                    existing,
+                    "ultrasound",
+                    buildUltrasoundPayload(input),
+                    attachmentIds,
+                    occurredAt
+            );
+            saveEventWithAttachmentsAndSyncChanges(event, attachments);
+            return event;
+        } catch (JSONException error) {
+            throw storageFailure("更新 B 超记录失败", error);
+        }
     }
 
     public static BabyLogDomain.BabyLogEvent createEditedEvent(
@@ -1039,7 +1108,7 @@ public final class BabyLogService {
             String expectedEventType,
             JSONObject payload,
             List<String> attachmentIds
-    ) throws JSONException {
+    ) throws BabyLogException {
         return createEditedEvent(existing, expectedEventType, payload, attachmentIds, existing == null ? null : existing.occurredAt);
     }
 
@@ -1049,12 +1118,12 @@ public final class BabyLogService {
             JSONObject payload,
             List<String> attachmentIds,
             String occurredAt
-    ) throws JSONException {
+    ) throws BabyLogException {
         if (existing == null || existing.deletedAt != null) {
-            throw new JSONException("记录不存在或已删除");
+            throw new BabyLogException.NotFoundException("记录不存在或已删除");
         }
         if (!existing.eventType.equals(expectedEventType)) {
-            throw new JSONException("记录类型不匹配");
+            throw new BabyLogException.ValidationException("记录类型不匹配");
         }
         return new BabyLogDomain.BabyLogEvent(
                 existing.id,
@@ -1073,13 +1142,13 @@ public final class BabyLogService {
         );
     }
 
-    private BabyLogDomain.BabyLogEvent requireEditableEvent(String eventId, String expectedEventType) throws JSONException {
+    private BabyLogDomain.BabyLogEvent requireEditableEvent(String eventId, String expectedEventType) throws BabyLogException {
         BabyLogDomain.BabyLogEvent existing = repository.findEventById(eventId);
         if (existing == null || existing.deletedAt != null) {
-            throw new JSONException("记录不存在或已删除");
+            throw new BabyLogException.NotFoundException("记录不存在或已删除");
         }
         if (!expectedEventType.equals(existing.eventType)) {
-            throw new JSONException("记录类型不匹配");
+            throw new BabyLogException.ValidationException("记录类型不匹配");
         }
         return existing;
     }
@@ -1182,8 +1251,7 @@ public final class BabyLogService {
     }
 
     public List<BabyLogDomain.BabyLogEvent> listRecentEvents(int limit) {
-        List<BabyLogDomain.BabyLogEvent> events = sortEventsNewestFirst(repository.listEvents());
-        return events.size() <= limit ? events : new ArrayList<>(events.subList(0, limit));
+        return repository.listEvents(limit, 0);
     }
 
     public List<BabyLogDomain.BabyLogEvent> listTimelineEvents() {
@@ -1221,92 +1289,24 @@ public final class BabyLogService {
         return BabyLogDailySummaryCalculator.calculate(repository.listEvents(), dateInput);
     }
 
-    public String createBackupJson() throws JSONException, IOException {
-        JSONObject data = new JSONObject();
-        data.put("familyProfiles", repository.exportFamilyProfiles());
-        data.put("childProfiles", repository.exportChildProfiles());
-        data.put("familyMembers", repository.exportFamilyMembers());
-        data.put("events", repository.exportEvents());
-        JSONArray attachments = sanitizeAttachmentsForBackup(repository.exportAttachments(), BabyLogFormatters.nowIso());
-        data.put("attachments", attachments);
-        data.put("attachmentBlobs", attachmentBuilder.createAttachmentBlobBackup(attachments));
-        data.put("syncChanges", repository.exportSyncChanges());
-        validateBackupDataForImport(data);
-
-        JSONObject backup = new JSONObject();
-        backup.put("format", BACKUP_FORMAT);
-        backup.put("version", BACKUP_VERSION);
-        backup.put("exportedAt", BabyLogFormatters.nowIso());
-        backup.put("data", data);
-        return backup.toString(2);
+    public String createBackupJson() throws BabyLogException {
+        return backupManager.createBackupJson();
     }
 
-    public int importBackupJson(String raw) throws JSONException, IOException {
-        return importBackupJson(raw, true);
+    public int importBackupJson(String raw) throws BabyLogException {
+        return backupManager.importBackupJson(raw);
     }
 
     public boolean hasImportUndoSnapshot() {
-        File file = importUndoSnapshotFile();
-        return file.isFile() && file.length() > 0;
+        return backupManager.hasImportUndoSnapshot();
     }
 
-    public int undoLastImport() throws JSONException, IOException {
-        File file = importUndoSnapshotFile();
-        if (!file.isFile()) {
-            throw new IOException("没有可撤销的导入快照");
-        }
-        String raw = new String(BabyLogAttachmentInputBuilder.readFileBytes(file), StandardCharsets.UTF_8);
-        int count = importBackupJson(raw, false);
-        file.delete();
-        return count;
+    public int undoLastImport() throws BabyLogException {
+        return backupManager.undoLastImport();
     }
 
-    private int importBackupJson(String raw, boolean createUndoSnapshot) throws JSONException, IOException {
-        JSONObject backup = new JSONObject(raw);
-        if (!BACKUP_FORMAT.equals(backup.optString("format"))) {
-            throw new JSONException("Invalid BabyLog backup format");
-        }
-        if (backup.optInt("version") != BACKUP_VERSION) {
-            throw new JSONException("Unsupported backup version");
-        }
-        JSONObject data = backup.optJSONObject("data");
-        if (data == null || data.optJSONArray("events") == null) {
-            throw new JSONException("Invalid BabyLog backup data");
-        }
-        validateBackupDataForImport(data);
-        if (createUndoSnapshot) {
-            writeImportUndoSnapshot(createBackupJson());
-        }
-        JSONArray attachments = data.optJSONArray("attachments");
-        JSONArray restoredAttachments = attachmentBuilder.restoreAttachmentBlobs(attachments, data.optJSONArray("attachmentBlobs"));
-        boolean imported = repository.importData(
-                data.optJSONArray("familyProfiles"),
-                data.optJSONArray("childProfiles"),
-                data.optJSONArray("familyMembers"),
-                data.optJSONArray("events"),
-                restoredAttachments,
-                data.optJSONArray("syncChanges")
-        );
-        if (!imported) {
-            throw new IOException("导入写入失败，原数据未确认替换");
-        }
-        return data.optJSONArray("events").length();
-    }
-
-    public static void validateBackupDataForImport(JSONObject data) throws JSONException {
-        if (data == null) {
-            throw new JSONException("Invalid BabyLog backup data");
-        }
-        JSONArray events = data.optJSONArray("events");
-        if (events == null) {
-            throw new JSONException("Invalid BabyLog backup events");
-        }
-        validateEvents(events);
-        validateProfiles(data.optJSONArray("familyProfiles"), "familyProfiles");
-        validateProfiles(data.optJSONArray("childProfiles"), "childProfiles");
-        validateProfiles(data.optJSONArray("familyMembers"), "familyMembers");
-        BabyLogAttachmentInputBuilder.validateAttachments(data.optJSONArray("attachments"), data.optJSONArray("attachmentBlobs"));
-        validateSyncChanges(data.optJSONArray("syncChanges"));
+    public static void validateBackupDataForImport(JSONObject data) throws BabyLogException.ValidationException {
+        BabyLogBackupManager.validateBackupDataForImport(data);
     }
 
     public String copyImageUriToPrivateFile(Uri uri, String nameHint) throws IOException {
@@ -1339,17 +1339,7 @@ public final class BabyLogService {
     }
 
     public static JSONArray sanitizeAttachmentsForBackup(JSONArray attachments, String missingAt) throws JSONException {
-        return BabyLogAttachmentInputBuilder.sanitizeAttachmentsForBackup(attachments, missingAt);
-    }
-
-    private File importUndoSnapshotFile() {
-        return new File(context.getFilesDir(), LAST_IMPORT_UNDO_FILE);
-    }
-
-    private void writeImportUndoSnapshot(String raw) throws IOException {
-        try (FileOutputStream output = new FileOutputStream(importUndoSnapshotFile())) {
-            output.write(raw.getBytes(StandardCharsets.UTF_8));
-        }
+        return BabyLogBackupManager.sanitizeAttachmentsForBackup(attachments, missingAt);
     }
 
     private static void putIfNotNull(JSONObject payload, String key, Object value) throws JSONException {
@@ -1541,41 +1531,6 @@ public final class BabyLogService {
             newPayload.put("intervalFromPrevSec", Math.max(0, Math.round(intervalMinutes * 60.0)));
         } else if (existingPayload.has("intervalFromPrevSec")) {
             newPayload.put("intervalFromPrevSec", existingPayload.optInt("intervalFromPrevSec"));
-        }
-    }
-
-    private static void validateEvents(JSONArray events) throws JSONException {
-        for (int i = 0; i < events.length(); i++) {
-            JSONObject json = events.optJSONObject(i);
-            BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(json);
-            if (event == null || isBlank(event.id) || isBlank(event.eventType) || isBlank(event.occurredAt)) {
-                throw new JSONException("Invalid event at index " + i);
-            }
-        }
-    }
-
-    private static void validateProfiles(JSONArray profiles, String label) throws JSONException {
-        if (profiles == null) {
-            return;
-        }
-        for (int i = 0; i < profiles.length(); i++) {
-            JSONObject json = profiles.optJSONObject(i);
-            if (json == null || isBlank(json.optString("id"))) {
-                throw new JSONException("Invalid " + label + " at index " + i);
-            }
-        }
-    }
-
-    private static void validateSyncChanges(JSONArray changes) throws JSONException {
-        if (changes == null) {
-            return;
-        }
-        for (int i = 0; i < changes.length(); i++) {
-            JSONObject json = changes.optJSONObject(i);
-            BabyLogDomain.SyncChange change = BabyLogDomain.SyncChange.fromJson(json);
-            if (change == null || isBlank(change.id) || isBlank(change.entityType) || isBlank(change.entityId)) {
-                throw new JSONException("Invalid sync change at index " + i);
-            }
         }
     }
 

@@ -77,7 +77,7 @@ internal fun ContractionSessionScreen(
 
     SettingsPageScaffold(
         title = "宫缩计时",
-        subtitle = "仅作记录与参考，具体判断请以医生意见为准",
+        subtitle = "记录持续与间隔",
         saveText = "结束会话并保存",
         onBack = ::requestBack,
         onSave = {
@@ -105,12 +105,12 @@ internal fun ContractionSessionScreen(
     ) {
         item {
             Text(
-                "本页只记录开始、结束、持续与间隔，不判断是否临产，也不替代医生意见。",
+                "保存每次开始、结束、持续与间隔。",
                 color = ChestnutPalette.Muted,
                 fontSize = 13.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(ChestnutPalette.Surface2, RoundedCornerShape(14.dp))
+                    .background(ChestnutPalette.Surface2, RoundedCornerShape(ChestnutRadius.Control))
                     .padding(14.dp)
             )
         }
@@ -118,7 +118,7 @@ internal fun ContractionSessionScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(ChestnutPalette.Surface, RoundedCornerShape(16.dp))
+                    .background(ChestnutPalette.Surface, RoundedCornerShape(ChestnutRadius.Control))
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -169,7 +169,7 @@ internal fun ContractionSessionScreen(
             ContractionStats(entries)
         }
         if (entries.isEmpty()) {
-            item { EmptyPanel("还没有记录。点“开始一次”，结束后会加入本会话列表。") }
+            item { EmptyPanel("点“开始一次”后，结束会加入列表。") }
         } else {
             entries.forEachIndexed { index, entry ->
                 item(key = "contraction-entry-$index-${entry.startMs}") {
@@ -183,7 +183,7 @@ internal fun ContractionSessionScreen(
         AlertDialog(
             onDismissRequest = { confirmExit = false },
             title = { Text("丢弃本次计时？", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold) },
-            text = { Text("当前会话还没有保存，返回会丢失本次临时计时。") },
+            text = { Text("返回会丢失当前未保存计时。") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -214,7 +214,7 @@ private fun ContractionStats(entries: List<ContractionSessionEntry>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(ChestnutPalette.Surface, RoundedCornerShape(16.dp))
+            .background(ChestnutPalette.Surface, RoundedCornerShape(ChestnutRadius.Control))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -235,7 +235,7 @@ private fun ContractionEntryRow(index: Int, entry: ContractionSessionEntry) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(ChestnutPalette.Surface, RoundedCornerShape(14.dp))
+            .background(ChestnutPalette.Surface, RoundedCornerShape(ChestnutRadius.Control))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {

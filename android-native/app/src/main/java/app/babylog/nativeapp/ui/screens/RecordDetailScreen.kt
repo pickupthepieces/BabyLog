@@ -282,6 +282,7 @@ private fun payloadLabel(key: String): String {
         "sleepEnd" -> "睡眠结束"
         "sleepPlace" -> "睡眠地点"
         "diaperType" -> "尿布类型"
+        "diaperKind" -> "尿布类型编码"
         "diaperDetail" -> "尿布详情"
         "temperatureC" -> "体温"
         "measureMethod" -> "测量方式"

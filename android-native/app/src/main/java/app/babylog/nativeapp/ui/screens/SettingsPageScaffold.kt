@@ -1,6 +1,7 @@
 package app.babylog.nativeapp
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,9 +10,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.OutlinedButton
@@ -42,17 +46,23 @@ internal fun SettingsPageScaffold(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(ChestnutPalette.Primary)
-                .padding(horizontal = 18.dp, vertical = 16.dp),
+                .background(ChestnutPalette.Bg)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text(subtitle, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
+                Text(title, color = ChestnutPalette.Ink, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text(subtitle, color = ChestnutPalette.Muted, fontSize = 13.sp)
             }
-            OutlinedButton(onClick = onBack) {
-                Text("返回", color = Color.White)
+            OutlinedButton(
+                onClick = onBack,
+                shape = CircleShape,
+                border = BorderStroke(1.dp, ChestnutPalette.Border.copy(alpha = 0.72f)),
+                colors = ButtonDefaults.outlinedButtonColors(backgroundColor = ChestnutPalette.Surface),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text("返回", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
             }
         }
         LazyColumn(
@@ -71,8 +81,11 @@ internal fun SettingsPageScaffold(
                     .padding(horizontal = 18.dp, vertical = 14.dp)
             ) {
                 Button(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
                     onClick = onSave,
+                    shape = RoundedCornerShape(ChestnutRadius.Control),
                     colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
                 ) {
                     Text(saveText, color = Color.White, fontWeight = FontWeight.Bold)

@@ -45,7 +45,7 @@ internal fun TrashScreen(
                 color = Color(0xFF7C4A21),
                 fontSize = 13.sp,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(ChestnutRadius.Small))
                     .background(Color(0xFFFFEBCB))
                     .padding(12.dp)
             )
@@ -72,7 +72,7 @@ private fun TrashRow(
 ) {
     val remainingDays = BabyLogService.trashRemainingDays(event.deletedAt, nowIso)
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(ChestnutRadius.Control),
         backgroundColor = ChestnutPalette.Surface,
         border = BorderStroke(1.dp, ChestnutPalette.Border),
         elevation = 1.dp

@@ -199,7 +199,7 @@ public final class BabyLogReminderScheduler {
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "BabyLog 提醒",
+                    "栗记提醒",
                     NotificationManager.IMPORTANCE_DEFAULT
             );
             manager.createNotificationChannel(channel);

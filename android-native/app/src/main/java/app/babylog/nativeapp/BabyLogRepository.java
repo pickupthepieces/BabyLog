@@ -8,15 +8,16 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class BabyLogRepository {
     private static final String TAG = "BabyLog";
     private static final String PREFS_NAME = "babylog_native_repository_v1";
-    private static final String EVENTS_KEY = "events";
-    private static final String ATTACHMENTS_KEY = "attachments";
-    private static final String SYNC_CHANGES_KEY = "syncChanges";
+    static final String EVENTS_KEY = "events";
+    static final String ATTACHMENTS_KEY = "attachments";
+    static final String SYNC_CHANGES_KEY = "syncChanges";
     private static final String SETTINGS_KEY = "syncSettings";
     private static final String FAMILY_PROFILE_KEY = "familyProfile";
     private static final String CHILD_PROFILE_KEY = "childProfile";
@@ -25,16 +26,19 @@ public final class BabyLogRepository {
     private static final String REMOTE_UPDATE_BANNER_COUNT_KEY = "remoteUpdateBannerCount";
 
     private final BabyLogRepositoryStringStore.Store store;
+    private final BabyLogRepositoryCollectionStore.Store collections;
     private final BabyLogAttachmentBlobStore attachmentBlobStore;
 
     public BabyLogRepository(Context context) {
         SharedPreferences preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         store = BabyLogRepositoryStringStore.fromSharedPreferences(preferences);
+        collections = createCollectionStore(context, store);
         attachmentBlobStore = new BabyLogAttachmentBlobStore(context, preferences);
     }
 
     private BabyLogRepository(BabyLogRepositoryStringStore.Store store) {
         this.store = store;
+        collections = BabyLogRepositoryCollectionStore.fromStringStore(store);
         attachmentBlobStore = BabyLogAttachmentBlobStore.forSmokeTest();
     }
 
@@ -50,14 +54,7 @@ public final class BabyLogRepository {
         if (eventId == null || eventId.trim().isEmpty()) {
             return null;
         }
-        JSONArray array = readArray(EVENTS_KEY);
-        for (int i = 0; i < array.length(); i++) {
-            BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(array.optJSONObject(i));
-            if (event != null && BabyLogDomain.FAMILY_ID.equals(event.familyId) && eventId.equals(event.id)) {
-                return event;
-            }
-        }
-        return null;
+        return BabyLogDomain.BabyLogEvent.fromJson(collections.findJsonById(EVENTS_KEY, eventId));
     }
 
     public BabyLogDomain.FamilyProfile loadFamilyProfile() {
@@ -124,11 +121,23 @@ public final class BabyLogRepository {
     }
 
     public List<BabyLogDomain.BabyLogEvent> listEvents() {
-        JSONArray array = readArray(EVENTS_KEY);
+        JSONArray array = collections.readActiveArray(EVENTS_KEY);
+        return eventsFromArray(array);
+    }
+
+    public List<BabyLogDomain.BabyLogEvent> listEvents(int limit, int offset) {
+        if (limit <= 0) {
+            return new ArrayList<>();
+        }
+        JSONArray array = collections.readActiveArrayPage(EVENTS_KEY, limit, Math.max(0, offset));
+        return eventsFromArray(array);
+    }
+
+    private static List<BabyLogDomain.BabyLogEvent> eventsFromArray(JSONArray array) {
         List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
             BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(array.optJSONObject(i));
-            if (event != null && BabyLogDomain.FAMILY_ID.equals(event.familyId) && event.deletedAt == null) {
+            if (event != null) {
                 events.add(event);
             }
         }
@@ -136,11 +145,11 @@ public final class BabyLogRepository {
     }
 
     public List<BabyLogDomain.BabyLogEvent> listDeletedEvents() {
-        JSONArray array = readArray(EVENTS_KEY);
+        JSONArray array = collections.readDeletedArray(EVENTS_KEY);
         List<BabyLogDomain.BabyLogEvent> events = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
             BabyLogDomain.BabyLogEvent event = BabyLogDomain.BabyLogEvent.fromJson(array.optJSONObject(i));
-            if (event != null && BabyLogDomain.FAMILY_ID.equals(event.familyId) && event.deletedAt != null) {
+            if (event != null) {
                 events.add(event);
             }
         }
@@ -155,14 +164,7 @@ public final class BabyLogRepository {
         if (attachmentId == null || attachmentId.trim().isEmpty()) {
             return null;
         }
-        JSONArray array = readArray(ATTACHMENTS_KEY);
-        for (int i = 0; i < array.length(); i++) {
-            BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(array.optJSONObject(i));
-            if (attachment != null && BabyLogDomain.FAMILY_ID.equals(attachment.familyId) && attachmentId.equals(attachment.id)) {
-                return attachment;
-            }
-        }
-        return null;
+        return BabyLogDomain.AttachmentRecord.fromJson(collections.findJsonById(ATTACHMENTS_KEY, attachmentId));
     }
 
     public byte[] findAttachmentBlobBytes(String attachmentId) {
@@ -197,8 +199,7 @@ public final class BabyLogRepository {
                 .put("localBlobKey", localPath)
                 .put("byteSize", attachmentBlobStore.byteSizeForAttachment(attachmentId))
                 .put("contentHash", contentHash == null || contentHash.trim().isEmpty() ? JSONObject.NULL : contentHash);
-        JSONArray updated = upsertJson(readArray(ATTACHMENTS_KEY), attachmentId, json);
-        return store.edit().putString(ATTACHMENTS_KEY, updated.toString()).commit();
+        return collections.putJson(ATTACHMENTS_KEY, attachmentId, json);
     }
     public void enqueueAttachmentDownload(String attachmentId, String remoteRecordId, String filename, String fileVersion) throws JSONException {
         attachmentBlobStore.enqueueAttachmentDownload(attachmentId, remoteRecordId, filename, fileVersion);
@@ -211,11 +212,11 @@ public final class BabyLogRepository {
     }
 
     public List<BabyLogDomain.AttachmentRecord> listAttachments() {
-        JSONArray array = readArray(ATTACHMENTS_KEY);
+        JSONArray array = collections.readActiveArray(ATTACHMENTS_KEY);
         List<BabyLogDomain.AttachmentRecord> attachments = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
             BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.AttachmentRecord.fromJson(array.optJSONObject(i));
-            if (attachment != null && BabyLogDomain.FAMILY_ID.equals(attachment.familyId) && attachment.deletedAt == null) {
+            if (attachment != null) {
                 attachments.add(attachment);
             }
         }
@@ -238,26 +239,22 @@ public final class BabyLogRepository {
             List<BabyLogDomain.BabyLogEvent> events,
             List<BabyLogDomain.SyncChange> changes
     ) throws JSONException {
-        JSONArray updatedEvents = readArray(EVENTS_KEY);
-        JSONArray updatedChanges = readArray(SYNC_CHANGES_KEY);
+        List<BabyLogRepositoryCollectionStore.Write> writes = new ArrayList<>();
         if (events != null) {
             for (BabyLogDomain.BabyLogEvent event : events) {
                 if (event != null) {
-                    updatedEvents = upsertJson(updatedEvents, event.id, event.toJson());
+                    writes.add(new BabyLogRepositoryCollectionStore.Write(EVENTS_KEY, event.id, event.toJson()));
                 }
             }
         }
         if (changes != null) {
             for (BabyLogDomain.SyncChange change : changes) {
                 if (change != null) {
-                    updatedChanges = upsertJson(updatedChanges, change.id, change.toJson());
+                    writes.add(new BabyLogRepositoryCollectionStore.Write(SYNC_CHANGES_KEY, change.id, change.toJson()));
                 }
             }
         }
-        return store.edit()
-                .putString(EVENTS_KEY, updatedEvents.toString())
-                .putString(SYNC_CHANGES_KEY, updatedChanges.toString())
-                .commit();
+        return collections.putJsons(writes);
     }
 
     public boolean putEventWithAttachmentsAndSyncChanges(
@@ -274,34 +271,32 @@ public final class BabyLogRepository {
             List<BabyLogDomain.AttachmentRecord> attachments,
             List<BabyLogDomain.SyncChange> changes
     ) throws JSONException {
-        JSONArray updatedEvents = readArray(EVENTS_KEY);
-        JSONArray updatedAttachments = readArray(ATTACHMENTS_KEY);
-        JSONArray updatedChanges = readArray(SYNC_CHANGES_KEY);
+        List<BabyLogRepositoryCollectionStore.Write> writes = new ArrayList<>();
         if (event != null) {
-            updatedEvents = upsertJson(updatedEvents, event.id, event.toJson());
+            writes.add(new BabyLogRepositoryCollectionStore.Write(EVENTS_KEY, event.id, event.toJson()));
         }
         if (attachments != null) {
             for (BabyLogDomain.AttachmentRecord attachment : attachments) {
                 if (attachment != null) {
-                    updatedAttachments = upsertJson(updatedAttachments, attachment.id, attachment.toJson());
+                    writes.add(new BabyLogRepositoryCollectionStore.Write(ATTACHMENTS_KEY, attachment.id, attachment.toJson()));
                 }
             }
         }
         if (changes != null) {
             for (BabyLogDomain.SyncChange change : changes) {
                 if (change != null) {
-                    updatedChanges = upsertJson(updatedChanges, change.id, change.toJson());
+                    writes.add(new BabyLogRepositoryCollectionStore.Write(SYNC_CHANGES_KEY, change.id, change.toJson()));
                 }
             }
         }
-        BabyLogRepositoryStringStore.Editor editor = store.edit()
-                .putString(EVENTS_KEY, updatedEvents.toString())
-                .putString(ATTACHMENTS_KEY, updatedAttachments.toString())
-                .putString(SYNC_CHANGES_KEY, updatedChanges.toString());
+        boolean collectionsCommitted = collections.putJsons(writes);
+        BabyLogRepositoryStringStore.Editor editor = store.edit();
         if (childProfile != null) {
             editor.putString(CHILD_PROFILE_KEY, childProfile.toJson().toString());
+        } else {
+            return collectionsCommitted;
         }
-        return editor.commit();
+        return collectionsCommitted && editor.commit();
     }
 
     public List<BabyLogDomain.SyncChange> listSyncChanges() {
@@ -325,12 +320,10 @@ public final class BabyLogRepository {
         }
         BabyLogRepositoryStringStore.Editor editor = store.edit();
         if (BabyLogSyncProtocol.ENTITY_EVENT.equals(entityType)) {
-            JSONArray events = upsertJson(readArray(EVENTS_KEY), entityJson.optString("id"), entityJson);
-            return editor.putString(EVENTS_KEY, events.toString()).commit();
+            return collections.putJson(EVENTS_KEY, entityJson.optString("id"), entityJson);
         }
         if (BabyLogSyncProtocol.ENTITY_ATTACHMENT.equals(entityType)) {
-            JSONArray attachments = upsertJson(readArray(ATTACHMENTS_KEY), entityJson.optString("id"), entityJson);
-            return editor.putString(ATTACHMENTS_KEY, attachments.toString()).commit();
+            return collections.putJson(ATTACHMENTS_KEY, entityJson.optString("id"), entityJson);
         }
         if (BabyLogSyncProtocol.ENTITY_CHILD_PROFILE.equals(entityType)) {
             return editor.putString(CHILD_PROFILE_KEY, entityJson.toString()).commit();
@@ -428,21 +421,17 @@ public final class BabyLogRepository {
             JSONArray attachments,
             JSONArray syncChanges
     ) {
-        BabyLogRepositoryStringStore.Editor editor = store.edit()
-                .putString(EVENTS_KEY, events == null ? "[]" : events.toString())
-                .putString(ATTACHMENTS_KEY, attachments == null ? "[]" : attachments.toString())
-                .putString(SYNC_CHANGES_KEY, syncChanges == null ? "[]" : syncChanges.toString());
+        boolean collectionsCommitted = collections.replaceArrays(events, attachments, syncChanges);
+        BabyLogRepositoryStringStore.Editor editor = store.edit();
         putFirstObjectOrRemove(editor, FAMILY_PROFILE_KEY, familyProfiles);
         putFirstObjectOrRemove(editor, CHILD_PROFILE_KEY, childProfiles);
         putFirstObjectOrRemove(editor, CURRENT_MEMBER_KEY, familyMembers);
-        return editor.commit();
+        return collectionsCommitted && editor.commit();
     }
 
     public void clearLocalData() {
+        collections.clearCollections();
         store.edit()
-                .putString(EVENTS_KEY, "[]")
-                .putString(ATTACHMENTS_KEY, "[]")
-                .putString(SYNC_CHANGES_KEY, "[]")
                 .remove(FAMILY_PROFILE_KEY)
                 .remove(CHILD_PROFILE_KEY)
                 .remove(CURRENT_MEMBER_KEY)
@@ -450,10 +439,7 @@ public final class BabyLogRepository {
     }
 
     public long estimateLocalBytes() {
-        long bytes = 0;
-        bytes += store.getString(EVENTS_KEY, "[]").length();
-        bytes += store.getString(ATTACHMENTS_KEY, "[]").length();
-        bytes += store.getString(SYNC_CHANGES_KEY, "[]").length();
+        long bytes = collections.estimateBytes();
         bytes += store.getString(FAMILY_PROFILE_KEY, "").length();
         bytes += store.getString(CHILD_PROFILE_KEY, "").length();
         bytes += store.getString(CURRENT_MEMBER_KEY, "").length();
@@ -461,29 +447,7 @@ public final class BabyLogRepository {
     }
 
     private void putJson(String key, String id, JSONObject next) throws JSONException {
-        JSONArray updated = upsertJson(readArray(key), id, next);
-        store.edit().putString(key, updated.toString()).commit();
-    }
-
-    private JSONArray upsertJson(JSONArray array, String id, JSONObject next) throws JSONException {
-        JSONArray updated = new JSONArray();
-        boolean replaced = false;
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject current = array.optJSONObject(i);
-            if (current == null) {
-                continue;
-            }
-            if (id.equals(current.optString("id"))) {
-                updated.put(next);
-                replaced = true;
-            } else {
-                updated.put(current);
-            }
-        }
-        if (!replaced) {
-            updated.put(next);
-        }
-        return updated;
+        collections.putJson(key, id, next);
     }
 
     public static final class AttachmentDownloadRequest {
@@ -500,25 +464,11 @@ public final class BabyLogRepository {
         if (id == null || id.trim().isEmpty()) {
             return;
         }
-        JSONArray array = readArray(key);
-        JSONArray updated = new JSONArray();
-        for (int i = 0; i < array.length(); i++) {
-            JSONObject current = array.optJSONObject(i);
-            if (current == null || id.equals(current.optString("id"))) {
-                continue;
-            }
-            updated.put(current);
-        }
-        store.edit().putString(key, updated.toString()).commit();
+        collections.hardDeleteJson(key, id);
     }
 
     private JSONArray readArray(String key) {
-        try {
-            return new JSONArray(store.getString(key, "[]"));
-        } catch (JSONException ignored) {
-            Log.w(TAG, "Failed to parse repository JSON array for key " + key, ignored);
-            return new JSONArray();
-        }
+        return collections.readArray(key);
     }
 
     private void putFirstObjectOrRemove(BabyLogRepositoryStringStore.Editor editor, String key, JSONArray array) {
@@ -527,6 +477,24 @@ public final class BabyLogRepository {
             editor.remove(key);
         } else {
             editor.putString(key, first.toString());
+        }
+    }
+
+    private static BabyLogRepositoryCollectionStore.Store createCollectionStore(
+            Context context,
+            BabyLogRepositoryStringStore.Store legacyStore
+    ) {
+        try {
+            Class<?> type = Class.forName("app.babylog.nativeapp.BabyLogRoomCollectionStore");
+            Method method = type.getDeclaredMethod(
+                    "create",
+                    Context.class,
+                    BabyLogRepositoryStringStore.Store.class
+            );
+            return (BabyLogRepositoryCollectionStore.Store) method.invoke(null, context.getApplicationContext(), legacyStore);
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            Log.w(TAG, "Room repository store unavailable; falling back to SharedPreferences arrays", error);
+            return BabyLogRepositoryCollectionStore.fromStringStore(legacyStore);
         }
     }
 }

@@ -72,7 +72,7 @@ internal fun SmartEntryScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("智能录入", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text("语音或文字生成候选字段，确认后进入表单", color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
+                Text("生成候选字段，核对后保存", color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
             }
             OutlinedButton(onClick = onBack, enabled = !running) {
                 Text("返回", color = Color.White)
@@ -87,7 +87,7 @@ internal fun SmartEntryScreen(
         ) {
             item {
                 Text(
-                    "按住说话会把本次语音发给你配置的语音识别服务商转成文字；模型只生成候选字段，仍需你在表单里手动保存。",
+                    "输入文字或按住说话，生成候选字段；保存前仍需核对。",
                     color = ChestnutPalette.Muted,
                     fontSize = 13.sp
                 )
@@ -113,7 +113,7 @@ internal fun SmartEntryScreen(
             }
             item {
                 ChestnutLongTextField(
-                    label = "转写文本 / 手动输入，例如：今天产检在奉化妇幼，血糖餐后一小时 8.8",
+                    label = "输入记录内容",
                     value = text,
                     onValueChange = { text = it },
                     minLines = 6,
@@ -146,7 +146,7 @@ internal fun SmartEntryScreen(
                 )
             ) {
                 Text(
-                    if (running) "识别中..." else "识别并生成候选",
+                    if (running) "识别中..." else "生成候选",
                     color = if (running) ChestnutPalette.Text3 else Color.White,
                     fontWeight = FontWeight.Bold
                 )
@@ -165,7 +165,7 @@ private fun SmartEntryCandidatePanel(
         .filter { it.value.isNotBlank() }
         .take(8)
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(ChestnutRadius.Control),
         color = ChestnutPalette.PrimarySoft,
         border = BorderStroke(1.dp, ChestnutPalette.Primary.copy(alpha = 0.36f)),
         elevation = 0.dp
@@ -182,7 +182,7 @@ private fun SmartEntryCandidatePanel(
                 fontWeight = FontWeight.Bold
             )
             if (rows.isEmpty()) {
-                Text("模型没有返回可用字段，可以继续修改文本后重新识别。", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                Text("未识别到可用字段，可修改后重试。", color = ChestnutPalette.Muted, fontSize = 13.sp)
             } else {
                 rows.forEach { entry ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -218,7 +218,7 @@ private fun SmartEntryCandidatePanel(
                         disabledBackgroundColor = ChestnutPalette.Surface2
                     )
                 ) {
-                    Text("打开表单核对", color = Color.White)
+                    Text("核对并填写", color = Color.White)
                 }
             }
         }
@@ -245,9 +245,9 @@ private fun VoiceHoldButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
             .background(bg)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(ChestnutRadius.Control))
             .then(
                 if (enabled) {
                     Modifier.pointerInput(Unit) {

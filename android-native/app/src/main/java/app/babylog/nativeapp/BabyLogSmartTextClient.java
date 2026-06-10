@@ -1,16 +1,14 @@
 package app.babylog.nativeapp;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +19,9 @@ import java.util.Map;
 public final class BabyLogSmartTextClient {
     private static final int CONNECT_TIMEOUT_MS = 20_000;
     private static final int READ_TIMEOUT_MS = 45_000;
+    private static final int MAX_RESPONSE_CHARS = 1024 * 1024;
+
+    private final OkHttpClient httpClient = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
     public SmartEntryCandidate classifyEntry(
             String stage,
@@ -39,7 +40,7 @@ public final class BabyLogSmartTextClient {
         }
 
         JSONObject request = buildSmartEntryRequest(config.getModel(), stage, forms, rawText);
-        String response = postJson(BabyLogSmartVisionClient.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+        String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
         try {
             return parseSmartEntryResponse(response, forms, rawText);
         } catch (IllegalArgumentException error) {
@@ -65,7 +66,7 @@ public final class BabyLogSmartTextClient {
         }
 
         JSONObject request = buildSmartFillRequest(config.getModel(), formName, stage, fields, rawText);
-        String response = postJson(BabyLogSmartVisionClient.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+        String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
         try {
             return parseSmartFillResponse(response, fields.keySet(), rawText);
         } catch (IllegalArgumentException error) {
@@ -85,7 +86,7 @@ public final class BabyLogSmartTextClient {
         }
 
         JSONObject request = buildVisitSummaryPolishRequest(config.getModel(), markdown);
-        String response = postJson(BabyLogSmartVisionClient.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
+        String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
         try {
             return parseVisitSummaryPolishResponse(response);
         } catch (IllegalArgumentException error) {
@@ -103,7 +104,7 @@ public final class BabyLogSmartTextClient {
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject()
                 .put("role", "system")
-                .put("content", "你是 BabyLog 家庭记录表单助手。你只把用户主动提交的文字整理成候选字段，不诊断、不建议治疗、不自动保存。必须只返回 JSON object。"));
+                .put("content", "你是栗记家庭记录表单助手。你只把用户主动提交的文字整理成候选字段，不诊断、不建议治疗、不自动保存。必须只返回 JSON object。"));
 
         JSONObject fieldObject = new JSONObject();
         for (Map.Entry<String, String> entry : fields.entrySet()) {
@@ -140,7 +141,7 @@ public final class BabyLogSmartTextClient {
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject()
                 .put("role", "system")
-                .put("content", "你是 BabyLog 家庭记录智能录入助手。你只把用户主动提交的文字分类成一个记录类型并整理候选字段，不诊断、不建议治疗、不自动保存。必须只返回 JSON object。"));
+                .put("content", "你是栗记家庭记录智能录入助手。你只把用户主动提交的文字分类成一个记录类型并整理候选字段，不诊断、不建议治疗、不自动保存。必须只返回 JSON object。"));
 
         JSONObject formObject = new JSONObject();
         for (Map.Entry<String, Map<String, String>> formEntry : forms.entrySet()) {
@@ -185,7 +186,7 @@ public final class BabyLogSmartTextClient {
                 .put("content", visitSummaryPolishSystemPrompt()));
         messages.put(new JSONObject()
                 .put("role", "user")
-                .put("content", "请润色下面这份 BabyLog 复诊汇总，严格遵守系统规则：\n\n" + nullToEmpty(markdown)));
+                .put("content", "请润色下面这份栗记复诊汇总，严格遵守系统规则：\n\n" + nullToEmpty(markdown)));
 
         return new JSONObject()
                 .put("model", model)
@@ -345,42 +346,20 @@ public final class BabyLogSmartTextClient {
         return text;
     }
 
-    private static String postJson(String url, String apiKey, JSONObject body) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
-
-        byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
-        connection.setFixedLengthStreamingMode((long) payload.length);
-        try (OutputStream out = connection.getOutputStream()) {
-            out.write(payload);
+    private String postJson(String url, String apiKey, JSONObject body) throws IOException {
+        RequestBody requestBody = RequestBody.create(
+                body.toString().getBytes(StandardCharsets.UTF_8),
+                BabyLogHttpClient.JSON_MEDIA_TYPE
+        );
+        Request request = BabyLogHttpClient.requestBuilder(url)
+                .header("Authorization", "Bearer " + apiKey)
+                .post(requestBody)
+                .build();
+        BabyLogHttpClient.HttpResponse response = BabyLogHttpClient.executeText(httpClient, request, MAX_RESPONSE_CHARS);
+        if (!response.isSuccessful()) {
+            throw new IOException(BabyLogSmartApi.formatApiErrorMessage(response.statusCode, response.body));
         }
-
-        int code = connection.getResponseCode();
-        InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-        String response = readResponse(stream);
-        if (code < 200 || code >= 300) {
-            throw new IOException(BabyLogSmartVisionClient.formatApiErrorMessage(code, response));
-        }
-        return response;
-    }
-
-    private static String readResponse(InputStream stream) throws IOException {
-        if (stream == null) {
-            return "";
-        }
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                builder.append(line);
-            }
-        }
-        return builder.toString();
+        return response.body;
     }
 
     private static String stripMarkdownFence(String content) {

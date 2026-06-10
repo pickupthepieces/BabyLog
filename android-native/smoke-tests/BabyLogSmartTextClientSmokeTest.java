@@ -1,5 +1,12 @@
 import app.babylog.nativeapp.BabyLogSmartTextClient;
+import app.babylog.nativeapp.BabyLogSmartConfigStore;
 
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -112,6 +119,70 @@ public final class BabyLogSmartTextClientSmokeTest {
                 + "```\"}}]}";
         String polished = BabyLogSmartTextClient.parseVisitSummaryPolishResponse(polishResponse);
         assertEquals("# BabyLog 复诊汇总\n> 仅家庭记录摘要，未经医学判读。本应用非医疗器械。\n- 血压 118/76 mmHg", polished);
+
+        assertClassifyEntryPostsJsonWithBearer();
+    }
+
+    private static void assertClassifyEntryPostsJsonWithBearer() throws Exception {
+        final String[] capturedMethod = new String[1];
+        final String[] capturedAuthorization = new String[1];
+        final String[] capturedBody = new String[1];
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            capturedMethod[0] = exchange.getRequestMethod();
+            capturedAuthorization[0] = exchange.getRequestHeaders().getFirst("Authorization");
+            capturedBody[0] = new String(readAll(exchange.getRequestBody()), StandardCharsets.UTF_8);
+            String response = "{"
+                    + "\"choices\":[{\"message\":{\"content\":\"{"
+                    + "\\\"eventType\\\":\\\"maternal_metric\\\","
+                    + "\\\"values\\\":{\\\"weightKg\\\":\\\"61.2\\\"},"
+                    + "\\\"warnings\\\":[],"
+                    + "\\\"rawText\\\":\\\"体重 61.2kg\\\"}\"}}]}";
+            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        BabyLogSmartTextClient.SmartEntryCandidate candidate;
+        try {
+            int port = server.getAddress().getPort();
+            Map<String, Map<String, String>> forms = new LinkedHashMap<>();
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("weightKg", "体重 kg");
+            forms.put("maternal_metric", fields);
+            BabyLogSmartTextClient client = new BabyLogSmartTextClient();
+            candidate = client.classifyEntry(
+                    "pregnancy",
+                    forms,
+                    "体重 61.2kg",
+                    new BabyLogSmartConfigStore.Config(
+                            "http://127.0.0.1:" + port,
+                            "test-model",
+                            "secret-key",
+                            true
+                    )
+            );
+        } finally {
+            server.stop(0);
+        }
+
+        assertEquals("POST", capturedMethod[0]);
+        assertEquals("Bearer secret-key", capturedAuthorization[0]);
+        assertTrue(capturedBody[0].contains("\"model\":\"test-model\""));
+        assertTrue(capturedBody[0].contains("体重 61.2kg"));
+        assertEquals("maternal_metric", candidate.eventType);
+        assertEquals("61.2", candidate.values.get("weightKg"));
+    }
+
+    private static byte[] readAll(InputStream input) throws java.io.IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[256];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
     }
 
     private static void assertEquals(Object expected, Object actual) {

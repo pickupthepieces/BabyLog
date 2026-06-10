@@ -63,8 +63,8 @@ internal fun PreVisitQuestionsScreen(
     }
 
     SettingsPageScaffold(
-        title = "想问医生的问题",
-        subtitle = "产检前随手记，复诊汇总会自动带上",
+        title = "待问问题",
+        subtitle = "复诊前整理要点，汇总时自动带上",
         onBack = onBack
     ) {
         item {
@@ -84,7 +84,7 @@ internal fun PreVisitQuestionsScreen(
                         placeholder = "例如：这次报告里哪些项目需要医生解释？"
                     )
                     DateInputRow(
-                        label = "关联产检日期，可空",
+                        label = "关联产检日期",
                         value = visitDate,
                         onValueChange = { visitDate = it }
                     )
@@ -125,7 +125,7 @@ internal fun PreVisitQuestionsScreen(
                         }
                     }
                     Text(
-                        text = "只作为复诊沟通清单；不会写入时间线。",
+                        text = "仅用于复诊沟通清单，不写入时间线。",
                         color = ChestnutPalette.Muted,
                         fontSize = 12.sp
                     )

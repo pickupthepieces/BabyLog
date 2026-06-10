@@ -52,7 +52,7 @@ internal fun AttachmentPreviewScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(620.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(ChestnutRadius.Control))
                             .background(ChestnutPalette.Surface2),
                         contentScale = ContentScale.Fit
                     )
@@ -69,7 +69,7 @@ private fun AttachmentDownloadPlaceholder() {
         modifier = Modifier
             .fillMaxWidth()
             .height(260.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
             .background(ChestnutPalette.Surface2)
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

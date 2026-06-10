@@ -128,8 +128,8 @@ internal fun FetalMovementSessionDialog(
                 }
                 Text(
                     text = when {
-                        reachedLimit -> "已满 1 小时，可以保存本次观察。"
-                        running -> "记录每次感受到的胎动，保存后可和以往会话比较。"
+                        reachedLimit -> "已满 1 小时，可保存本次观察。"
+                        running -> "每次感到胎动时点 +1。"
                         else -> "点开始或直接点 +1 开始计时。"
                     },
                     color = if (reachedLimit) ChestnutPalette.Green else ChestnutPalette.Text3,
@@ -137,11 +137,11 @@ internal fun FetalMovementSessionDialog(
                     fontWeight = if (reachedLimit) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(12.dp))
+                        .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(ChestnutRadius.Small))
                         .padding(10.dp)
                 )
                 ChestnutLongTextField(
-                    "备注，可空",
+                    "备注",
                     note,
                     { note = it },
                     voiceState = voiceState,

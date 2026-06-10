@@ -139,11 +139,11 @@ final class BabyLogDailySummaryCalculator {
 
         private void acceptDiaper(JSONObject payload) {
             diaperCount += 1;
-            String type = payload.optString("diaperType");
-            if (type.contains("尿") || type.contains("混合")) {
+            String kind = BabyLogDiaperKind.fromPayload(payload);
+            if (BabyLogDiaperKind.PEE.equals(kind) || BabyLogDiaperKind.BOTH.equals(kind)) {
                 peeCount += 1;
             }
-            if (type.contains("便") || type.contains("混合")) {
+            if (BabyLogDiaperKind.POOP.equals(kind) || BabyLogDiaperKind.BOTH.equals(kind)) {
                 poopCount += 1;
             }
         }

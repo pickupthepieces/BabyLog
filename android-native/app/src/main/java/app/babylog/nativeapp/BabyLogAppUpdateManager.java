@@ -1,17 +1,17 @@
 package app.babylog.nativeapp;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
@@ -22,6 +22,9 @@ public final class BabyLogAppUpdateManager {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 60_000;
     private static final int BUFFER_SIZE = 32 * 1024;
+    private static final int MAX_MANIFEST_CHARS = 1024 * 1024;
+    private static final int MAX_ERROR_CHARS = 4096;
+    private static final OkHttpClient HTTP_CLIENT = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
     private BabyLogAppUpdateManager() {
     }
@@ -64,17 +67,7 @@ public final class BabyLogAppUpdateManager {
             throw new IOException("无法创建更新下载目录");
         }
         File tempFile = new File(targetFile.getPath() + ".download");
-        HttpURLConnection connection = openConnection(update.apkUrl);
-        try (InputStream in = new BufferedInputStream(connection.getInputStream());
-             FileOutputStream out = new FileOutputStream(tempFile)) {
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        } finally {
-            connection.disconnect();
-        }
+        BabyLogHttpClient.downloadToFile(HTTP_CLIENT, updateRequest(update.apkUrl), tempFile, MAX_ERROR_CHARS);
         if (!verifySha256(tempFile, update.sha256)) {
             //noinspection ResultOfMethodCallIgnored
             tempFile.delete();
@@ -110,30 +103,21 @@ public final class BabyLogAppUpdateManager {
     }
 
     private static String getText(String url) throws IOException {
-        HttpURLConnection connection = openConnection(url);
-        try (InputStream in = new BufferedInputStream(connection.getInputStream())) {
-            byte[] buffer = new byte[BUFFER_SIZE];
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            return out.toString("UTF-8");
-        } finally {
-            connection.disconnect();
+        BabyLogHttpClient.HttpResponse response =
+                BabyLogHttpClient.executeText(HTTP_CLIENT, updateRequest(url), MAX_MANIFEST_CHARS);
+        if (!response.isSuccessful()) {
+            throw new IOException(BabyLogHttpClient.httpError(response.statusCode, response.body));
         }
+        return response.body;
     }
 
-    private static HttpURLConnection openConnection(String url) throws IOException {
+    private static Request updateRequest(String url) throws IOException {
         if (!url.startsWith("https://")) {
             throw new IOException("更新地址必须使用 HTTPS");
         }
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("Accept", "application/json, application/octet-stream");
-        return connection;
+        return BabyLogHttpClient.requestBuilder(url)
+                .header("Accept", "application/json, application/octet-stream")
+                .build();
     }
 
     private static String normalizeSha256(String value) {

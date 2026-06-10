@@ -60,7 +60,7 @@ internal fun ProfileSettingsScreen(
 
     SettingsPageScaffold(
         title = state.title,
-        subtitle = "日期可后补，阶段可手动覆盖",
+        subtitle = "基础档案与记录阶段",
         onBack = onBack,
         onSave = {
             onSave(
@@ -77,7 +77,7 @@ internal fun ProfileSettingsScreen(
             )
         }
     ) {
-        item { ChestnutTextField("乳名 / 昵称，例如 栗子", nickname, { nickname = it }, KeyboardType.Text) }
+        item { ChestnutTextField("昵称，例如 栗子", nickname, { nickname = it }, KeyboardType.Text) }
         item {
             ChoiceChipRow(
                 label = "性别",
@@ -108,7 +108,7 @@ internal fun ProfileSettingsScreen(
                     )
                 }
             ) {
-                Text("用 LMP / CRL 推算", color = ChestnutPalette.Primary)
+                Text("按 LMP / CRL 推算预产期", color = ChestnutPalette.Primary)
             }
         }
         item { DateInputRow("出生日期", birthDate, { birthDate = it }) }
@@ -139,10 +139,10 @@ internal fun ProfileSettingsScreen(
         if (showPregnancyEndedNotice && stageOverride == BabyLogDomain.STAGE_PREGNANCY_ENDED) {
             item {
                 Text(
-                    "我们会保留你的记录；之后想看可以随时回来。不再发提醒，你可以在档案里再切换。",
+                    "记录会保留；提醒停止，可随时在档案里恢复。",
                     color = Color(0xFF7C4A21),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(ChestnutRadius.Small))
                         .background(Color(0xFFFFEBCB))
                         .padding(12.dp)
                 )
@@ -150,10 +150,10 @@ internal fun ProfileSettingsScreen(
         }
         item {
             Text(
-                "日期可后补",
+                "日期可稍后补充。",
                 color = Color(0xFF7C4A21),
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(ChestnutRadius.Small))
                     .background(Color(0xFFFFEBCB))
                     .padding(12.dp)
             )

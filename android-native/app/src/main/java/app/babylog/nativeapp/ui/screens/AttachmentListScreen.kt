@@ -60,9 +60,9 @@ private fun AttachmentListRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Small))
             .background(ChestnutPalette.Surface)
-            .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(12.dp))
+            .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(ChestnutRadius.Small))
             .clickable { onClick() }
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -70,7 +70,7 @@ private fun AttachmentListRow(
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(ChestnutRadius.Small))
                 .background(ChestnutPalette.Primary.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center
         ) {

@@ -1,6 +1,6 @@
 {
-  "name": "BabyLog",
-  "short_name": "BabyLog",
+  "name": "栗记",
+  "short_name": "栗记",
   "description": "家庭自用孕育记录 PWA",
   "start_url": "/",
   "scope": "/",

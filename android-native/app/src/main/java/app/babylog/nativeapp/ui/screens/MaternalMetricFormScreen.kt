@@ -41,7 +41,7 @@ internal fun MaternalMetricFormScreen(
 
     RecordFormScaffold(
         title = if (isEditing) "编辑孕妈指标" else "孕妈指标",
-        subtitle = "体重、血压、血糖用于家庭趋势记录",
+        subtitle = "记录体重、血压与血糖趋势",
         saveText = if (isEditing) "保存修改" else "保存孕妈指标",
         onBack = onBack,
         onSave = {
@@ -88,7 +88,7 @@ internal fun MaternalMetricFormScreen(
         }
         item {
             ChestnutLongTextField(
-                "备注，可空",
+                "备注",
                 note,
                 { note = it },
                 voiceState = voiceState,
@@ -98,7 +98,7 @@ internal fun MaternalMetricFormScreen(
         }
         item {
             Text(
-                text = "血糖提示仅用于提醒复核，不构成诊断",
+                text = "血糖异常会提示复核。",
                 color = ChestnutPalette.Text3,
                 fontSize = 12.sp
             )

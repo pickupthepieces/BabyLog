@@ -69,7 +69,7 @@ internal fun ReminderCenterScreen(
 
     SettingsPageScaffold(
         title = "提醒中心",
-        subtitle = "本机提醒；拒绝通知权限时仍可在此查看",
+        subtitle = "本机提醒与待办",
         onBack = onBack
     ) {
         if (systemMuted) {
@@ -114,7 +114,7 @@ internal fun ReminderCenterScreen(
                 ) {
                     ChestnutTextField("标题", title, { title = it }, KeyboardType.Text)
                     ChestnutTextField(
-                        "备注，可空",
+                        "备注",
                         note,
                         { note = it },
                         KeyboardType.Text,

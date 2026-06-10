@@ -80,12 +80,12 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
         Spacer(Modifier.height(10.dp))
         Text(
             text = BabyLogFetalGrowthReference.approximationNotice(),
-            color = Color(0xFF7C4A21),
+            color = ChestnutPalette.Muted,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFFFEBCB), RoundedCornerShape(12.dp))
+                .background(ChestnutPalette.Surface2, RoundedCornerShape(ChestnutRadius.Small))
                 .padding(12.dp)
         )
         Spacer(Modifier.height(10.dp))
@@ -101,11 +101,11 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
                     onClick = { selectedKey = metric.key },
                     border = BorderStroke(1.dp, if (active) selectedMetric.tone else ChestnutPalette.Border),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        backgroundColor = if (active) selectedMetric.tone.copy(alpha = 0.14f) else ChestnutPalette.Surface,
+                        backgroundColor = if (active) selectedMetric.tone.copy(alpha = 0.12f) else ChestnutPalette.Surface,
                         contentColor = ChestnutPalette.Ink
                     )
                 ) {
-                    Text(metric.label, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(metric.label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
             }
         }
@@ -115,7 +115,7 @@ fun FetalGrowthPanel(events: List<BabyLogDomain.BabyLogEvent>) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(174.dp)
-                    .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(14.dp))
+                    .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(ChestnutRadius.Control))
                     .padding(16.dp)
             ) {
                 Text(
@@ -187,7 +187,7 @@ private fun FetalGrowthCanvas(points: List<FetalGrowthPoint>, metric: FetalGrowt
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(14.dp))
+            .background(ChestnutPalette.Bg.copy(alpha = 0.74f), RoundedCornerShape(ChestnutRadius.Control))
             .padding(12.dp)
     ) {
         val left = 26.dp.toPx()

@@ -7,6 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,7 @@ import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -45,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
@@ -63,15 +67,31 @@ import java.util.TimeZone
 internal typealias LongTextVoiceStart = ((String) -> Unit) -> Unit
 
 @Composable
+internal fun Modifier.babyLogPressScale(
+    interactionSource: InteractionSource,
+    pressedScale: Float = 0.95f
+): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressedScale else 1f,
+        label = "babyLogPressScale"
+    )
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}
+
+@Composable
 fun Panel(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(ChestnutRadius.Card),
         backgroundColor = ChestnutPalette.Surface,
-        border = null,
+        border = BorderStroke(1.dp, ChestnutPalette.Border.copy(alpha = 0.36f)),
         elevation = 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(20.dp),
             content = content
         )
     }
@@ -87,10 +107,10 @@ fun MetricCard(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(ChestnutPalette.Surface2.copy(alpha = 0.72f))
-            .padding(11.dp)
-            .heightIn(min = 76.dp)
+            .clip(RoundedCornerShape(ChestnutRadius.Card))
+            .background(ChestnutPalette.Surface2.copy(alpha = 0.64f))
+            .padding(13.dp)
+            .heightIn(min = 82.dp)
     ) {
         Box(
             modifier = Modifier
@@ -116,12 +136,12 @@ fun TrendCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(ChestnutRadius.Card),
         backgroundColor = ChestnutPalette.Surface,
-        border = null,
+        border = BorderStroke(1.dp, ChestnutPalette.Border.copy(alpha = 0.28f)),
         elevation = 0.dp
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(16.dp)) {
             Box(
                 modifier = Modifier
                     .width(34.dp)
@@ -142,26 +162,18 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .width(4.dp)
-                .height(18.dp)
-                .clip(CircleShape)
-                .background(ChestnutPalette.Primary)
-        )
-        Spacer(Modifier.width(8.dp))
         Text(
             title,
             color = ChestnutPalette.Ink,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
         )
         if (action != null && onAction != null) {
             Text(
                 action,
                 color = ChestnutPalette.Primary,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { onAction() }
             )
         }
@@ -187,7 +199,7 @@ fun EmptyPanel(text: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 20.dp, horizontal = 16.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -211,7 +223,7 @@ fun ChestnutSyncBanner(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
             .background(ChestnutPalette.PrimarySoft)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -280,8 +292,9 @@ fun UnitInputRow(
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(ChestnutPalette.Surface),
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
+            .background(ChestnutPalette.Surface)
+            .border(1.dp, ChestnutPalette.Border.copy(alpha = 0.55f), RoundedCornerShape(ChestnutRadius.Control)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         TextField(
@@ -294,8 +307,8 @@ fun UnitInputRow(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             colors = TextFieldDefaults.textFieldColors(
                 backgroundColor = ChestnutPalette.Surface,
-                focusedIndicatorColor = ChestnutPalette.Primary,
-                unfocusedIndicatorColor = ChestnutPalette.Border,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
                 textColor = ChestnutPalette.Ink,
                 focusedLabelColor = ChestnutPalette.Primary,
                 unfocusedLabelColor = ChestnutPalette.Muted,
@@ -412,9 +425,9 @@ fun DateInputRow(
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
             .background(ChestnutPalette.Surface)
-            .border(1.dp, ChestnutPalette.Border, RoundedCornerShape(4.dp))
+            .border(1.dp, ChestnutPalette.Border.copy(alpha = 0.55f), RoundedCornerShape(ChestnutRadius.Control))
             .clickable { openPicker() }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -470,16 +483,20 @@ fun ChestnutTextField(
         label = { Text(label) },
         placeholder = placeholder?.let { hint -> { Text(hint, color = ChestnutPalette.Text3) } },
         trailingIcon = trailingIcon,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
+            .border(1.dp, ChestnutPalette.Border.copy(alpha = 0.55f), RoundedCornerShape(ChestnutRadius.Control)),
         singleLine = singleLine,
         minLines = if (singleLine) 1 else minLines,
         maxLines = if (singleLine) 1 else maxLines,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = visualTransformation,
+        shape = RoundedCornerShape(ChestnutRadius.Control),
         colors = TextFieldDefaults.textFieldColors(
             backgroundColor = ChestnutPalette.Surface,
-            focusedIndicatorColor = ChestnutPalette.Primary,
-            unfocusedIndicatorColor = ChestnutPalette.Border,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
             textColor = ChestnutPalette.Ink,
             focusedLabelColor = ChestnutPalette.Primary,
             unfocusedLabelColor = ChestnutPalette.Muted,

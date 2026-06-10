@@ -1,26 +1,33 @@
+@file:Suppress("FunctionNaming")
+
 package app.babylog.nativeapp
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.Surface
+import androidx.compose.material.Card
+import androidx.compose.material.Divider
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -45,8 +52,8 @@ internal fun MedicalDisclaimerGateScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {
                 MedicalDisclaimerHeader()
@@ -55,26 +62,28 @@ internal fun MedicalDisclaimerGateScreen(
                 MedicalDisclaimerBody(showFull = showFull)
             }
             item {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
+                DisclaimerDisclosureRow(
+                    expanded = showFull,
                     onClick = { showFull = !showFull }
-                ) {
-                    Text(if (showFull) "收起完整声明" else "查看完整声明")
-                }
+                )
             }
         }
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(ChestnutPalette.Surface)
-                .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
+            Divider(color = ChestnutPalette.Border.copy(alpha = 0.55f))
             Button(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .height(52.dp),
                 onClick = onAccept,
+                shape = RoundedCornerShape(ChestnutRadius.Small),
                 colors = ButtonDefaults.buttonColors(backgroundColor = ChestnutPalette.Primary)
             ) {
-                Text("我已阅读并同意", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("同意并继续", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
             }
         }
     }
@@ -86,7 +95,7 @@ internal fun MedicalDisclaimerReviewScreen(
 ) {
     SettingsPageScaffold(
         title = "医疗免责声明",
-        subtitle = "可随时复阅；BabyLog 只做家庭记录",
+        subtitle = "家庭记录边界与 AI 候选说明",
         onBack = onBack
     ) {
         item {
@@ -99,15 +108,23 @@ internal fun MedicalDisclaimerReviewScreen(
 private fun MedicalDisclaimerHeader() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "医疗免责声明",
-            color = ChestnutPalette.Ink,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            text = "栗记",
+            color = ChestnutPalette.Primary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
         )
         Text(
-            text = "继续使用前，请先确认 BabyLog 的用途边界。",
+            text = "医疗免责声明",
+            color = ChestnutPalette.Ink,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.sp
+        )
+        Text(
+            text = "本应用用于家庭记录与复诊沟通；所有参考范围、曲线、提醒和 AI 候选均受本页说明约束。",
             color = ChestnutPalette.Muted,
-            fontSize = 14.sp
+            fontSize = 15.sp,
+            lineHeight = 22.sp
         )
     }
 }
@@ -116,63 +133,131 @@ private fun MedicalDisclaimerHeader() {
 private fun MedicalDisclaimerBody(
     showFull: Boolean
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = ChestnutPalette.Surface,
-        shape = RoundedCornerShape(18.dp),
-        elevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            DisclaimerSection(
-                title = "请先确认",
-                lines = listOf(
-                    "BabyLog 是个人/家庭自用的孕育与育儿记录工具，不是医疗器械，也不是医疗用途软件。",
-                    "应用内数值、范围提示、百分位、Z-score、生长曲线和趋势图仅供家庭记录与复诊沟通参考，不构成医学结论。",
-                    "FGR 参考引擎仍是未校准近似实现，可能存在显著误差；软范围/复核提示不是筛查、诊断或结果判定。",
-                    "OCR、语音转文字和大模型结构化都可能识别错误；所有识别结果只是候选，必须由你人工核对并手动保存。",
-                    "任何健康、妊娠、胎儿或婴幼儿相关判断，请始终咨询具备资质的医疗专业人员；紧急或疑虑情况请线下就医。"
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        DisclaimerGroup(
+            title = "使用边界",
+            rows = listOf(
+                "记录工具" to "用于整理孕育与育儿记录；不是医疗器械或诊疗软件。",
+                "统一适用" to "本页声明适用于所有记录、参考范围、曲线、提醒、导出摘要和 AI 候选。",
+                "参考信息" to "范围提示、百分位、Z-score、曲线和趋势仅用于记录与沟通，不构成医学结论。",
+                "AI 结果需核对" to "OCR、语音和大模型只生成候选内容，保存前请人工核对。",
+                "紧急情况" to "涉及健康、妊娠、胎儿或婴幼儿安全的问题，请及时联系医生。"
+            )
+        )
+        DisclaimerGroup(
+            title = "风险提示",
+            rows = listOf(
+                "FGR 参考未校准" to "当前仍为近似参考，可能存在误差；软范围和复核提示不等同筛查或诊断。"
+            )
+        )
+        if (showFull) {
+            DisclaimerGroup(
+                title = "完整声明",
+                rows = listOf(
+                    "不构成医患关系" to "使用本应用不构成医患关系，作者与贡献者不是你的医疗服务提供者。",
+                    "不要自行诊疗" to "请勿依据应用内容自行诊断、用药或调整治疗方案。",
+                    "按现状提供" to "本项目按现状提供，不承诺准确性、完整性、及时性或特定用途适用性。",
+                    "责任边界" to "在法律允许范围内，作者与贡献者不对使用本项目造成的损害承担责任。",
+                    "自用范围" to "本项目面向个人/家庭自用，不用于临床、商业运营或第三方医疗服务。",
+                    "再分发责任" to "fork、修改、再分发或构建其他产品时，使用者需自行承担合规责任。",
+                    "法律与合规" to "本声明不构成法律意见；公开发布或分发前请咨询专业人士。"
                 )
             )
-            if (showFull) {
-                DisclaimerSection(
-                    title = "完整声明",
-                    lines = listOf(
-                        "使用本应用不构成医患关系，作者与贡献者不是你的医疗服务提供者。",
-                        "切勿依据本应用显示内容自行诊断、自行用药或调整医生治疗方案。",
-                        "本项目按“现状”（AS IS）提供，不附带准确性、完整性、及时性或特定用途适用性担保。",
-                        "在适用法律允许的最大范围内，作者与贡献者不对使用或无法使用本项目产生的损害承担责任。",
-                        "本项目面向个人/家庭自用，不面向临床使用、商业化运营或向第三方提供医疗相关服务。",
-                        "若 fork、修改、再分发或基于本项目构建其他产品，上述免责条款同样适用，使用者需自行承担合规与责任。",
-                        "本声明不构成法律意见；如需公开发布或分发，请先咨询专业法律与医疗合规人士。"
-                    )
-                )
-            }
+        }
+        Text(
+            text = "如应用提示与免责声明不一致，请以更保守、更安全的解释为准。",
+            color = ChestnutPalette.Text3,
+            fontSize = 13.sp,
+            lineHeight = 19.sp
+        )
+    }
+}
+
+@Composable
+private fun DisclaimerDisclosureRow(
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(ChestnutRadius.Small),
+        backgroundColor = ChestnutPalette.Surface,
+        border = BorderStroke(1.dp, ChestnutPalette.Border.copy(alpha = 0.45f)),
+        elevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "如应用内提示与免责声明存在冲突，以更保守、更有利于用户安全的解释为准。",
-                color = ChestnutPalette.Muted,
-                fontSize = 13.sp
+                text = if (expanded) "收起完整声明" else "查看完整声明",
+                color = ChestnutPalette.Primary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = if (expanded) "⌃" else "›",
+                color = ChestnutPalette.Text3,
+                fontSize = 24.sp
             )
         }
     }
 }
 
 @Composable
-private fun DisclaimerSection(
+private fun DisclaimerGroup(
     title: String,
-    lines: List<String>
+    rows: List<Pair<String, String>>
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        lines.forEach { line ->
-            Text(
-                text = "• $line",
-                color = ChestnutPalette.Ink,
-                fontSize = 14.sp,
-                lineHeight = 21.sp
-            )
+        Text(
+            text = title,
+            color = ChestnutPalette.Text3,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(ChestnutRadius.Small),
+            backgroundColor = ChestnutPalette.Surface,
+            border = BorderStroke(1.dp, ChestnutPalette.Border.copy(alpha = 0.45f)),
+            elevation = 0.dp
+        ) {
+            Column {
+                rows.forEachIndexed { index, row ->
+                    DisclaimerRow(title = row.first, body = row.second)
+                    if (index < rows.lastIndex) {
+                        Divider(
+                            modifier = Modifier.padding(start = 16.dp),
+                            color = ChestnutPalette.Border.copy(alpha = 0.55f)
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun DisclaimerRow(
+    title: String,
+    body: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 70.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(title, color = ChestnutPalette.Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text(body, color = ChestnutPalette.Muted, fontSize = 14.sp, lineHeight = 20.sp)
     }
 }

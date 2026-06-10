@@ -47,7 +47,7 @@ internal fun BabyDayTimeline(
             modifier = modifier
                 .fillMaxWidth()
                 .height(TimelineHeight)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(ChestnutRadius.Control))
                 .background(ChestnutPalette.Surface2.copy(alpha = 0.42f))
         ) {
             TimelineGrid()
@@ -134,7 +134,7 @@ private fun SleepSegmentView(
             .offset(y = top)
             .fillMaxWidth()
             .height(height)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Small))
             .background(ChestnutPalette.Violet.copy(alpha = 0.26f))
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -162,7 +162,7 @@ private fun EventPointView(
             .offset(y = minuteOffset(point.minuteOfDay).coerceAtMost(TimelineHeight - 40.dp))
             .fillMaxWidth()
             .height(40.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Small))
             .clickable { onClick() },
         contentAlignment = Alignment.CenterStart
     ) {

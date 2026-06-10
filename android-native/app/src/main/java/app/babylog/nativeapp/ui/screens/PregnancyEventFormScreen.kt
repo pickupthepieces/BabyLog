@@ -115,7 +115,7 @@ internal fun PregnancyEventFormScreen(
 
     RecordFormScaffold(
         title = if (isEditing) "编辑${action.label}" else action.label,
-        subtitle = if (isCheckup || isScreening) "只记录报告原文；不计算风险、不判读" else "常用字段优先，备注可后补",
+        subtitle = if (isCheckup || isScreening) "按报告原文记录" else "填写常用字段，详情可后补",
         saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
         onSave = {
@@ -194,7 +194,7 @@ internal fun PregnancyEventFormScreen(
             item { DateInputRow("检查日期", primary, { primary = it }, allowClear = false) }
             item {
                 ChestnutTextField(
-                    "孕周，例如 22+5（可自动推算，也可改）",
+                    "孕周，例如 22+5",
                     gestationalAge,
                     {
                         gestationalAgeEdited = true
@@ -206,11 +206,11 @@ internal fun PregnancyEventFormScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("常规信息", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                    Text("只记录报告或现场告知内容，不做风险判读", color = ChestnutPalette.Muted, fontSize = 12.sp)
+                    Text("按报告原文填写日期、孕周、科室与备注。", color = ChestnutPalette.Muted, fontSize = 12.sp)
                 }
             }
             item { ChestnutTextField(labels.secondary, secondary, { secondary = it }, labels.secondaryKeyboard) }
-            item { ChestnutTextField("科室 / 医生，可空", department, { department = it }, KeyboardType.Text) }
+            item { ChestnutTextField("科室 / 医生", department, { department = it }, KeyboardType.Text) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     UnitInputRow("收缩压", systolicBp, { systolicBp = it }, "mmHg", modifier = Modifier.weight(1f))
@@ -268,11 +268,11 @@ internal fun PregnancyEventFormScreen(
                     onSelect = { urineProtein = it }
                 )
             }
-            item { ChestnutTextField("尿常规摘要，可空", urineRoutine, { urineRoutine = it }, KeyboardType.Text) }
-            item { VoiceLongTextField("高危因素 / 特殊情况，可空", highRiskFactors, { highRiskFactors = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
+            item { ChestnutTextField("尿常规摘要", urineRoutine, { urineRoutine = it }, KeyboardType.Text) }
+            item { VoiceLongTextField("高危因素 / 特殊情况", highRiskFactors, { highRiskFactors = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
             item { VoiceLongTextField(labels.tertiary ?: "医生结论 / 建议", tertiary, { tertiary = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
-            item { VoiceLongTextField("处理及建议，可空", treatmentAdvice, { treatmentAdvice = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
-            item { DateInputRow("下次产检日期，可空", nextVisitDate, { nextVisitDate = it }) }
+            item { VoiceLongTextField("处理建议", treatmentAdvice, { treatmentAdvice = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+            item { DateInputRow("下次产检日期", nextVisitDate, { nextVisitDate = it }) }
             item { VoiceLongTextField(labels.note ?: "备注", note, { note = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -355,7 +355,7 @@ internal fun PregnancyEventFormScreen(
             item { DateInputRow("检查日期", primary, { primary = it }, allowClear = false) }
             item {
                 ChestnutTextField(
-                    "孕周，例如 22+5（可自动推算，也可改）",
+                    "孕周，例如 22+5",
                     gestationalAge,
                     {
                         gestationalAgeEdited = true
@@ -367,13 +367,13 @@ internal fun PregnancyEventFormScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(BabyLogFormatters.eventLabel(action.eventType), color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
-                    Text("分级、阴阳性、报告标注均按报告或用户录入；App 不计算、不判读。", color = ChestnutPalette.Muted, fontSize = 12.sp)
+                    Text("分级、阴阳性和标注均按报告原文填写。", color = ChestnutPalette.Muted, fontSize = 12.sp)
                 }
             }
             when (action.eventType) {
                 "screening_nt" -> {
                     item { UnitInputRow("NT", ntMm, { ntMm = it }, "mm") }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_serum" -> {
                     item { ChestnutTextField("21 三体风险值", riskT21, { riskT21 = it }, KeyboardType.Text) }
@@ -387,7 +387,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { riskLevel = it }
                         )
                     }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_nipt" -> {
                     item {
@@ -414,12 +414,12 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { t13Result = it }
                         )
                     }
-                    item { ChestnutTextField("性染色体结果，可空", sexChromosome, { sexChromosome = it }, KeyboardType.Text) }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { ChestnutTextField("性染色体结果", sexChromosome, { sexChromosome = it }, KeyboardType.Text) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_anomaly" -> {
                     item { VoiceLongTextField("结构结论 / 报告描述", structureConclusion, { structureConclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 3, maxLines = 8) }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_ogtt" -> {
                     item { UnitInputRow("空腹血糖", fastingGlucoseMmolL, { fastingGlucoseMmolL = it }, "mmol/L") }
@@ -437,7 +437,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { abnormalFlag = it }
                         )
                     }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_gbs" -> {
                     item {
@@ -448,7 +448,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { gbsResult = it }
                         )
                     }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
                 "screening_nst" -> {
                     item {
@@ -459,7 +459,7 @@ internal fun PregnancyEventFormScreen(
                             onSelect = { nstResult = it }
                         )
                     }
-                    item { VoiceLongTextField("结论文本，可空", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
+                    item { VoiceLongTextField("结论文本", conclusion, { conclusion = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 5) }
                 }
             }
             item { VoiceLongTextField(labels.note ?: "备注", note, { note = it }, voiceState, onLongTextVoiceStart, onLongTextVoiceStop, minLines = 2, maxLines = 4) }
@@ -531,7 +531,7 @@ internal fun PregnancyEventFormScreen(
                             onDismiss = onCandidateDismiss
                         )
                     }
-                    ChestnutTextField("附件备注，可空", attachmentNote, { attachmentNote = it }, KeyboardType.Text)
+                    ChestnutTextField("附件备注", attachmentNote, { attachmentNote = it }, KeyboardType.Text)
                 }
             }
         } else {
@@ -578,8 +578,8 @@ private fun CheckupAttachmentFields(
     onAttachmentNoteChange: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChestnutTextField("报告类型，可空", reportType, onReportTypeChange, KeyboardType.Text)
-        ChestnutTextField("附件备注，可空", attachmentNote, onAttachmentNoteChange, KeyboardType.Text)
+        ChestnutTextField("报告类型", reportType, onReportTypeChange, KeyboardType.Text)
+        ChestnutTextField("附件备注", attachmentNote, onAttachmentNoteChange, KeyboardType.Text)
     }
 }
 
@@ -593,7 +593,7 @@ private fun CheckupOcrCandidateCard(
         .filter { it.value.isNotBlank() }
         .take(10)
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(ChestnutRadius.Control),
         color = ChestnutPalette.PrimarySoft,
         border = BorderStroke(1.dp, ChestnutPalette.Primary.copy(alpha = 0.36f)),
         elevation = 0.dp
@@ -604,7 +604,7 @@ private fun CheckupOcrCandidateCard(
         ) {
             Text("识别候选", color = ChestnutPalette.Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             if (rows.isEmpty()) {
-                Text("模型没有返回可用字段，可以保留附件后手动填写。", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                Text("未识别到可用字段，可手动填写。", color = ChestnutPalette.Muted, fontSize = 13.sp)
             } else {
                 rows.forEach { entry ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -640,7 +640,7 @@ private fun CheckupOcrCandidateCard(
                         disabledBackgroundColor = ChestnutPalette.Surface2
                     )
                 ) {
-                    Text("应用到表单", color = Color.White)
+                    Text("填入表单", color = Color.White)
                 }
             }
         }

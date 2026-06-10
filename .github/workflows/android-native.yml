@@ -42,10 +42,22 @@ jobs:
           mkdir -p smoke-tests/out
           ANDROID_JAR="$ANDROID_HOME/platforms/android-36/android.jar"
           JSON_JAR="$RUNNER_TEMP/org-json-20240303.jar"
+          OKHTTP_JAR="$RUNNER_TEMP/okhttp-4.12.0.jar"
+          OKIO_JAR="$RUNNER_TEMP/okio-jvm-3.6.0.jar"
+          KOTLIN_STDLIB_JAR="$RUNNER_TEMP/kotlin-stdlib-1.9.24.jar"
           curl -fsSL --retry 3 --retry-delay 2 \
             "https://repo1.maven.org/maven2/org/json/json/20240303/json-20240303.jar" \
             -o "$JSON_JAR"
-          SMOKE_CP="$JSON_JAR:$ANDROID_JAR"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            "https://repo1.maven.org/maven2/com/squareup/okhttp3/okhttp/4.12.0/okhttp-4.12.0.jar" \
+            -o "$OKHTTP_JAR"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            "https://repo1.maven.org/maven2/com/squareup/okio/okio-jvm/3.6.0/okio-jvm-3.6.0.jar" \
+            -o "$OKIO_JAR"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.jar" \
+            -o "$KOTLIN_STDLIB_JAR"
+          SMOKE_CP="$JSON_JAR:$OKHTTP_JAR:$OKIO_JAR:$KOTLIN_STDLIB_JAR:$ANDROID_JAR"
           javac -encoding UTF-8 \
             -cp "$SMOKE_CP" \
             -d smoke-tests/out \
@@ -61,6 +73,7 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogVisitSummaryExporter.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartConfigStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartInput.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogSmartApi.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartVisionClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSmartTextClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSpeechToTextProtocol.java \
@@ -69,14 +82,22 @@ jobs:
             app/src/main/java/app/babylog/nativeapp/BabyLogPayloadCipher.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentCipher.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncSecretStore.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogHttpClient.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRemoteSyncClient.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogSyncTrigger.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncPushOrchestrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullOrchestrator.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogSyncAttachmentDownloader.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryStringStore.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryCollectionStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentBlobStore.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentInputBuilder.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogDailyBabySummaryBase.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogDailySummaryCalculator.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogBackupManager.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogDiaperKind.java \
+            app/src/main/java/app/babylog/nativeapp/BabyLogException.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
             app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
             smoke-tests/BabyLogDisclaimerPolicySmokeTest.java \
@@ -102,6 +123,7 @@ jobs:
             smoke-tests/BabyLogRemoteSyncClientSmokeTest.java \
             smoke-tests/BabyLogAttachmentBlobStoreSmokeTest.java \
             smoke-tests/BabyLogAttachmentInputBuilderSmokeTest.java \
+            smoke-tests/BabyLogRepositoryStorageSmokeTest.java \
             smoke-tests/BabyLogSyncPushOrchestratorSmokeTest.java \
             smoke-tests/BabyLogSyncPullOrchestratorSmokeTest.java \
             smoke-tests/BabyLogServiceSmokeTest.java
@@ -128,6 +150,7 @@ jobs:
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRemoteSyncClientSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentBlobStoreSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentInputBuilderSmokeTest
+          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRepositoryStorageSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPushOrchestratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPullOrchestratorSmokeTest
           java -cp "smoke-tests/out:$SMOKE_CP" BabyLogServiceSmokeTest

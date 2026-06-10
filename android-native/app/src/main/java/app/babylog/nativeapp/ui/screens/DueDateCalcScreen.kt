@@ -68,16 +68,16 @@ internal fun DueDateCalcScreen(
     }
 
     SettingsPageScaffold(
-        title = "孕周 / 预产期计算器",
-        subtitle = "LMP 与早期 B 超 CRL 辅助推算",
+        title = "预产期计算器",
+        subtitle = "LMP 或早期 B 超 CRL 推算",
         onBack = onBack
     ) {
         item {
             Text(
-                "本计算器仅作参考，最终预产期请以医生确认为准。",
+                "用于核对 LMP 与早期 B 超 CRL 推算结果。",
                 color = Color(0xFF7C4A21),
                 modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(ChestnutRadius.Control))
                     .background(Color(0xFFFFEBCB))
                     .padding(14.dp)
             )
@@ -99,13 +99,13 @@ internal fun DueDateCalcScreen(
                         BabyLogDueDateCalculator.formatRangeWarning(result.beyondTypicalRange)
                             .takeIf { it.isNotBlank() }
                             ?.let { WarningText(it) }
-                    } ?: Text("选择 LMP 后显示推算结果。", color = ChestnutPalette.Text3, fontSize = 13.sp)
+                    } ?: Text("选择 LMP 后显示结果。", color = ChestnutPalette.Text3, fontSize = 13.sp)
                 }
             }
         }
         item {
             OutlinedButton(onClick = { showCrl = !showCrl }) {
-                Text(if (showCrl) "收起早期 B 超 CRL" else "填写早期 B 超 CRL", color = ChestnutPalette.Primary)
+                Text(if (showCrl) "收起 CRL" else "补充 CRL", color = ChestnutPalette.Primary)
             }
         }
         if (showCrl) {
@@ -122,14 +122,14 @@ internal fun DueDateCalcScreen(
                                 ResultLine("预产期", result.estimatedDueDate)
                                 ResultLine("CRL 推算孕周", result.gestationalAgeLabel)
                                 Text(
-                                    "公式：8.052 × √CRL + 23.73；结果仅供核对。",
+                                    "按 CRL 公式生成推算结果。",
                                     color = ChestnutPalette.Text3,
                                     fontSize = 12.sp
                                 )
                             } else {
                                 WarningText(result.message)
                             }
-                        } ?: Text("填写 CRL 后显示推算结果。", color = ChestnutPalette.Text3, fontSize = 13.sp)
+                        } ?: Text("填写 CRL 后显示结果。", color = ChestnutPalette.Text3, fontSize = 13.sp)
                     }
                 }
             }
@@ -167,10 +167,10 @@ internal fun DueDateCalcScreen(
                             onSelect = { selectedSource = it }
                         )
                     } else if (selectedDueDate == null) {
-                        Text("先完成至少一种推算，再应用到档案。", color = ChestnutPalette.Text3, fontSize = 13.sp)
+                        Text("先完成一种推算。", color = ChestnutPalette.Text3, fontSize = 13.sp)
                     }
                     selectedDueDate?.let { dueDate ->
-                        ResultLine("将填入预产期", dueDate)
+                        ResultLine("待填入预产期", dueDate)
                         Button(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { onApplyDueDate(dueDate) },
@@ -179,7 +179,7 @@ internal fun DueDateCalcScreen(
                             Text("应用为预产期", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                         Text(
-                            "应用后会回到档案页；需要你在档案页再点保存才会生效。",
+                            "返回档案页后，点保存才会生效。",
                             color = ChestnutPalette.Muted,
                             fontSize = 12.sp
                         )
@@ -207,7 +207,7 @@ private fun WarningText(message: String) {
         message,
         color = Color(0xFF7C4A21),
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(ChestnutRadius.Small))
             .background(Color(0xFFFFEBCB))
             .padding(12.dp)
     )

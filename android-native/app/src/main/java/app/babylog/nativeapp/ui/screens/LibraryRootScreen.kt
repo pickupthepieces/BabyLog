@@ -1,15 +1,17 @@
 package app.babylog.nativeapp
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Divider
-import androidx.compose.material.OutlinedButton
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -55,17 +58,17 @@ internal fun LibraryRootScreen(
             )
         }
         item {
-            SettingsPanel("复诊沟通") {
+            SettingsPanel("复诊资料") {
                 ActionRow(
                     title = "复诊汇总导出",
-                    subtitle = "按时间整理产检、B 超、孕妈指标和筛查记录",
+                    subtitle = "整理产检、B 超、筛查与孕妈指标",
                     action = "打开",
                     onClick = onOpenVisitSummary
                 )
-                Divider(color = ChestnutPalette.Border)
+                SettingsDivider()
                 ActionRow(
-                    title = "想问医生的问题",
-                    subtitle = if (state.preVisitQuestions.isEmpty()) "产检前随手记录待问事项" else "${state.preVisitQuestions.size} 条待问",
+                    title = "待问问题",
+                    subtitle = if (state.preVisitQuestions.isEmpty()) "复诊前先记下想问的事" else "${state.preVisitQuestions.size} 条待问",
                     action = "管理",
                     onClick = onOpenPreVisitQuestions
                 )
@@ -94,7 +97,7 @@ private fun LibrarySearchPanel(
     onEndDateChange: (String) -> Unit
 ) {
     Panel {
-        SectionHeader("资料检索")
+        SectionHeader("资料库筛选")
         Spacer(Modifier.height(10.dp))
         ChestnutTextField(
             label = "关键词",
@@ -138,19 +141,22 @@ private fun LibraryTypeFilters(selected: String, onSelect: (String) -> Unit) {
     ) {
         options.forEach { (key, label) ->
             val active = selected == key
-            OutlinedButton(
-                onClick = { onSelect(key) },
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (active) ChestnutPalette.Primary else ChestnutPalette.Border
-                ),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    backgroundColor = if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface,
-                    contentColor = if (active) ChestnutPalette.Primary else ChestnutPalette.Ink
-                )
-            ) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
+            Text(
+                label,
+                color = if (active) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface)
+                    .border(
+                        1.dp,
+                        if (active) ChestnutPalette.Primary.copy(alpha = 0.32f) else ChestnutPalette.Border.copy(alpha = 0.54f),
+                        CircleShape
+                    )
+                    .clickable { onSelect(key) }
+                    .padding(horizontal = 15.dp, vertical = 9.dp)
+            )
         }
     }
 }

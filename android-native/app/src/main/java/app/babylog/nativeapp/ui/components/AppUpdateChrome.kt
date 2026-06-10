@@ -61,7 +61,7 @@ internal fun ComposeMainActivity.downloadAndInstallAppUpdate(update: BabyLogAppU
     appUpdateStatus = "正在下载 ${update.versionName}..."
     runInBackground {
         try {
-            val target = File(File(filesDir, "app-updates"), "BabyLog-${update.versionCode}.apk")
+            val target = File(File(filesDir, "app-updates"), "栗记-${update.versionCode}.apk")
             val apk = BabyLogAppUpdateManager.downloadApk(update, target)
             runOnUiThread {
                 appUpdateRunning = false

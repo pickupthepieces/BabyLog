@@ -34,7 +34,7 @@ public final class BabyLogFileProvider extends ContentProvider {
             rootName = ROOT_EXTERNAL_FILES;
             root = externalRoot;
         } else {
-            throw new IOException("文件不在 BabyLog 可共享目录内");
+            throw new IOException("文件不在栗记可共享目录内");
         }
 
         Uri.Builder builder = new Uri.Builder()
@@ -125,7 +125,7 @@ public final class BabyLogFileProvider extends ContentProvider {
         }
         List<String> segments = uri.getPathSegments();
         if (segments.isEmpty()) {
-            throw new IOException("Invalid BabyLog file uri");
+            throw new IOException("Invalid app file uri");
         }
 
         String rootName = segments.get(0);
@@ -135,7 +135,7 @@ public final class BabyLogFileProvider extends ContentProvider {
         } else if (ROOT_EXTERNAL_FILES.equals(rootName) && context.getExternalFilesDir(null) != null) {
             root = context.getExternalFilesDir(null).getCanonicalFile();
         } else {
-            throw new IOException("Unknown BabyLog file root");
+            throw new IOException("Unknown app file root");
         }
 
         File file = root;
@@ -144,7 +144,7 @@ public final class BabyLogFileProvider extends ContentProvider {
         }
         File canonicalFile = file.getCanonicalFile();
         if (!isUnderRoot(canonicalFile, root)) {
-            throw new IOException("Invalid BabyLog file path");
+            throw new IOException("Invalid app file path");
         }
         return canonicalFile;
     }
