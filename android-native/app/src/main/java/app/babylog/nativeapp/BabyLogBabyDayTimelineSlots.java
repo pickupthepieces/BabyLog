@@ -95,8 +95,24 @@ public final class BabyLogBabyDayTimelineSlots {
                 event.id,
                 event.eventType,
                 millisToMinuteOfDay(occurredMillis, dayStartMillis),
-                BabyLogFormatters.eventSummary(event)
+                timelineSummaryLabel(event)
         ));
+    }
+
+    private static String timelineSummaryLabel(BabyLogDomain.BabyLogEvent event) {
+        String summary = BabyLogFormatters.eventSummary(event);
+        String eventLabel = BabyLogFormatters.eventLabel(event.eventType);
+        if (isBlank(summary) || isBlank(eventLabel)) {
+            return summary;
+        }
+        if (summary.equals(eventLabel)) {
+            return "";
+        }
+        String duplicatedPrefix = eventLabel + " · ";
+        if (summary.startsWith(duplicatedPrefix)) {
+            return summary.substring(duplicatedPrefix.length());
+        }
+        return summary;
     }
 
     private static int millisToMinuteOfDay(long millis, long dayStartMillis) {

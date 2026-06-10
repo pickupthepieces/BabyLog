@@ -24,11 +24,14 @@ public final class BabyLogSmartConfigStore {
 
     private static final String PREF_BASE_URL = "base_url";
     private static final String PREF_MODEL = "model";
+    private static final String PREF_TEXT_MODEL = "text_model";
     private static final String PREF_ENABLED = "enabled";
     private static final String PREF_API_KEY_CIPHER_TEXT = "api_key_cipher_text";
     private static final String PREF_API_KEY_IV = "api_key_iv";
     private static final String PREF_SPEECH_MODEL = "speech_model";
     private static final String PREF_SPEECH_ENABLED = "speech_enabled";
+    private static final String PREF_SPEECH_INVERSE_TEXT_NORMALIZATION_ENABLED =
+            "speech_inverse_text_normalization_enabled";
     private static final String PREF_SPEECH_API_KEY_CIPHER_TEXT = "speech_api_key_cipher_text";
     private static final String PREF_SPEECH_API_KEY_IV = "speech_api_key_iv";
 
@@ -46,6 +49,7 @@ public final class BabyLogSmartConfigStore {
         SharedPreferences preferences = getPreferences();
         String baseUrl = preferences.getString(PREF_BASE_URL, "");
         String model = preferences.getString(PREF_MODEL, "");
+        String textModel = preferences.getString(PREF_TEXT_MODEL, "");
         boolean enabled = preferences.getBoolean(PREF_ENABLED, false);
         String encryptedApiKey = preferences.getString(PREF_API_KEY_CIPHER_TEXT, "");
         String iv = preferences.getString(PREF_API_KEY_IV, "");
@@ -53,7 +57,7 @@ public final class BabyLogSmartConfigStore {
         if (!TextUtils.isEmpty(encryptedApiKey) && !TextUtils.isEmpty(iv)) {
             apiKey = decrypt(encryptedApiKey, iv);
         }
-        return new Config(baseUrl, model, apiKey, enabled);
+        return new Config(baseUrl, model, textModel, apiKey, enabled);
     }
 
     public void save(Config config) throws GeneralSecurityException, IOException {
@@ -64,6 +68,7 @@ public final class BabyLogSmartConfigStore {
         SharedPreferences.Editor editor = getPreferences().edit()
                 .putString(PREF_BASE_URL, nullToEmpty(config.getBaseUrl()))
                 .putString(PREF_MODEL, nullToEmpty(config.getModel()))
+                .putString(PREF_TEXT_MODEL, nullToEmpty(config.getTextModel()))
                 .putBoolean(PREF_ENABLED, config.isEnabled());
 
         String apiKey = config.getApiKey();
@@ -85,13 +90,16 @@ public final class BabyLogSmartConfigStore {
         SharedPreferences preferences = getPreferences();
         String model = preferences.getString(PREF_SPEECH_MODEL, "");
         boolean enabled = preferences.getBoolean(PREF_SPEECH_ENABLED, false);
+        boolean inverseTextNormalizationEnabled = preferences.getBoolean(
+                PREF_SPEECH_INVERSE_TEXT_NORMALIZATION_ENABLED,
+                true);
         String encryptedApiKey = preferences.getString(PREF_SPEECH_API_KEY_CIPHER_TEXT, "");
         String iv = preferences.getString(PREF_SPEECH_API_KEY_IV, "");
         String apiKey = "";
         if (!TextUtils.isEmpty(encryptedApiKey) && !TextUtils.isEmpty(iv)) {
             apiKey = decrypt(encryptedApiKey, iv);
         }
-        return new SpeechConfig(apiKey, model, enabled);
+        return new SpeechConfig(apiKey, model, enabled, inverseTextNormalizationEnabled);
     }
 
     public void saveSpeechConfig(SpeechConfig config) throws GeneralSecurityException, IOException {
@@ -101,7 +109,10 @@ public final class BabyLogSmartConfigStore {
 
         SharedPreferences.Editor editor = getPreferences().edit()
                 .putString(PREF_SPEECH_MODEL, nullToEmpty(config.getModel()))
-                .putBoolean(PREF_SPEECH_ENABLED, config.isEnabled());
+                .putBoolean(PREF_SPEECH_ENABLED, config.isEnabled())
+                .putBoolean(
+                        PREF_SPEECH_INVERSE_TEXT_NORMALIZATION_ENABLED,
+                        config.isInverseTextNormalizationEnabled());
 
         String apiKey = config.getApiKey();
         if (TextUtils.isEmpty(apiKey)) {
@@ -218,12 +229,18 @@ public final class BabyLogSmartConfigStore {
     public static final class Config {
         private final String baseUrl;
         private final String model;
+        private final String textModel;
         private final String apiKey;
         private final boolean enabled;
 
         public Config(String baseUrl, String model, String apiKey, boolean enabled) {
+            this(baseUrl, model, "", apiKey, enabled);
+        }
+
+        public Config(String baseUrl, String model, String textModel, String apiKey, boolean enabled) {
             this.baseUrl = nullToEmpty(baseUrl);
             this.model = nullToEmpty(model);
+            this.textModel = nullToEmpty(textModel);
             this.apiKey = nullToEmpty(apiKey);
             this.enabled = enabled;
         }
@@ -234,6 +251,14 @@ public final class BabyLogSmartConfigStore {
 
         public String getModel() {
             return model;
+        }
+
+        public String getTextModel() {
+            return textModel;
+        }
+
+        public String resolveTextModel() {
+            return isEmptyString(textModel) ? model : textModel;
         }
 
         public String getApiKey() {
@@ -256,6 +281,7 @@ public final class BabyLogSmartConfigStore {
             return "Config{"
                     + "baseUrl='" + baseUrl + '\''
                     + ", model='" + model + '\''
+                    + ", textModel='" + textModel + '\''
                     + ", apiKeyConfigured=" + !isEmptyString(apiKey)
                     + ", enabled=" + enabled
                     + '}';
@@ -266,11 +292,22 @@ public final class BabyLogSmartConfigStore {
         private final String apiKey;
         private final String model;
         private final boolean enabled;
+        private final boolean inverseTextNormalizationEnabled;
 
         public SpeechConfig(String apiKey, String model, boolean enabled) {
+            this(apiKey, model, enabled, true);
+        }
+
+        public SpeechConfig(
+                String apiKey,
+                String model,
+                boolean enabled,
+                boolean inverseTextNormalizationEnabled
+        ) {
             this.apiKey = nullToEmpty(apiKey);
             this.model = nullToEmpty(model);
             this.enabled = enabled;
+            this.inverseTextNormalizationEnabled = inverseTextNormalizationEnabled;
         }
 
         public String getApiKey() {
@@ -285,6 +322,10 @@ public final class BabyLogSmartConfigStore {
             return enabled;
         }
 
+        public boolean isInverseTextNormalizationEnabled() {
+            return inverseTextNormalizationEnabled;
+        }
+
         public boolean isConfigured() {
             return enabled
                     && !isEmptyString(apiKey)
@@ -297,6 +338,7 @@ public final class BabyLogSmartConfigStore {
                     + "apiKeyConfigured=" + !isEmptyString(apiKey)
                     + ", model='" + model + '\''
                     + ", enabled=" + enabled
+                    + ", inverseTextNormalizationEnabled=" + inverseTextNormalizationEnabled
                     + '}';
         }
     }

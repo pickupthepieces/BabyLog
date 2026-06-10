@@ -50,6 +50,7 @@ internal fun SmartModelSettingsScreen(
     var enabled by rememberSaveable(config.isEnabled()) { mutableStateOf(config.isEnabled()) }
     var baseUrl by rememberSaveable(config.getBaseUrl()) { mutableStateOf(config.getBaseUrl()) }
     var model by rememberSaveable(config.getModel()) { mutableStateOf(config.getModel()) }
+    var textModel by rememberSaveable(config.getTextModel()) { mutableStateOf(config.getTextModel()) }
     var apiKey by remember(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
 
     SettingsPageScaffold(
@@ -61,6 +62,7 @@ internal fun SmartModelSettingsScreen(
                 BabyLogSmartConfigStore.Config(
                     baseUrl.trim(),
                     model.trim(),
+                    textModel.trim(),
                     apiKey.trim(),
                     enabled
                 )
@@ -85,6 +87,7 @@ internal fun SmartModelSettingsScreen(
                             enabled = true
                             baseUrl = preset.baseUrl
                             model = preset.model
+                            textModel = preset.textModel
                         },
                         border = BorderStroke(1.dp, ChestnutPalette.Border)
                     ) {
@@ -116,6 +119,15 @@ internal fun SmartModelSettingsScreen(
         }
         item {
             ChestnutTextField(
+                label = "文本模型（可选）",
+                value = textModel,
+                onValueChange = { textModel = it },
+                keyboardType = KeyboardType.Text,
+                placeholder = "留空则与上方模型相同；纯文本任务可填更快的模型如 qwen-plus"
+            )
+        }
+        item {
+            ChestnutTextField(
                 label = "API Key",
                 value = apiKey,
                 onValueChange = { apiKey = it },
@@ -141,12 +153,19 @@ internal fun SmartModelSettingsScreen(
 private data class SmartModelPreset(
     val label: String,
     val baseUrl: String,
-    val model: String
+    val model: String,
+    val textModel: String = ""
 )
 
 private fun smartModelPresets() = listOf(
     SmartModelPreset(
-        "Qwen Plus",
+        "使用阿里云千问",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "qwen-vl-max",
+        "qwen-plus"
+    ),
+    SmartModelPreset(
+        "Qwen VL Plus",
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "qwen3-vl-plus"
     ),

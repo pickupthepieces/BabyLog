@@ -1,7 +1,5 @@
 package app.babylog.nativeapp;
 
-import android.util.Base64;
-
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -17,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,6 +25,13 @@ public final class BabyLogSmartVisionClient {
     private static final int CONNECT_TIMEOUT_MS = 20_000;
     private static final int READ_TIMEOUT_MS = 60_000;
     private static final int MAX_RESPONSE_CHARS = 1024 * 1024;
+    private static final String VISION_RECOGNITION_QUALITY_INSTRUCTION =
+            "examDate / 报告日期必须规范为 yyyy-MM-dd；无法确定完整日期时不要猜测，放入 warnings。"
+                    + "如果报告为双胎或多胎，BPD/HC/AC/FL/EFW/羊水等胎儿生长指标不要填入字段或 values，"
+                    + "全部放入 warnings 和 rawText，提示用户按胎儿分别人工核对。"
+                    + "手写不清、印章遮挡、拍摄模糊或版面缺损的内容不要猜测，放入 warnings。"
+                    + "识别质量自检：若数值明显超出字段量纲（如 BPD>150mm、HC>500mm、AC>500mm、FL>120mm、NT>20mm、胎心率>250bpm、EFW>7000g），"
+                    + "不要自行修正或换算，省略该字段并在 warnings 提示核对原图；这只是 OCR 识别质量自检，不做医学判读。";
     private final UploadImagePreparer uploadImagePreparer;
     private final OkHttpClient httpClient = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
@@ -155,7 +161,8 @@ public final class BabyLogSmartVisionClient {
                 + "不要识别、返回或推断孕周；孕周由用户根据报告手动填写或由预产期计算。"
                 + "efwGram 只在明确出现 EFW、估重、胎儿体重或胎重时填写；不要把胎心率 143bpm 当 EFW。"
                 + "不要把侧脑室、后角宽、脑室宽、鼻骨、四腔心、肢体可及等结构筛查文字误填为羊水、NT 或生长指标；这类内容只放 rawText 或 warnings。"
-                + "数值字段只填数字，单位按字段要求换算：BPD/HC/AC/FL/CRL/NT/宫颈管长度为 mm，EFW 为 g，AFI/羊水最大深度为 cm，胎心率为 bpm；不确定就省略或放入 warnings。";
+                + "数值字段只填数字，单位按字段要求换算：BPD/HC/AC/FL/CRL/NT/宫颈管长度为 mm，EFW 为 g，AFI/羊水最大深度为 cm，胎心率为 bpm；不确定就省略或放入 warnings。"
+                + VISION_RECOGNITION_QUALITY_INSTRUCTION;
     }
 
     public static String pregnancyDocumentRecognitionPrompt() {
@@ -173,6 +180,7 @@ public final class BabyLogSmartVisionClient {
                 + "B 超不要识别、返回或推断孕周；产检/母子健康手册只有明确写出孕周时才可填写 gestationalAge。"
                 + "所有分级、阴阳性、报告标注只按报告原文抄录，不要根据数值推断，不要输出诊断或治疗建议。"
                 + "数值字段只填数字并按字段单位换算：B 超长度为 mm，EFW 为 g，羊水为 cm；血压为 mmHg，体重 kg，Hb g/L。"
+                + VISION_RECOGNITION_QUALITY_INSTRUCTION
                 + "不确定的内容省略或放入 warnings，不要输出 Markdown。";
     }
 
@@ -356,7 +364,7 @@ public final class BabyLogSmartVisionClient {
     }
 
     private static String imageToDataUrl(File image) throws IOException {
-        return "data:image/jpeg;base64," + Base64.encodeToString(readAllBytes(image), Base64.NO_WRAP);
+        return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(readAllBytes(image));
     }
 
     private static File compressImageToTemporaryJpeg(File image) throws IOException {
@@ -387,6 +395,18 @@ public final class BabyLogSmartVisionClient {
     }
 
     private String postJson(String url, String apiKey, JSONObject body) throws IOException {
+        BabyLogHttpClient.HttpResponse response = executeJson(url, apiKey, body);
+        if (!response.isSuccessful() && shouldRetryWithoutResponseFormat(response, body)) {
+            body.remove("response_format");
+            response = executeJson(url, apiKey, body);
+        }
+        if (!response.isSuccessful()) {
+            throw new IOException(BabyLogSmartApi.formatApiErrorMessage(response.statusCode, response.body));
+        }
+        return response.body;
+    }
+
+    private BabyLogHttpClient.HttpResponse executeJson(String url, String apiKey, JSONObject body) throws IOException {
         RequestBody requestBody = RequestBody.create(
                 body.toString().getBytes(StandardCharsets.UTF_8),
                 BabyLogHttpClient.JSON_MEDIA_TYPE
@@ -395,11 +415,13 @@ public final class BabyLogSmartVisionClient {
                 .header("Authorization", "Bearer " + apiKey)
                 .post(requestBody)
                 .build();
-        BabyLogHttpClient.HttpResponse response = BabyLogHttpClient.executeText(httpClient, request, MAX_RESPONSE_CHARS);
-        if (!response.isSuccessful()) {
-            throw new IOException(BabyLogSmartApi.formatApiErrorMessage(response.statusCode, response.body));
-        }
-        return response.body;
+        return BabyLogHttpClient.executeText(httpClient, request, MAX_RESPONSE_CHARS);
+    }
+
+    private static boolean shouldRetryWithoutResponseFormat(BabyLogHttpClient.HttpResponse response, JSONObject body) {
+        return body.has("response_format")
+                && response.body != null
+                && response.body.toLowerCase(java.util.Locale.ROOT).contains("response_format");
     }
 
     public interface UploadImagePreparer {

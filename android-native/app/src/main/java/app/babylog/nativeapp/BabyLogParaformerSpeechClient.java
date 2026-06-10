@@ -49,7 +49,8 @@ public final class BabyLogParaformerSpeechClient {
                 taskId,
                 model,
                 BabyLogSpeechToTextProtocol.DEFAULT_AUDIO_FORMAT,
-                BabyLogSpeechToTextProtocol.DEFAULT_SAMPLE_RATE
+                BabyLogSpeechToTextProtocol.DEFAULT_SAMPLE_RATE,
+                config.isInverseTextNormalizationEnabled()
         ))) {
             throw new IOException("无法启动语音识别任务");
         }

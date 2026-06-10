@@ -3,11 +3,14 @@ package app.babylog.nativeapp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Checkbox
 import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,6 +52,9 @@ internal fun SpeechSettingsScreen(
         mutableStateOf(config.getModel().ifBlank { BabyLogSpeechToTextProtocol.DEFAULT_MODEL })
     }
     var apiKey by remember(config.getApiKey()) { mutableStateOf(config.getApiKey()) }
+    var inverseTextNormalizationEnabled by rememberSaveable(config.isInverseTextNormalizationEnabled()) {
+        mutableStateOf(config.isInverseTextNormalizationEnabled())
+    }
 
     SettingsPageScaffold(
         title = "语音转文字",
@@ -59,7 +65,8 @@ internal fun SpeechSettingsScreen(
                 BabyLogSmartConfigStore.SpeechConfig(
                     apiKey.trim(),
                     model.trim(),
-                    enabled
+                    enabled,
+                    inverseTextNormalizationEnabled
                 )
             )
         }
@@ -85,6 +92,25 @@ internal fun SpeechSettingsScreen(
                 color = ChestnutPalette.Muted,
                 fontSize = 12.sp
             )
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("数字转写为阿拉伯数字", color = ChestnutPalette.Ink, fontWeight = FontWeight.Bold)
+                    Text(
+                        "实验性。关闭后保留中文数字原文，由智能识别负责转换。",
+                        color = ChestnutPalette.Muted,
+                        fontSize = 12.sp
+                    )
+                }
+                Switch(
+                    checked = inverseTextNormalizationEnabled,
+                    onCheckedChange = { inverseTextNormalizationEnabled = it }
+                )
+            }
         }
         item {
             ChestnutTextField(

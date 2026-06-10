@@ -3,6 +3,8 @@ import app.babylog.nativeapp.BabyLogSmartConfigStore;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -23,6 +25,27 @@ public final class BabyLogSmartTextClientSmokeTest {
         fields.put("highRiskFactors", "高危因素");
         fields.put("treatmentAdvice", "处理及建议");
         fields.put("note", "备注");
+
+        JSONObject fillRequest = BabyLogSmartTextClient.buildSmartFillRequest(
+                        "test-model",
+                        "产检",
+                        "pregnancy",
+                        fields,
+                        "体重50 2000克",
+                        "2026-05-20");
+        assertEquals("test-model", fillRequest.getString("model"));
+        String fillPrompt = fillRequest
+                .getJSONArray("messages")
+                .getJSONObject(1)
+                .getString("content");
+        assertTrue(fillPrompt.contains("今天日期"));
+        assertTrue(fillPrompt.contains("2026-05-20"));
+        assertTrue(fillPrompt.contains("yyyy-MM-dd"));
+        assertTrue(fillPrompt.contains("语音转写"));
+        assertTrue(fillPrompt.contains("错误切分"));
+        assertTrue(fillPrompt.contains("斤→kg"));
+        assertTrue(fillPrompt.contains("多事件"));
+        assertTrue(fillPrompt.contains("rawText 可省略"));
 
         String response = "{"
                 + "\"choices\":[{\"message\":{\"content\":\"```json\\n"
@@ -80,6 +103,25 @@ public final class BabyLogSmartTextClientSmokeTest {
         ultrasoundFields.put("bpdMm", "BPD mm");
         forms.put("ultrasound", ultrasoundFields);
 
+        JSONObject entryRequest = BabyLogSmartTextClient.buildSmartEntryRequest(
+                        "test-model",
+                        "pregnancy",
+                        forms,
+                        "体重50 2000克",
+                        "2026-05-20");
+        assertEquals("test-model", entryRequest.getString("model"));
+        String entryPrompt = entryRequest
+                .getJSONArray("messages")
+                .getJSONObject(1)
+                .getString("content");
+        assertTrue(entryPrompt.contains("今天日期"));
+        assertTrue(entryPrompt.contains("yyyy-MM-dd"));
+        assertTrue(entryPrompt.contains("语音转写"));
+        assertTrue(entryPrompt.contains("错误切分"));
+        assertTrue(entryPrompt.contains("maternal_metric"));
+        assertTrue(entryPrompt.contains("\"weightKg\":\"52\""));
+        assertTrue(entryPrompt.contains("多事件"));
+
         String entryResponse = "{"
                 + "\"choices\":[{\"message\":{\"content\":\"{"
                 + "\\\"eventType\\\":\\\"maternal_metric\\\","
@@ -108,8 +150,12 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertEquals(null, unknown.values.get("weightKg"));
 
         String polishPrompt = BabyLogSmartTextClient.visitSummaryPolishSystemPrompt();
+        assertEquals("test-model", BabyLogSmartTextClient.buildVisitSummaryPolishRequest(
+                "test-model",
+                "# 汇总").getString("model"));
         assertTrue(polishPrompt.contains("禁止添加任何诊断"));
         assertTrue(polishPrompt.contains("禁止修改数值"));
+        assertTrue(polishPrompt.contains("不得删除任何字段或条目"));
         assertTrue(polishPrompt.contains("保留顶部免责声明"));
         String polishResponse = "{"
                 + "\"choices\":[{\"message\":{\"content\":\"```markdown\\n"
@@ -121,6 +167,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertEquals("# BabyLog 复诊汇总\n> 仅家庭记录摘要，未经医学判读。本应用非医疗器械。\n- 血压 118/76 mmHg", polished);
 
         assertClassifyEntryPostsJsonWithBearer();
+        assertResponseFormatFallbackRetriesOnce();
     }
 
     private static void assertClassifyEntryPostsJsonWithBearer() throws Exception {
@@ -158,7 +205,8 @@ public final class BabyLogSmartTextClientSmokeTest {
                     "体重 61.2kg",
                     new BabyLogSmartConfigStore.Config(
                             "http://127.0.0.1:" + port,
-                            "test-model",
+                            "qwen-vl-max",
+                            "qwen-plus",
                             "secret-key",
                             true
                     )
@@ -169,10 +217,67 @@ public final class BabyLogSmartTextClientSmokeTest {
 
         assertEquals("POST", capturedMethod[0]);
         assertEquals("Bearer secret-key", capturedAuthorization[0]);
-        assertTrue(capturedBody[0].contains("\"model\":\"test-model\""));
+        assertTrue(capturedBody[0].contains("\"model\":\"qwen-plus\""));
+        assertFalse(capturedBody[0].contains("\"model\":\"qwen-vl-max\""));
         assertTrue(capturedBody[0].contains("体重 61.2kg"));
         assertEquals("maternal_metric", candidate.eventType);
         assertEquals("61.2", candidate.values.get("weightKg"));
+    }
+
+    private static void assertResponseFormatFallbackRetriesOnce() throws Exception {
+        final int[] requests = new int[1];
+        final String[] firstBody = new String[1];
+        final String[] secondBody = new String[1];
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            requests[0] += 1;
+            String body = new String(readAll(exchange.getRequestBody()), StandardCharsets.UTF_8);
+            if (requests[0] == 1) {
+                firstBody[0] = body;
+                byte[] bytes = "{\"error\":\"unsupported response_format\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(400, bytes.length);
+                exchange.getResponseBody().write(bytes);
+            } else {
+                secondBody[0] = body;
+                String response = "{"
+                        + "\"choices\":[{\"message\":{\"content\":\"{"
+                        + "\\\"eventType\\\":\\\"maternal_metric\\\","
+                        + "\\\"values\\\":{\\\"weightKg\\\":\\\"52\\\"},"
+                        + "\\\"warnings\\\":[\\\"语音数字已纠正：50 2000克 → 52千克，请人工核对\\\"]}\"}}]}";
+                byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+            }
+            exchange.close();
+        });
+        server.start();
+        BabyLogSmartTextClient.SmartEntryCandidate candidate;
+        try {
+            int port = server.getAddress().getPort();
+            Map<String, Map<String, String>> forms = new LinkedHashMap<>();
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("weightKg", "体重 kg");
+            forms.put("maternal_metric", fields);
+            candidate = new BabyLogSmartTextClient().classifyEntry(
+                    "pregnancy",
+                    forms,
+                    "体重50 2000克",
+                    new BabyLogSmartConfigStore.Config(
+                            "http://127.0.0.1:" + port,
+                            "qwen-vl-max",
+                            "qwen-plus",
+                            "secret-key",
+                            true
+                    )
+            );
+        } finally {
+            server.stop(0);
+        }
+
+        assertEquals(2, requests[0]);
+        assertTrue(firstBody[0].contains("response_format"));
+        assertFalse(secondBody[0].contains("response_format"));
+        assertEquals("52", candidate.values.get("weightKg"));
     }
 
     private static byte[] readAll(InputStream input) throws java.io.IOException {
@@ -194,6 +299,12 @@ public final class BabyLogSmartTextClientSmokeTest {
     private static void assertTrue(boolean value) {
         if (!value) {
             throw new AssertionError("expected true");
+        }
+    }
+
+    private static void assertFalse(boolean value) {
+        if (value) {
+            throw new AssertionError("expected false");
         }
     }
 }

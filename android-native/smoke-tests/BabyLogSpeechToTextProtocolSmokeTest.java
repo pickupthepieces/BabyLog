@@ -8,6 +8,15 @@ public final class BabyLogSpeechToTextProtocolSmokeTest {
         assertContains(runTask, "\"model\":\"paraformer-realtime-v2\"");
         assertContains(runTask, "\"language_hints\":[\"zh\"]");
         assertContains(runTask, "\"sample_rate\":16000");
+        assertContains(runTask, "\"enable_inverse_text_normalization\":true");
+
+        String runTaskWithoutInverseTextNormalization = BabyLogSpeechToTextProtocol.buildRunTaskJson(
+                "task-1",
+                "paraformer-realtime-v2",
+                "pcm",
+                16000,
+                false);
+        assertContains(runTaskWithoutInverseTextNormalization, "\"enable_inverse_text_normalization\":false");
 
         String finishTask = BabyLogSpeechToTextProtocol.buildFinishTaskJson("task-1");
         assertContains(finishTask, "\"action\":\"finish-task\"");

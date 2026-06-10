@@ -20,6 +20,19 @@ public final class BabyLogSmartTextClient {
     private static final int CONNECT_TIMEOUT_MS = 20_000;
     private static final int READ_TIMEOUT_MS = 45_000;
     private static final int MAX_RESPONSE_CHARS = 1024 * 1024;
+    private static final String SPEECH_NUMBER_CORRECTION_INSTRUCTION =
+            "用户原文可能来自语音转写，常见错误是中文数字+单位被错误切分，"
+                    + "例如“50 2000克”实为“52千克”、“1 5000毫升”实为“150毫升”、“3 8度5”实为“38.5度”。"
+                    + "请结合孕期/育儿常识恢复原意后再填入 values，"
+                    + "并在 warnings 中注明“语音数字已纠正：原文 → 纠正值，请人工核对”。"
+                    + "无法判断时保留原文并在 warnings 说明。";
+    private static final String UNIT_CONVERSION_INSTRUCTION =
+            "单位换算：数值字段只填数字，按字段名标注的单位换算后填写；"
+                    + "例如斤→kg、千克→kg、毫升→mL、克→g。发生单位换算时在 warnings 说明“单位已换算：原文 → 候选值，请人工核对”。"
+                    + "无法确认单位或量纲时不要猜测，保留原文并在 warnings 说明。";
+    private static final String MULTI_EVENT_INSTRUCTION =
+            "多事件处理：如果一段原文包含多个事件，只选择信息最完整、最适合当前表单或记录类型的一个事件生成 values，"
+                    + "并在 warnings 提示其余事件需要另建记录。";
 
     private final OkHttpClient httpClient = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
@@ -39,7 +52,12 @@ public final class BabyLogSmartTextClient {
             throw new IOException("当前阶段没有可智能录入的表单");
         }
 
-        JSONObject request = buildSmartEntryRequest(config.getModel(), stage, forms, rawText);
+        JSONObject request = buildSmartEntryRequest(
+                config.resolveTextModel(),
+                stage,
+                forms,
+                rawText,
+                BabyLogFormatters.todayDateInput());
         String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
         try {
             return parseSmartEntryResponse(response, forms, rawText);
@@ -65,7 +83,13 @@ public final class BabyLogSmartTextClient {
             throw new IOException("当前表单没有可填写字段");
         }
 
-        JSONObject request = buildSmartFillRequest(config.getModel(), formName, stage, fields, rawText);
+        JSONObject request = buildSmartFillRequest(
+                config.resolveTextModel(),
+                formName,
+                stage,
+                fields,
+                rawText,
+                BabyLogFormatters.todayDateInput());
         String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
         try {
             return parseSmartFillResponse(response, fields.keySet(), rawText);
@@ -85,7 +109,7 @@ public final class BabyLogSmartTextClient {
             throw new IOException("没有可润色的汇总文本");
         }
 
-        JSONObject request = buildVisitSummaryPolishRequest(config.getModel(), markdown);
+        JSONObject request = buildVisitSummaryPolishRequest(config.resolveTextModel(), markdown);
         String response = postJson(BabyLogSmartApi.resolveChatCompletionsUrl(config.getBaseUrl()), config.getApiKey(), request);
         try {
             return parseVisitSummaryPolishResponse(response);
@@ -101,6 +125,17 @@ public final class BabyLogSmartTextClient {
             Map<String, String> fields,
             String rawText
     ) throws JSONException {
+        return buildSmartFillRequest(model, formName, stage, fields, rawText, BabyLogFormatters.todayDateInput());
+    }
+
+    public static JSONObject buildSmartFillRequest(
+            String model,
+            String formName,
+            String stage,
+            Map<String, String> fields,
+            String rawText,
+            String todayDate
+    ) throws JSONException {
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject()
                 .put("role", "system")
@@ -112,13 +147,15 @@ public final class BabyLogSmartTextClient {
         }
 
         String prompt = "当前阶段：" + nullToEmpty(stage)
+                + "\n今天日期：" + normalizeTodayDate(todayDate)
                 + "\n表单：" + nullToEmpty(formName)
                 + "\n可填写字段 JSON：" + fieldObject
                 + "\n用户原文：\n" + rawText
+                + "\n\n" + smartTextSharedInstructions(todayDate)
                 + "\n\n请返回 JSON object："
-                + "{\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"原文\"}。"
+                + "{\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"原文，可省略\"}。"
                 + "只能填写可填写字段中的 key；没有把握就不要填。"
-                + "日期尽量规范为 yyyy-MM-dd；时间尽量规范为 HH:mm；数值保留数字和必要单位。"
+                + "日期规范为 yyyy-MM-dd；时间规范为 HH:mm。"
                 + "不要添加不存在的字段，不要输出 Markdown。";
 
         messages.put(new JSONObject()
@@ -138,6 +175,16 @@ public final class BabyLogSmartTextClient {
             Map<String, Map<String, String>> forms,
             String rawText
     ) throws JSONException {
+        return buildSmartEntryRequest(model, stage, forms, rawText, BabyLogFormatters.todayDateInput());
+    }
+
+    public static JSONObject buildSmartEntryRequest(
+            String model,
+            String stage,
+            Map<String, Map<String, String>> forms,
+            String rawText,
+            String todayDate
+    ) throws JSONException {
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject()
                 .put("role", "system")
@@ -156,13 +203,18 @@ public final class BabyLogSmartTextClient {
         }
 
         String prompt = "当前阶段：" + nullToEmpty(stage)
+                + "\n今天日期：" + normalizeTodayDate(todayDate)
                 + "\n可选择记录类型与字段 JSON：" + formObject
                 + "\n用户原文：\n" + rawText
+                + "\n\n" + smartTextSharedInstructions(todayDate)
+                + "\n\nfew-shot 示例：用户原文“体重50 2000克”应返回 "
+                + "{\"eventType\":\"maternal_metric\",\"values\":{\"weightKg\":\"52\"},"
+                + "\"warnings\":[\"语音数字已纠正：50 2000克 → 52千克，请人工核对\"],\"rawText\":\"体重50 2000克\"}。"
                 + "\n\n请只返回 JSON object："
-                + "{\"eventType\":\"记录类型key\",\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"原文\"}。"
+                + "{\"eventType\":\"记录类型key\",\"values\":{\"字段key\":\"候选值\"},\"warnings\":[\"需要人工核对的点\"],\"rawText\":\"原文，可省略\"}。"
                 + "eventType 必须从可选择记录类型中选一个；如果无法判断，eventType 置空并在 warnings 说明。"
                 + "values 只能填写所选 eventType 下允许的字段；没有把握就不要填。"
-                + "日期尽量规范为 yyyy-MM-dd；时间尽量规范为 HH:mm；血糖情境 glucoseContext 只能是 fasting、after_1h、after_2h、random。"
+                + "日期规范为 yyyy-MM-dd；时间规范为 HH:mm；血糖情境 glucoseContext 只能是 fasting、after_1h、after_2h、random。"
                 + "B 超孕周不要从图像或文字猜测，除非用户原文明确写出孕周；不要添加不存在的字段，不要输出 Markdown。";
 
         messages.put(new JSONObject()
@@ -198,10 +250,20 @@ public final class BabyLogSmartTextClient {
         return "你是一个把家庭孕期记录整理成医生面摘要的助手。严格规则：\n"
                 + "1. 仅基于下方给定文本重新组织语序与衔接，使其简洁易读；\n"
                 + "2. 禁止添加任何诊断、解释、医学建议、风险判定或新信息；\n"
-                + "3. 禁止修改数值、日期、字段值；不会删除字段；\n"
+                + "3. 禁止修改数值、日期、字段值；不得删除任何字段或条目；\n"
                 + "4. 保留原文中的“报告原文”标注；\n"
                 + "5. 保留顶部免责声明；\n"
                 + "6. 输出纯中文 Markdown，不解释你的工作。";
+    }
+
+    private static String smartTextSharedInstructions(String todayDate) {
+        return "今天日期：" + normalizeTodayDate(todayDate) + "。"
+                + "原文中的相对日期（昨天/今早/前天/上周三）按今天日期换算成 yyyy-MM-dd。"
+                + SPEECH_NUMBER_CORRECTION_INSTRUCTION
+                + UNIT_CONVERSION_INSTRUCTION
+                + MULTI_EVENT_INSTRUCTION
+                + "纠错和换算只生成候选 values 与 warnings，保存仍需用户人工确认；不要输出诊断、治疗建议或风险判定。"
+                + "rawText 可省略，省略时应用会使用用户原文兜底。";
     }
 
     public static String parseVisitSummaryPolishResponse(String responseJson) {
@@ -347,6 +409,18 @@ public final class BabyLogSmartTextClient {
     }
 
     private String postJson(String url, String apiKey, JSONObject body) throws IOException {
+        BabyLogHttpClient.HttpResponse response = executeJson(url, apiKey, body);
+        if (!response.isSuccessful() && shouldRetryWithoutResponseFormat(response, body)) {
+            body.remove("response_format");
+            response = executeJson(url, apiKey, body);
+        }
+        if (!response.isSuccessful()) {
+            throw new IOException(BabyLogSmartApi.formatApiErrorMessage(response.statusCode, response.body));
+        }
+        return response.body;
+    }
+
+    private BabyLogHttpClient.HttpResponse executeJson(String url, String apiKey, JSONObject body) throws IOException {
         RequestBody requestBody = RequestBody.create(
                 body.toString().getBytes(StandardCharsets.UTF_8),
                 BabyLogHttpClient.JSON_MEDIA_TYPE
@@ -355,11 +429,13 @@ public final class BabyLogSmartTextClient {
                 .header("Authorization", "Bearer " + apiKey)
                 .post(requestBody)
                 .build();
-        BabyLogHttpClient.HttpResponse response = BabyLogHttpClient.executeText(httpClient, request, MAX_RESPONSE_CHARS);
-        if (!response.isSuccessful()) {
-            throw new IOException(BabyLogSmartApi.formatApiErrorMessage(response.statusCode, response.body));
-        }
-        return response.body;
+        return BabyLogHttpClient.executeText(httpClient, request, MAX_RESPONSE_CHARS);
+    }
+
+    private static boolean shouldRetryWithoutResponseFormat(BabyLogHttpClient.HttpResponse response, JSONObject body) {
+        return body.has("response_format")
+                && response.body != null
+                && response.body.toLowerCase(java.util.Locale.ROOT).contains("response_format");
     }
 
     private static String stripMarkdownFence(String content) {
@@ -379,6 +455,13 @@ public final class BabyLogSmartTextClient {
 
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String normalizeTodayDate(String todayDate) {
+        if (todayDate == null || todayDate.trim().isEmpty()) {
+            return BabyLogFormatters.todayDateInput();
+        }
+        return todayDate.trim();
     }
 
     public static final class SmartFillCandidate {

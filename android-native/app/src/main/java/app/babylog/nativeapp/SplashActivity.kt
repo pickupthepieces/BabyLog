@@ -100,17 +100,34 @@ private fun BabyLogSplash() {
                     }
             )
             Spacer(modifier = Modifier.height(18.dp))
-            Image(
-                painter = painterResource(R.drawable.wordmark_babylog_tight),
-                contentDescription = null,
-                modifier = Modifier
-                    .width(176.dp)
-                    .height(46.dp)
-                    .graphicsLayer {
-                        alpha = wordAlpha.value
-                        translationY = wordOffset.value
-                    }
-            )
+            splashWordmarks(wordAlpha = wordAlpha.value, wordOffset = wordOffset.value)
         }
     }
+}
+
+@Composable
+private fun splashWordmarks(wordAlpha: Float, wordOffset: Float) {
+    Image(
+        painter = painterResource(R.drawable.wordmark_babylog_tight),
+        contentDescription = null,
+        modifier = Modifier
+            .width(176.dp)
+            .height(46.dp)
+            .graphicsLayer {
+                alpha = wordAlpha
+                translationY = wordOffset
+            }
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    Image(
+        painter = painterResource(R.drawable.wordmark_lijji),
+        contentDescription = null,
+        modifier = Modifier
+            .width(96.dp)
+            .height(52.dp)
+            .graphicsLayer {
+                alpha = wordAlpha
+                translationY = wordOffset
+            }
+    )
 }

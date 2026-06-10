@@ -11,6 +11,16 @@ public final class BabyLogSpeechToTextProtocol {
     }
 
     public static String buildRunTaskJson(String taskId, String model, String audioFormat, int sampleRate) {
+        return buildRunTaskJson(taskId, model, audioFormat, sampleRate, true);
+    }
+
+    public static String buildRunTaskJson(
+            String taskId,
+            String model,
+            String audioFormat,
+            int sampleRate,
+            boolean inverseTextNormalizationEnabled
+    ) {
         String normalizedModel = isBlank(model) ? DEFAULT_MODEL : model.trim();
         String normalizedFormat = isBlank(audioFormat) ? DEFAULT_AUDIO_FORMAT : audioFormat.trim();
         int normalizedSampleRate = sampleRate > 0 ? sampleRate : DEFAULT_SAMPLE_RATE;
@@ -30,7 +40,7 @@ public final class BabyLogSpeechToTextProtocol {
                 + "\"sample_rate\":" + normalizedSampleRate + ","
                 + "\"language_hints\":[\"zh\"],"
                 + "\"enable_punctuation_prediction\":true,"
-                + "\"enable_inverse_text_normalization\":true"
+                + "\"enable_inverse_text_normalization\":" + inverseTextNormalizationEnabled
                 + "},"
                 + "\"input\":{}"
                 + "}"
