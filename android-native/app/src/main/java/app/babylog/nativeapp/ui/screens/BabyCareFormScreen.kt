@@ -51,8 +51,28 @@ internal fun BabyCareFormScreen(
         if (formError.isNotBlank()) {
             item { Text(formError, color = ChestnutPalette.Danger) }
         }
-        item { ChestnutTextField(labels.primary, primary, { primary = it }, labels.primaryKeyboard) }
-        item { ChestnutTextField(labels.secondary, secondary, { secondary = it }, labels.secondaryKeyboard) }
+        item {
+            BabyCareConfiguredField(
+                label = labels.primary,
+                value = primary,
+                onValueChange = { primary = it },
+                keyboardType = labels.primaryKeyboard,
+                options = labels.primaryOptions,
+                allowCustom = labels.primaryAllowCustom,
+                isTime = labels.primaryIsTime
+            )
+        }
+        item {
+            BabyCareConfiguredField(
+                label = labels.secondary,
+                value = secondary,
+                onValueChange = { secondary = it },
+                keyboardType = labels.secondaryKeyboard,
+                options = labels.secondaryOptions,
+                allowCustom = labels.secondaryAllowCustom,
+                isTime = labels.secondaryIsTime
+            )
+        }
         if (labels.tertiary != null) {
             item {
                 if (action.eventType == "medication") {
@@ -67,7 +87,15 @@ internal fun BabyCareFormScreen(
                         onVoiceStop = onLongTextVoiceStop
                     )
                 } else {
-                    ChestnutTextField(labels.tertiary, tertiary, { tertiary = it }, KeyboardType.Text)
+                    BabyCareConfiguredField(
+                        label = labels.tertiary,
+                        value = tertiary,
+                        onValueChange = { tertiary = it },
+                        keyboardType = KeyboardType.Text,
+                        options = labels.tertiaryOptions,
+                        allowCustom = labels.tertiaryAllowCustom,
+                        isTime = false
+                    )
                 }
             }
         }
@@ -83,6 +111,30 @@ internal fun BabyCareFormScreen(
                 )
             }
         }
+    }
+}
+
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun BabyCareConfiguredField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    keyboardType: KeyboardType,
+    options: List<Option>? = null,
+    allowCustom: Boolean = false,
+    isTime: Boolean = false
+) {
+    when {
+        options != null -> ChoiceChipsRow(
+            label = label,
+            options = options,
+            value = value,
+            onValueChange = onValueChange,
+            allowCustom = allowCustom
+        )
+        isTime -> TimeInputRow(label, value, onValueChange)
+        else -> ChestnutTextField(label, value, onValueChange, keyboardType)
     }
 }
 

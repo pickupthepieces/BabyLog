@@ -75,6 +75,11 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("尿", oldDiaperDraft.get("primary"));
         assertEquals("偏多", oldDiaperDraft.get("secondary"));
         assertFalse(oldDiaperDraft.containsKey("tertiary"));
+        oldDiaperPayload.put("diaperType", "小便");
+        oldDiaperPayload.put("diaperObservation", "黄绿色糊状");
+        Map<String, String> legacyDiaperDraft = BabyLogService.babyCareDraftFields("diaper", oldDiaperPayload);
+        assertEquals("小便", legacyDiaperDraft.get("primary"));
+        assertEquals("黄绿色糊状", legacyDiaperDraft.get("tertiary"));
 
         assertEquals(
                 "体温 · 37.8 ℃ · 腋温",
@@ -109,6 +114,9 @@ public final class BabyLogServiceSmokeTest {
         );
         assertEquals("L", feedSidePayload.optString("breastSide"));
         assertTrue(feedSidePayload.optString("summary").contains("L"));
+        Map<String, String> feedSideDraft = BabyLogService.babyCareDraftFields("feed", feedSidePayload);
+        assertEquals("母乳", feedSideDraft.get("primary"));
+        assertEquals("L", feedSideDraft.get("tertiary"));
 
         JSONObject solidFoodPayload = BabyLogService.buildBabyCarePayload(
                 BabyLogService.BabyCareInput.feed("辅食", "", "香蕉泥", "")
