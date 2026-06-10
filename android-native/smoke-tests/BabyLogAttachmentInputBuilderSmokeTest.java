@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogAttachmentInputBuilder;
 import app.babylog.nativeapp.BabyLogDomain;
 
@@ -59,9 +61,4 @@ public final class BabyLogAttachmentInputBuilderSmokeTest {
         }
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but was " + actual);
-        }
-    }
 }

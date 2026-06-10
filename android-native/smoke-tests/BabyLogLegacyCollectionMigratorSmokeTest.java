@@ -1,5 +1,7 @@
 package app.babylog.nativeapp;
 
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -112,9 +114,4 @@ public final class BabyLogLegacyCollectionMigratorSmokeTest {
         }
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected <" + expected + "> but was <" + actual + ">");
-        }
-    }
 }

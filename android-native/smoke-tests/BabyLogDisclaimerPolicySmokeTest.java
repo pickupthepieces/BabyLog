@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDisclaimerPolicy;
 
 public final class BabyLogDisclaimerPolicySmokeTest {
@@ -14,21 +16,6 @@ public final class BabyLogDisclaimerPolicySmokeTest {
         assertEquals("medical_disclaimer_accepted_version", BabyLogDisclaimerPolicy.ACCEPTED_VERSION_KEY);
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 
-    private static void assertTrue(boolean value) {
-        if (!value) {
-            throw new AssertionError("expected true");
-        }
-    }
 
-    private static void assertFalse(boolean value) {
-        if (value) {
-            throw new AssertionError("expected false");
-        }
-    }
 }

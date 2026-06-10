@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogBabyDayTimelineSlots;
 import app.babylog.nativeapp.BabyLogDomain;
 
@@ -157,27 +159,7 @@ public final class BabyLogBabyDayTimelineSlotsSmokeTest {
         return BabyLogDomain.createEvent(eventType, occurredAt, payload, Collections.emptyList(), "manual");
     }
 
-    private static void assertEquals(int expected, int actual) {
-        if (expected != actual) {
-            throw new AssertionError("Expected " + expected + " but was " + actual);
-        }
-    }
 
-    private static void assertEquals(String expected, String actual) {
-        if (!expected.equals(actual)) {
-            throw new AssertionError("Expected " + expected + " but was " + actual);
-        }
-    }
 
-    private static void assertTrue(boolean value) {
-        if (!value) {
-            throw new AssertionError("Expected true");
-        }
-    }
 
-    private static void assertFalse(boolean value) {
-        if (value) {
-            throw new AssertionError("Expected false");
-        }
-    }
 }

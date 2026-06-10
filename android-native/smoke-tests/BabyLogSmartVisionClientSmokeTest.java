@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogSmartVisionClient;
 import app.babylog.nativeapp.BabyLogSmartApi;
 import app.babylog.nativeapp.BabyLogSmartConfigStore;
@@ -173,23 +175,8 @@ public final class BabyLogSmartVisionClientSmokeTest {
         return output.toByteArray();
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 
-    private static void assertTrue(boolean actual) {
-        if (!actual) {
-            throw new AssertionError("expected true but got false");
-        }
-    }
 
-    private static void assertFalse(boolean actual) {
-        if (actual) {
-            throw new AssertionError("expected false but got true");
-        }
-    }
 
     private static final class RecordingPreparer implements BabyLogSmartVisionClient.UploadImagePreparer {
         int calls;

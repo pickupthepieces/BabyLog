@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogService;
 
@@ -106,11 +108,6 @@ public final class BabyLogDomainSmokeTest {
         assertEquals(true, BabyLogService.isTrashExpired("2026-05-18T20:30:00.000+0800", "2026-05-25T20:30:00.000+0800"));
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 
     private static boolean contains(String[] values, String expected) {
         for (String value : values) {

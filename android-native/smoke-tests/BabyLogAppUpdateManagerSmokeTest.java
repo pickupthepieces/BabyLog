@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogAppUpdateManager;
 
 import java.io.File;
@@ -38,30 +40,7 @@ public final class BabyLogAppUpdateManagerSmokeTest {
         temp.delete();
     }
 
-    private static void assertNotNull(Object value) {
-        if (value == null) {
-            throw new AssertionError("Expected non-null value");
-        }
-    }
 
-    private static void assertThrows(ThrowingRunnable block) {
-        try {
-            block.run();
-        } catch (IllegalArgumentException expected) {
-            return;
-        } catch (Exception unexpected) {
-            throw new AssertionError("Unexpected exception type", unexpected);
-        }
-        throw new AssertionError("Expected IllegalArgumentException");
-    }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("Expected " + expected + " but was " + actual);
-        }
-    }
 
-    private interface ThrowingRunnable {
-        void run() throws Exception;
-    }
 }

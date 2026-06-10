@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogFetalGrowthReference;
 
 public final class BabyLogFetalGrowthReferenceSmokeTest {
@@ -48,21 +50,6 @@ public final class BabyLogFetalGrowthReferenceSmokeTest {
         assertEquals("香港近似参考", ignoredFutureStandard.standardLabel);
     }
 
-    private static void assertBetween(double low, double high, double actual) {
-        if (actual < low || actual > high) {
-            throw new AssertionError("expected " + actual + " between " + low + " and " + high);
-        }
-    }
 
-    private static void assertTrue(boolean actual) {
-        if (!actual) {
-            throw new AssertionError("expected true but got false");
-        }
-    }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 }

@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogImageUtils;
 
 public final class BabyLogImageUtilsSmokeTest {
@@ -9,9 +11,4 @@ public final class BabyLogImageUtilsSmokeTest {
         assertEquals(1, BabyLogImageUtils.calculateInSampleSize(8000, 6000, 0));
     }
 
-    private static void assertEquals(int expected, int actual) {
-        if (expected != actual) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 }

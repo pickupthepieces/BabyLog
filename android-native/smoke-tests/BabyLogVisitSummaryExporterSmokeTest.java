@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogPreVisitQuestionStore;
 import app.babylog.nativeapp.BabyLogVisitSummaryExporter;
@@ -165,15 +167,5 @@ public final class BabyLogVisitSummaryExporterSmokeTest {
         assertNotContains(filtered, "唐筛");
     }
 
-    private static void assertContains(String haystack, String needle) {
-        if (haystack == null || !haystack.contains(needle)) {
-            throw new AssertionError("expected markdown to contain: " + needle + "\nActual:\n" + haystack);
-        }
-    }
 
-    private static void assertNotContains(String haystack, String needle) {
-        if (haystack != null && haystack.contains(needle)) {
-            throw new AssertionError("expected markdown not to contain: " + needle + "\nActual:\n" + haystack);
-        }
-    }
 }

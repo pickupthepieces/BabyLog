@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogRepository;
 
@@ -79,15 +81,5 @@ public final class BabyLogRepositoryStorageSmokeTest {
         );
     }
 
-    private static void assertTrue(boolean value) {
-        if (!value) {
-            throw new AssertionError("expected true");
-        }
-    }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected <" + expected + "> but was <" + actual + ">");
-        }
-    }
 }

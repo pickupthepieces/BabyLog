@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogSpeechToTextProtocol;
 
 public final class BabyLogSpeechToTextProtocolSmokeTest {
@@ -39,15 +41,5 @@ public final class BabyLogSpeechToTextProtocolSmokeTest {
         assertEquals("bad audio", failed.errorMessage);
     }
 
-    private static void assertContains(String text, String expected) {
-        if (!text.contains(expected)) {
-            throw new AssertionError("expected to contain " + expected + " but got " + text);
-        }
-    }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 }

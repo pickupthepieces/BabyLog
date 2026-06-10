@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogWeightGainCalculator;
 
 public final class BabyLogWeightGainCalculatorSmokeTest {
@@ -37,15 +39,5 @@ public final class BabyLogWeightGainCalculatorSmokeTest {
         assertNear(6.2, BabyLogWeightGainCalculator.cumulativeGainKg(61.2, 55.0), 0.01);
     }
 
-    private static void assertEquals(String expected, String actual) {
-        if (!expected.equals(actual)) {
-            throw new AssertionError("Expected " + expected + " but was " + actual);
-        }
-    }
 
-    private static void assertNear(double expected, double actual, double tolerance) {
-        if (Math.abs(expected - actual) > tolerance) {
-            throw new AssertionError("Expected " + expected + " +/- " + tolerance + " but was " + actual);
-        }
-    }
 }

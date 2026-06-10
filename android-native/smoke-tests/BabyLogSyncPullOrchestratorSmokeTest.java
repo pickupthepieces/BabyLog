@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogRemoteSyncClient;
 import app.babylog.nativeapp.BabyLogRepository;
@@ -296,15 +298,5 @@ public final class BabyLogSyncPullOrchestratorSmokeTest {
         return end < 0 ? "" : query.substring(start, end);
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 
-    private static void assertTrue(boolean value) {
-        if (!value) {
-            throw new AssertionError("expected true");
-        }
-    }
 }

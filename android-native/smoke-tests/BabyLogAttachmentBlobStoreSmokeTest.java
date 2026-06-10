@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogAttachmentBlobStore;
 import app.babylog.nativeapp.BabyLogRepository;
 
@@ -84,21 +86,6 @@ public final class BabyLogAttachmentBlobStoreSmokeTest {
         assertFalse(legacyValues.containsKey("attachmentDownloadQueue"));
     }
 
-    private static void assertTrue(boolean value) {
-        if (!value) {
-            throw new AssertionError("expected true");
-        }
-    }
 
-    private static void assertFalse(boolean value) {
-        if (value) {
-            throw new AssertionError("expected false");
-        }
-    }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but was " + actual);
-        }
-    }
 }

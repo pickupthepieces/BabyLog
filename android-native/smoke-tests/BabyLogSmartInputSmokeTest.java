@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogSmartInput;
 
 public final class BabyLogSmartInputSmokeTest {
@@ -151,9 +153,4 @@ public final class BabyLogSmartInputSmokeTest {
         }
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 }

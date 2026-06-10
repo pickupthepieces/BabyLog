@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogFormatters;
 import app.babylog.nativeapp.BabyLogDomain;
 
@@ -163,11 +165,6 @@ public final class BabyLogFormattersSmokeTest {
         }
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 
     private static void assertEventGroup(String eventType, String expectedGroup) {
         assertEquals(expectedGroup, BabyLogFormatters.timelineFilterGroup(eventType));

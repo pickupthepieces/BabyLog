@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogSyncProtocol;
 
@@ -70,9 +72,4 @@ public final class BabyLogSyncProtocolSmokeTest {
         throw new AssertionError("Expected IllegalArgumentException");
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 }

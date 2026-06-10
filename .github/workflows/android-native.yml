@@ -58,110 +58,35 @@ jobs:
             "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.jar" \
             -o "$KOTLIN_STDLIB_JAR"
           SMOKE_CP="$JSON_JAR:$OKHTTP_JAR:$OKIO_JAR:$KOTLIN_STDLIB_JAR:$ANDROID_JAR"
+          EXCLUDED_APP_SOURCES=(
+            "app/src/main/java/app/babylog/nativeapp/BabyLogApplication.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogFileProvider.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogReminderScheduler.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogRoomCollectionStore.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogRoomDatabase.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogRoomJsonDao.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogRoomJsonRow.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogSyncAttachmentDownloadWorker.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullWorker.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogSyncPushWorker.java"
+            "app/src/main/java/app/babylog/nativeapp/BabyLogWorkManagerSyncTrigger.java"
+          )
+          mapfile -t APP_SOURCES < <(
+            find app/src/main/java -name "*.java" | sort | grep -v -F -f <(printf '%s\n' "${EXCLUDED_APP_SOURCES[@]}")
+          )
+          mapfile -t SMOKE_SOURCES < <(find smoke-tests -name "*.java" | sort)
           javac -encoding UTF-8 \
             -cp "$SMOKE_CP" \
             -d smoke-tests/out \
-            app/src/main/java/app/babylog/nativeapp/BabyLogDomain.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogFormatters.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogImageUtils.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogFetalGrowthReference.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogWeightGainCalculator.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogDueDateCalculator.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogAppUpdateManager.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogPreVisitQuestionStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogReminderStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogVisitSummaryExporter.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSmartConfigStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSmartInput.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSmartApi.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSmartVisionClient.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSmartTextClient.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSpeechToTextProtocol.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSyncProtocol.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogFamilyKeyDeriver.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogPayloadCipher.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentCipher.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSyncSecretStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogHttpClient.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogRemoteSyncClient.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSyncTrigger.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSyncPushOrchestrator.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSyncPullOrchestrator.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogSyncAttachmentDownloader.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogDisclaimerPolicy.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogQuickEventRecorder.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryStringStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogRepositoryCollectionStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogLegacyCollectionMigrator.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentBlobStore.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogAttachmentInputBuilder.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogBabyDayTimelineSlots.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogDailyBabySummaryBase.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogDailySummaryCalculator.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogBackupManager.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogDiaperKind.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogException.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogRepository.java \
-            app/src/main/java/app/babylog/nativeapp/BabyLogService.java \
-            smoke-tests/BabyLogDisclaimerPolicySmokeTest.java \
-            smoke-tests/BabyLogSmartConfigStoreSmokeTest.java \
-            smoke-tests/BabyLogDomainSmokeTest.java \
-            smoke-tests/BabyLogFormattersSmokeTest.java \
-            smoke-tests/BabyLogImageUtilsSmokeTest.java \
-            smoke-tests/BabyLogFetalGrowthReferenceSmokeTest.java \
-            smoke-tests/BabyLogWeightGainCalculatorSmokeTest.java \
-            smoke-tests/BabyLogDueDateCalculatorSmokeTest.java \
-            smoke-tests/BabyLogAppUpdateManagerSmokeTest.java \
-            smoke-tests/BabyLogReminderStoreSmokeTest.java \
-            smoke-tests/BabyLogVisitSummaryExporterSmokeTest.java \
-            smoke-tests/BabyLogSmartInputSmokeTest.java \
-            smoke-tests/BabyLogSmartVisionClientSmokeTest.java \
-            smoke-tests/BabyLogSmartTextClientSmokeTest.java \
-            smoke-tests/BabyLogSpeechToTextProtocolSmokeTest.java \
-            smoke-tests/BabyLogSyncProtocolSmokeTest.java \
-            smoke-tests/BabyLogFamilyKeyDeriverSmokeTest.java \
-            smoke-tests/BabyLogPayloadCipherSmokeTest.java \
-            smoke-tests/BabyLogAttachmentCipherSmokeTest.java \
-            smoke-tests/BabyLogSyncSecretStoreSmokeTest.java \
-            smoke-tests/BabyLogRemoteSyncClientSmokeTest.java \
-            smoke-tests/BabyLogAttachmentBlobStoreSmokeTest.java \
-            smoke-tests/BabyLogAttachmentInputBuilderSmokeTest.java \
-            smoke-tests/BabyLogBabyDayTimelineSlotsSmokeTest.java \
-            smoke-tests/BabyLogLegacyCollectionMigratorSmokeTest.java \
-            smoke-tests/BabyLogRepositoryStorageSmokeTest.java \
-            smoke-tests/BabyLogSyncPushOrchestratorSmokeTest.java \
-            smoke-tests/BabyLogSyncPullOrchestratorSmokeTest.java \
-            smoke-tests/BabyLogServiceSmokeTest.java
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDisclaimerPolicySmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartConfigStoreSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDomainSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFormattersSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogImageUtilsSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFetalGrowthReferenceSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogWeightGainCalculatorSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogDueDateCalculatorSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAppUpdateManagerSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogReminderStoreSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogVisitSummaryExporterSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartInputSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartVisionClientSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSmartTextClientSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSpeechToTextProtocolSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncProtocolSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogFamilyKeyDeriverSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogPayloadCipherSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentCipherSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncSecretStoreSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRemoteSyncClientSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentBlobStoreSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogAttachmentInputBuilderSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogBabyDayTimelineSlotsSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" app.babylog.nativeapp.BabyLogLegacyCollectionMigratorSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogRepositoryStorageSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPushOrchestratorSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogSyncPullOrchestratorSmokeTest
-          java -cp "smoke-tests/out:$SMOKE_CP" BabyLogServiceSmokeTest
-
+            "${APP_SOURCES[@]}" \
+            "${SMOKE_SOURCES[@]}"
+          while IFS= read -r test_file; do
+            test_class="$(basename "$test_file" .java)"
+            if grep -q '^package app\.babylog\.nativeapp;' "$test_file"; then
+              test_class="app.babylog.nativeapp.$test_class"
+            fi
+            java -cp "smoke-tests/out:$SMOKE_CP" "$test_class"
+          done < <(find smoke-tests -name "*SmokeTest.java" | sort)
       - name: Assemble debug
         run: cd android-native && ./gradlew :app:assembleDebug --console=plain
 
@@ -187,3 +112,4 @@ jobs:
       - name: Assemble signed release
         if: env.BABYLOG_RELEASE_KEYSTORE_BASE64 != ''
         run: cd android-native && ./gradlew :app:assembleRelease --console=plain
+

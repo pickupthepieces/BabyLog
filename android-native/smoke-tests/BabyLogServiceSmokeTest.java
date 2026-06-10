@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDomain;
 import app.babylog.nativeapp.BabyLogException;
 import app.babylog.nativeapp.BabyLogBabyDayTimelineSlots;
@@ -427,44 +429,10 @@ public final class BabyLogServiceSmokeTest {
         assertThrows(() -> BabyLogService.validateBackupDataForImport(badSyncData));
     }
 
-    private static void assertEquals(Object expected, Object actual) {
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError("expected " + expected + " but got " + actual);
-        }
-    }
 
-    private static void assertTrue(boolean actual) {
-        if (!actual) {
-            throw new AssertionError("expected true but got false");
-        }
-    }
 
-    private static void assertFalse(boolean actual) {
-        if (actual) {
-            throw new AssertionError("expected false but got true");
-        }
-    }
 
-    private static void assertThrows(ThrowingRunnable action) throws Exception {
-        try {
-            action.run();
-        } catch (Exception expected) {
-            return;
-        }
-        throw new AssertionError("expected exception");
-    }
 
-    private static void assertThrowsType(Class<?> expectedType, ThrowingRunnable action) throws Exception {
-        try {
-            action.run();
-        } catch (Exception actual) {
-            if (expectedType.isInstance(actual)) {
-                return;
-            }
-            throw new AssertionError("expected " + expectedType.getSimpleName() + " but got " + actual.getClass().getSimpleName());
-        }
-        throw new AssertionError("expected " + expectedType.getSimpleName());
-    }
 
     private static BabyLogDomain.BabyLogEvent sleepEvent(String startIso, String endIso) throws Exception {
         JSONObject payload = new JSONObject();
@@ -665,9 +633,6 @@ public final class BabyLogServiceSmokeTest {
         return format.format(new Date(millis + minutes * 60_000L));
     }
 
-    private interface ThrowingRunnable {
-        void run() throws Exception;
-    }
 
     private static final class CountingSyncTrigger implements BabyLogSyncTrigger {
         int count;

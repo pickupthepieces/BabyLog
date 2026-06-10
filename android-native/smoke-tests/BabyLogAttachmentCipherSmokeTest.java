@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogAttachmentCipher;
 import app.babylog.nativeapp.BabyLogFamilyKeyDeriver;
 
@@ -43,28 +45,7 @@ public final class BabyLogAttachmentCipherSmokeTest {
         assertThrows(() -> BabyLogAttachmentCipher.openFile(attachmentKey, aad, new byte[11]));
     }
 
-    private static void assertThrows(ThrowingRunnable runnable) throws Exception {
-        try {
-            runnable.run();
-        } catch (GeneralSecurityException expected) {
-            return;
-        }
-        throw new AssertionError("expected GeneralSecurityException");
-    }
 
-    private interface ThrowingRunnable {
-        void run() throws Exception;
-    }
 
-    private static void assertTrue(boolean value) {
-        if (!value) {
-            throw new AssertionError("expected true");
-        }
-    }
 
-    private static void assertFalse(boolean value) {
-        if (value) {
-            throw new AssertionError("expected false");
-        }
-    }
 }

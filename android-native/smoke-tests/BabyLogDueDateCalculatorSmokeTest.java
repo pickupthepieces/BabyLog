@@ -1,3 +1,5 @@
+import static app.babylog.nativeapp.SmokeAssert.*;
+
 import app.babylog.nativeapp.BabyLogDueDateCalculator;
 
 public final class BabyLogDueDateCalculatorSmokeTest {
