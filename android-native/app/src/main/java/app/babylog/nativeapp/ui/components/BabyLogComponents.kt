@@ -1,6 +1,7 @@
 package app.babylog.nativeapp
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,7 +44,10 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +69,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 internal typealias LongTextVoiceStart = ((String) -> Unit) -> Unit
+
+data class Option(val value: String, val label: String)
 
 @Composable
 internal fun Modifier.babyLogPressScale(
@@ -399,6 +405,93 @@ fun ChoiceChipRow(
     }
 }
 
+@Suppress("FunctionNaming", "LongParameterList", "MagicNumber")
+@Composable
+fun ChoiceChipsRow(
+    label: String,
+    options: List<Option>,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    allowCustom: Boolean = false,
+    customLabel: String = "其它",
+    customPlaceholder: String = "请输入其它内容"
+) {
+    val optionValues = remember(options) { options.map { it.value }.toSet() }
+    val trimmedValue = value.trim()
+    val customSelected = allowCustom && trimmedValue.isNotBlank() && trimmedValue !in optionValues
+    var customMode by remember(trimmedValue, customSelected) { mutableStateOf(customSelected) }
+    var customDraft by remember(customSelected, trimmedValue) {
+        mutableStateOf(if (customSelected) value else "")
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(label, color = ChestnutPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { option ->
+                ChoiceChipButton(
+                    text = option.label,
+                    active = value == option.value,
+                    onClick = {
+                        customMode = false
+                        customDraft = ""
+                        onValueChange(option.value)
+                    }
+                )
+            }
+            if (allowCustom) {
+                ChoiceChipButton(
+                    text = customLabel,
+                    active = customSelected || customMode,
+                    onClick = {
+                        customMode = true
+                        customDraft = if (customSelected) value else ""
+                        onValueChange(customDraft)
+                    }
+                )
+            }
+        }
+        if (allowCustom && (customSelected || customMode)) {
+            Spacer(Modifier.height(8.dp))
+            ChestnutTextField(
+                label = customPlaceholder,
+                value = customDraft,
+                onValueChange = {
+                    customDraft = it
+                    onValueChange(it)
+                },
+                keyboardType = KeyboardType.Text
+            )
+        }
+    }
+}
+
+@Suppress("FunctionNaming", "MagicNumber")
+@Composable
+private fun ChoiceChipButton(
+    text: String,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        border = BorderStroke(1.dp, if (active) ChestnutPalette.Primary else ChestnutPalette.Border),
+        colors = ButtonDefaults.outlinedButtonColors(
+            backgroundColor = if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface,
+            contentColor = if (active) ChestnutPalette.Primary else ChestnutPalette.Ink
+        ),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+    ) {
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 @Composable
 fun DateInputRow(
     label: String,
@@ -418,6 +511,71 @@ fun DateInputRow(
             calendar.get(Calendar.YEAR),
             calendar.get(Calendar.MONTH),
             calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(RoundedCornerShape(ChestnutRadius.Control))
+            .background(ChestnutPalette.Surface)
+            .border(1.dp, ChestnutPalette.Border.copy(alpha = 0.55f), RoundedCornerShape(ChestnutRadius.Control))
+            .clickable { openPicker() }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, color = ChestnutPalette.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(
+                text = value.ifBlank { "未填写" },
+                color = if (value.isBlank()) ChestnutPalette.Text3 else ChestnutPalette.Ink,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(fontFeatureSettings = "tnum")
+            )
+        }
+        Text(
+            text = "选择",
+            color = ChestnutPalette.Primary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        if (allowClear && value.isNotBlank()) {
+            Text(
+                text = "清空",
+                color = ChestnutPalette.Text3,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable { onValueChange("") }
+                    .padding(horizontal = 6.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+@Suppress("FunctionNaming", "MagicNumber")
+@Composable
+fun TimeInputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    allowClear: Boolean = true
+) {
+    val context = LocalContext.current
+    val openPicker = {
+        val (hour, minute) = clockFromTime(value)
+        TimePickerDialog(
+            context,
+            { _, selectedHour, selectedMinute ->
+                onValueChange(String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute))
+            },
+            hour,
+            minute,
+            true
         ).show()
     }
 
@@ -626,4 +784,18 @@ private fun calendarFromDate(value: String): Calendar {
     } catch (_: Exception) {
         calendar
     }
+}
+
+@Suppress("ComplexCondition", "MagicNumber")
+private fun clockFromTime(value: String): Pair<Int, Int> {
+    val parts = value.split(":")
+    if (parts.size == 2) {
+        val hour = parts[0].toIntOrNull()
+        val minute = parts[1].toIntOrNull()
+        if (hour != null && minute != null && hour in 0..23 && minute in 0..59) {
+            return hour to minute
+        }
+    }
+    val calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
+    return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
 }
