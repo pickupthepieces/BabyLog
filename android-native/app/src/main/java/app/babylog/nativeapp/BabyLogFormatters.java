@@ -335,18 +335,51 @@ public final class BabyLogFormatters {
     }
 
     public static String eventSummary(BabyLogDomain.BabyLogEvent event) {
-        JSONObject payload = event.payload;
+        if (event == null) {
+            return "手动记录 · 待补充详情";
+        }
+        JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
         if ("feed".equals(event.eventType)) {
             return babyCareSummary(
                     event.eventType,
                     localizeFeedType(payload.optString("feedType", "")),
-                    payload.has("amountMl") ? formatNumber(payload.optDouble("amountMl")) + " ml" : ""
+                    numberWithUnit(payload, "amountMl", "", "ml"),
+                    firstNonBlank(payload.optString("breastSide"), payload.optString("solidFood"))
+            );
+        }
+        if ("bottle".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    numberWithUnit(payload, "amountMl", "", "ml"),
+                    payload.optString("detail", ""),
+                    payload.optString("brand", ""),
+                    payload.optString("note", "")
+            );
+        }
+        if ("breastfeed".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    numberWithUnit(payload, "leftMinutes", "左", "分钟"),
+                    numberWithUnit(payload, "rightMinutes", "右", "分钟"),
+                    payload.optString("detail", ""),
+                    payload.optString("note", "")
+            );
+        }
+        if ("diaper".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    payload.optString("diaperType", ""),
+                    payload.optString("diaperDetail", ""),
+                    firstNonBlank(
+                            payload.optString("diaperObservation", ""),
+                            joinNonBlank(payload.optString("color"), payload.optString("consistency"))
+                    )
             );
         }
         if ("temperature".equals(event.eventType)) {
             return babyCareSummary(
                     event.eventType,
-                    payload.has("temperatureC") ? formatNumber(payload.optDouble("temperatureC")) + " ℃" : "",
+                    numberWithUnit(payload, "temperatureC", "", "℃"),
                     localizeMeasureMethod(payload.optString("measureMethod", ""))
             );
         }
@@ -361,8 +394,52 @@ public final class BabyLogFormatters {
         if ("sleep".equals(event.eventType)) {
             return sleepSummary(event);
         }
-        String summary = payload.optString("summary", "");
-        return summary.isEmpty() ? "手动记录 · 待补充详情" : localizeStoredSummary(summary);
+        if (payload.has("quickAction")) {
+            return quickActionSummary(event.eventType, payload);
+        }
+        if ("pee".equals(event.eventType)
+                || "poop".equals(event.eventType)
+                || "wake".equals(event.eventType)
+                || "birth".equals(event.eventType)) {
+            return bareBabyCareSummary(
+                    event.eventType,
+                    payload.optString("detail", ""),
+                    payload.optString("note", "")
+            );
+        }
+        if ("pregnancy_checkup".equals(event.eventType)) {
+            return checkupSummary(payload);
+        }
+        if (isScreeningEventType(event.eventType)) {
+            return screeningSummary(event.eventType, payload);
+        }
+        if ("fetal_movement".equals(event.eventType)) {
+            return fetalMovementSummary(payload);
+        }
+        if ("contraction".equals(event.eventType)) {
+            return contractionSummary(payload);
+        }
+        if ("maternal_metric".equals(event.eventType)) {
+            return maternalMetricSummary(payload);
+        }
+        if ("ultrasound".equals(event.eventType)) {
+            return formatUltrasoundSummary(payload);
+        }
+        if ("milestone".equals(event.eventType)
+                || "growth".equals(event.eventType)
+                || "vaccine".equals(event.eventType)
+                || "illness".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    payload.optString("detail", ""),
+                    payload.optString("note", "")
+            );
+        }
+        return babyCareSummary(
+                event.eventType,
+                payload.optString("detail", ""),
+                payload.optString("note", "")
+        );
     }
 
     public static String formatDateTime(String iso) {
@@ -599,8 +676,45 @@ public final class BabyLogFormatters {
         return summary.toString();
     }
 
+    private static String bareBabyCareSummary(String eventType, String... parts) {
+        StringBuilder summary = new StringBuilder(eventLabel(eventType));
+        for (String part : parts) {
+            appendSummaryPart(summary, part);
+        }
+        return summary.toString();
+    }
+
+    private static String prefixedSummary(String label, boolean allowBareLabel, String... parts) {
+        StringBuilder summary = new StringBuilder(isBlank(label) ? "备注" : label.trim());
+        for (String part : parts) {
+            appendSummaryPart(summary, part);
+        }
+        if (!allowBareLabel) {
+            return appendDefaultIfBare(summary, label);
+        }
+        return summary.toString();
+    }
+
+    private static String appendDefaultIfBare(StringBuilder summary, String label) {
+        String baseLabel = isBlank(label) ? "备注" : label.trim();
+        if (summary.toString().equals(baseLabel)) {
+            summary.append(" · 待补充详情");
+        }
+        return summary.toString();
+    }
+
+    private static void appendSummaryPart(StringBuilder summary, String value) {
+        if (isBlank(value)) {
+            return;
+        }
+        if (summary.length() > 0) {
+            summary.append(" · ");
+        }
+        summary.append(value.trim());
+    }
+
     private static String sleepSummary(BabyLogDomain.BabyLogEvent event) {
-        JSONObject payload = event.payload;
+        JSONObject payload = event.payload == null ? new JSONObject() : event.payload;
         String start = sleepTimeLabel(payload.optString("sleepStart"));
         String end = sleepTimeLabel(payload.optString("sleepEnd"));
         String place = payload.optString("sleepPlace");
@@ -624,6 +738,212 @@ public final class BabyLogFormatters {
         return "--:--".equals(eventTime) ? value.trim() : eventTime;
     }
 
+    private static String numberWithUnit(JSONObject payload, String key, String label, String unit) {
+        if (payload == null || !payload.has(key) || payload.isNull(key)) {
+            return "";
+        }
+        double value = payload.optDouble(key, Double.NaN);
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return "";
+        }
+        StringBuilder result = new StringBuilder();
+        if (!isBlank(label)) {
+            result.append(label.trim()).append(" ");
+        }
+        result.append(formatNumber(value));
+        if (!isBlank(unit)) {
+            result.append(" ").append(unit.trim());
+        }
+        return result.toString();
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return isBlank(first) ? (isBlank(second) ? "" : second.trim()) : first.trim();
+    }
+
+    private static String joinNonBlank(String first, String second) {
+        boolean hasFirst = !isBlank(first);
+        boolean hasSecond = !isBlank(second);
+        if (hasFirst && hasSecond) {
+            return first.trim() + " / " + second.trim();
+        }
+        if (hasFirst) {
+            return first.trim();
+        }
+        if (hasSecond) {
+            return second.trim();
+        }
+        return "";
+    }
+
+    private static String withLabel(String label, String value) {
+        return isBlank(value) ? "" : label + " " + value.trim();
+    }
+
+    private static String gestationalAge(JSONObject payload) {
+        if (payload == null || !payload.has("gestationalAgeDays")) {
+            return "";
+        }
+        return formatGestationalAge(payload.optInt("gestationalAgeDays"));
+    }
+
+    private static String bloodPressure(JSONObject payload) {
+        String systolic = numberWithUnit(payload, "systolicBp", "", "");
+        String diastolic = numberWithUnit(payload, "diastolicBp", "", "");
+        if (isBlank(systolic) || isBlank(diastolic)) {
+            return "";
+        }
+        return "血压 " + systolic + "/" + diastolic + " mmHg";
+    }
+
+    private static String formatSessionWindow(String startedAtIso, String endedAtIso) {
+        if (isBlank(startedAtIso) && isBlank(endedAtIso)) {
+            return "";
+        }
+        String start = formatEventTime(startedAtIso);
+        String end = formatEventTime(endedAtIso);
+        if ("--:--".equals(start) && "--:--".equals(end)) {
+            return "";
+        }
+        if ("--:--".equals(start)) {
+            return end;
+        }
+        if ("--:--".equals(end)) {
+            return start;
+        }
+        return start + "-" + end;
+    }
+
+    private static String formatSecondsAsMinutes(int seconds) {
+        if (seconds <= 0) {
+            return "";
+        }
+        int minutes = seconds / 60;
+        int rest = seconds % 60;
+        if (rest == 0) {
+            return minutes + " 分钟";
+        }
+        if (minutes == 0) {
+            return rest + " 秒";
+        }
+        return minutes + " 分 " + rest + " 秒";
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private static String quickActionSummary(String eventType, JSONObject payload) {
+        String label = firstNonBlank(payload.optString("quickAction"), eventLabel(eventType));
+        return prefixedSummary(
+                label,
+                true,
+                payload.optString("detail", ""),
+                payload.optString("note", "")
+        );
+    }
+
+    private static String checkupSummary(JSONObject payload) {
+        return prefixedSummary(
+                eventLabel("pregnancy_checkup"),
+                false,
+                gestationalAge(payload),
+                payload.optString("provider", ""),
+                bloodPressure(payload),
+                numberWithUnit(payload, "weightKg", "体重", "kg"),
+                numberWithUnit(payload, "fetalHeartRateBpm", "胎心", "bpm"),
+                withLabel("胎位", payload.optString("fetalPresentation", "")),
+                withLabel("尿蛋白", payload.optString("urineProtein", "")),
+                numberWithUnit(payload, "hemoglobinGL", "Hb", "g/L"),
+                firstNonBlank(payload.optString("doctorConclusion", ""), payload.optString("finding", "")),
+                payload.optString("treatmentAdvice", "")
+        );
+    }
+
+    private static String screeningSummary(String eventType, JSONObject payload) {
+        StringBuilder summary = new StringBuilder(eventLabel(eventType));
+        appendSummaryPart(summary, gestationalAge(payload));
+        if ("screening_nt".equals(eventType)) {
+            appendSummaryPart(summary, numberWithUnit(payload, "ntMm", "NT", "mm"));
+            appendSummaryPart(summary, payload.optString("conclusion", ""));
+        } else if ("screening_serum".equals(eventType)) {
+            appendSummaryPart(summary, payload.optString("riskLevel", ""));
+            appendSummaryPart(summary, withLabel("T21", payload.optString("riskT21", "")));
+            appendSummaryPart(summary, withLabel("T18", payload.optString("riskT18", "")));
+            appendSummaryPart(summary, withLabel("ONTD", payload.optString("riskOntd", "")));
+        } else if ("screening_nipt".equals(eventType)) {
+            appendSummaryPart(summary, withLabel("T21", payload.optString("t21Result", "")));
+            appendSummaryPart(summary, withLabel("T18", payload.optString("t18Result", "")));
+            appendSummaryPart(summary, withLabel("T13", payload.optString("t13Result", "")));
+            appendSummaryPart(summary, payload.optString("conclusion", ""));
+        } else if ("screening_anomaly".equals(eventType)) {
+            appendSummaryPart(summary, payload.optString("structureConclusion", ""));
+            appendSummaryPart(summary, payload.optString("conclusion", ""));
+        } else if ("screening_ogtt".equals(eventType)) {
+            appendSummaryPart(summary, numberWithUnit(payload, "fastingGlucoseMmolL", "空腹", "mmol/L"));
+            appendSummaryPart(summary, numberWithUnit(payload, "oneHourGlucoseMmolL", "1h", "mmol/L"));
+            appendSummaryPart(summary, numberWithUnit(payload, "twoHourGlucoseMmolL", "2h", "mmol/L"));
+            appendSummaryPart(summary, payload.optString("abnormalFlag", ""));
+        } else if ("screening_gbs".equals(eventType)) {
+            appendSummaryPart(summary, payload.optString("gbsResult", ""));
+        } else if ("screening_nst".equals(eventType)) {
+            appendSummaryPart(summary, payload.optString("nstResult", ""));
+        }
+        appendSummaryPart(summary, payload.optString("note", ""));
+        return appendDefaultIfBare(summary, eventLabel(eventType));
+    }
+
+    private static String fetalMovementSummary(JSONObject payload) {
+        if ("session".equals(payload.optString("entryMode", ""))) {
+            return prefixedSummary(
+                    eventLabel("fetal_movement"),
+                    false,
+                    formatSessionWindow(payload.optString("startedAt", ""), payload.optString("endedAt", "")),
+                    payload.optInt("movementCount", 0) > 0 ? payload.optInt("movementCount") + " 次" : "",
+                    payload.optInt("durationMinutes", 0) > 0 ? payload.optInt("durationMinutes") + " 分钟" : ""
+            );
+        }
+        return prefixedSummary(
+                eventLabel("fetal_movement"),
+                false,
+                payload.optString("movementWindow", ""),
+                numberWithUnit(payload, "movementCount", "", "次")
+        );
+    }
+
+    private static String contractionSummary(JSONObject payload) {
+        if ("session".equals(payload.optString("entryMode", ""))) {
+            return prefixedSummary(
+                    eventLabel("contraction"),
+                    false,
+                    formatSessionWindow(payload.optString("startIso", ""), payload.optString("endIso", "")),
+                    payload.optInt("durationSec", 0) > 0 ? "持续 " + payload.optInt("durationSec") + " 秒" : "",
+                    payload.optInt("intervalFromPrevSec", 0) > 0
+                            ? "距上次 " + formatSecondsAsMinutes(payload.optInt("intervalFromPrevSec"))
+                            : ""
+            );
+        }
+        return prefixedSummary(
+                eventLabel("contraction"),
+                false,
+                payload.optString("contractionStart", ""),
+                numberWithUnit(payload, "intervalMinutes", "间隔", "分钟"),
+                numberWithUnit(payload, "durationSeconds", "持续", "秒")
+        );
+    }
+
+    private static String maternalMetricSummary(JSONObject payload) {
+        String context = maternalGlucoseContextLabel(payload.optString("glucoseContext", ""));
+        String glucoseLabel = context.isEmpty() ? "血糖" : "血糖 " + context;
+        return prefixedSummary(
+                eventLabel("maternal_metric"),
+                false,
+                numberWithUnit(payload, "weightKg", "体重", "kg"),
+                bloodPressure(payload),
+                numberWithUnit(payload, "glucoseMmolL", glucoseLabel, "mmol/L")
+        );
+    }
+
     private static String localizeFeedType(String value) {
         if ("bottle".equalsIgnoreCase(value)) return "奶瓶";
         if ("breast".equalsIgnoreCase(value)) return "母乳";
@@ -638,20 +958,6 @@ public final class BabyLogFormatters {
         if ("forehead".equalsIgnoreCase(value)) return "额温";
         if ("rectal".equalsIgnoreCase(value)) return "肛温";
         return value;
-    }
-
-    private static String localizeStoredSummary(String summary) {
-        return summary
-                .replace(" · bottle", " · 奶瓶")
-                .replace(" · breast", " · 母乳")
-                .replace(" · food", " · 辅食")
-                .replace(" · solid", " · 辅食")
-                .replace(" · axillary", " · 腋温")
-                .replace(" · oral", " · 口温")
-                .replace(" · ear", " · 耳温")
-                .replace(" · tympanic", " · 耳温")
-                .replace(" · forehead", " · 额温")
-                .replace(" · rectal", " · 肛温");
     }
 
     private static void appendPart(StringBuilder builder, String value) {

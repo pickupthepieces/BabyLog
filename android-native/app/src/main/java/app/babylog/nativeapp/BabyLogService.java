@@ -534,7 +534,6 @@ public final class BabyLogService {
             putStringIfNotBlank(payload, "note", input.secondary);
         }
 
-        payload.put("summary", formatBabyCareSummary(input));
         return payload;
     }
 
@@ -600,7 +599,6 @@ public final class BabyLogService {
             putStringIfNotBlank(payload, "note", input.note);
         }
 
-        payload.put("summary", formatPregnancySummary(input));
         return payload;
     }
 
@@ -613,7 +611,6 @@ public final class BabyLogService {
         payload.put("durationMinutes", input.durationMinutes);
         payload.put("targetCount", input.targetCount);
         putStringIfNotBlank(payload, "note", input.note);
-        payload.put("summary", formatFetalMovementSessionSummary(input));
         return payload;
     }
 
@@ -628,7 +625,6 @@ public final class BabyLogService {
         if (input.intervalFromPrevSec != null && input.intervalFromPrevSec > 0) {
             payload.put("intervalFromPrevSec", input.intervalFromPrevSec);
         }
-        payload.put("summary", formatContractionSessionSummary(input));
         return payload;
     }
 
@@ -646,7 +642,6 @@ public final class BabyLogService {
         putStringIfNotBlank(payload, "note", input.note);
         String warning = BabyLogFormatters.formatMaternalGlucoseWarning(glucose, input.glucoseContext);
         putStringIfNotBlank(payload, "warningText", warning);
-        payload.put("summary", formatMaternalMetricSummary(input));
         return payload;
     }
 
@@ -1193,8 +1188,6 @@ public final class BabyLogService {
         putIfNotNull(payload, "umbilicalSd", BabyLogFormatters.parseOptionalNumber(input.umbilicalSd));
         putIfNotNull(payload, "umbilicalPi", BabyLogFormatters.parseOptionalNumber(input.umbilicalPi));
         putIfNotNull(payload, "umbilicalRi", BabyLogFormatters.parseOptionalNumber(input.umbilicalRi));
-        String summary = BabyLogFormatters.formatUltrasoundSummary(payload);
-        payload.put("summary", summary);
         putStringIfNotBlank(payload, "clinicalDetails", formatUltrasoundClinicalDetails(input));
         return payload;
     }

@@ -13,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -70,7 +71,10 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("黄", diaperPayload.optString("color"));
         assertEquals("稀", diaperPayload.optString("consistency"));
         assertEquals("黄色偏稀", diaperPayload.optString("diaperObservation"));
-        assertTrue(diaperPayload.optString("summary").contains("黄色偏稀"));
+        assertFalse(diaperPayload.has("summary"));
+        assertContains(BabyLogFormatters.eventSummary(
+                babyEvent("diaper", "2026-05-25T07:00:00.000+0800", diaperPayload)
+        ), "黄色偏稀");
         JSONObject smallPeePayload = BabyLogService.buildBabyCarePayload(
                 BabyLogService.BabyCareInput.diaper("小便", "偏多", "", "")
         );
@@ -121,7 +125,17 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.BabyCareInput.feed("母乳", "", "L", "亲喂")
         );
         assertEquals("L", feedSidePayload.optString("breastSide"));
-        assertTrue(feedSidePayload.optString("summary").contains("L"));
+        assertFalse(feedSidePayload.has("summary"));
+        assertContains(BabyLogFormatters.eventSummary(
+                babyEvent("feed", "2026-05-25T08:00:00.000+0800", feedSidePayload)
+        ), "L");
+        JSONObject legacySummaryPayload = new JSONObject(feedSidePayload.toString())
+                .put("summary", "旧摘要不应显示");
+        String legacySummaryRendered = BabyLogFormatters.eventSummary(
+                babyEvent("feed", "2026-05-25T08:00:00.000+0800", legacySummaryPayload)
+        );
+        assertContains(legacySummaryRendered, "母乳");
+        assertNotContains(legacySummaryRendered, "旧摘要不应显示");
         Map<String, String> feedSideDraft = BabyLogService.babyCareDraftFields("feed", feedSidePayload);
         assertEquals("母乳", feedSideDraft.get("primary"));
         assertEquals("L", feedSideDraft.get("tertiary"));
@@ -137,8 +151,12 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(12.0, breastfeedPayload.optDouble("leftMinutes"));
         assertEquals(8.0, breastfeedPayload.optDouble("rightMinutes"));
         assertFalse(breastfeedPayload.has("detail"));
-        assertTrue(breastfeedPayload.optString("summary").contains("左 12 分钟"));
-        assertTrue(breastfeedPayload.optString("summary").contains("右 8 分钟"));
+        assertFalse(breastfeedPayload.has("summary"));
+        String breastfeedSummary = BabyLogFormatters.eventSummary(
+                babyEvent("breastfeed", "2026-05-25T08:30:00.000+0800", breastfeedPayload)
+        );
+        assertContains(breastfeedSummary, "左 12 分钟");
+        assertContains(breastfeedSummary, "右 8 分钟");
 
         JSONObject bottlePayload = BabyLogService.buildBabyCarePayload(
                 BabyLogService.BabyCareInput.bottle("120", "美赞臣", "睡前")
@@ -193,6 +211,7 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.formatPregnancySummary(structuredCheckup)
         );
         JSONObject structuredPayload = BabyLogService.buildPregnancyPayload(structuredCheckup);
+        assertFalse(structuredPayload.has("summary"));
         assertTrue(BabyLogService.hasPregnancyMinimumContent(structuredCheckup));
         assertFalse(BabyLogService.hasPregnancyMinimumContent(BabyLogService.PregnancyInput.checkup("2026-05-18", "", "", "")));
         assertEquals(159, structuredPayload.optInt("gestationalAgeDays"));
@@ -219,6 +238,7 @@ public final class BabyLogServiceSmokeTest {
                 "ogtt.jpg"
         );
         JSONObject ogttPayload = BabyLogService.buildPregnancyPayload(ogtt);
+        assertFalse(ogttPayload.has("summary"));
         assertTrue(BabyLogService.hasPregnancyMinimumContent(ogtt));
         assertEquals(169, ogttPayload.optInt("gestationalAgeDays"));
         assertEquals(4.8, ogttPayload.optDouble("fastingGlucoseMmolL"));
@@ -249,6 +269,20 @@ public final class BabyLogServiceSmokeTest {
                         )
                 )
         );
+        BabyLogService.FetalMovementSessionInput movementSession = BabyLogService.FetalMovementSessionInput.create(
+                "2026-05-18T20:04:00.000+0800",
+                "2026-05-18T20:17:00.000+0800",
+                10,
+                13,
+                10,
+                "饭后"
+        );
+        JSONObject movementSessionPayload = BabyLogService.buildFetalMovementSessionPayload(movementSession);
+        assertFalse(movementSessionPayload.has("summary"));
+        assertEquals(
+                "胎动 · 20:04-20:17 · 10 次 · 13 分钟",
+                BabyLogFormatters.eventSummary(babyEvent("fetal_movement", "2026-05-18T20:17:00.000+0800", movementSessionPayload))
+        );
         assertEquals(
                 "宫缩 · 22:10 · 间隔 5 分钟 · 持续 40 秒",
                 BabyLogService.formatPregnancySummary(
@@ -262,6 +296,7 @@ public final class BabyLogServiceSmokeTest {
                 300
         );
         JSONObject contractionPayload = BabyLogService.buildContractionSessionPayload("session-1", contractionEntry);
+        assertFalse(contractionPayload.has("summary"));
         assertEquals("session", contractionPayload.optString("entryMode"));
         assertEquals("session-1", contractionPayload.optString("sessionId"));
         assertEquals(42, contractionPayload.optInt("durationSec"));
@@ -275,6 +310,14 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.formatMaternalMetricSummary(
                 BabyLogService.MaternalMetricInput.create("60.4", "118", "76", "5.2", "fasting", "")
                 )
+        );
+        JSONObject maternalMetricPayload = BabyLogService.buildMaternalMetricPayload(
+                BabyLogService.MaternalMetricInput.create("60.4", "118", "76", "5.2", "fasting", "")
+        );
+        assertFalse(maternalMetricPayload.has("summary"));
+        assertEquals(
+                "孕妈指标 · 体重 60.4 kg · 血压 118/76 mmHg · 血糖 空腹 5.2 mmol/L",
+                BabyLogFormatters.eventSummary(babyEvent("maternal_metric", "2026-05-18T08:00:00.000+0800", maternalMetricPayload))
         );
         assertFalse(BabyLogService.hasMaternalMetricMinimumContent(BabyLogService.MaternalMetricInput.create("", "", "", "", "fasting", "")));
         assertTrue(BabyLogService.hasMaternalMetricMinimumContent(BabyLogService.MaternalMetricInput.create("", "", "", "", "fasting", "今天状态稳定")));
@@ -297,6 +340,19 @@ public final class BabyLogServiceSmokeTest {
         ultrasoundPhoto.deleteOnExit();
         Files.write(ultrasoundPhoto.toPath(), new byte[] { 1, 2, 3 });
         assertTrue(BabyLogService.hasUltrasoundMinimumContent(ultrasound("2026-05-18", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ultrasoundPhoto.getAbsolutePath(), "ultrasound.jpg")));
+        Method buildUltrasoundPayload = BabyLogService.class.getDeclaredMethod(
+                "buildUltrasoundPayload",
+                BabyLogService.UltrasoundInput.class
+        );
+        buildUltrasoundPayload.setAccessible(true);
+        JSONObject ultrasoundPayload = (JSONObject) buildUltrasoundPayload.invoke(
+                null,
+                ultrasound("2026-05-18", "22+5", "45", "", "", "", "", "", "", "", "", "", "", "", "", "", "")
+        );
+        assertFalse(ultrasoundPayload.has("summary"));
+        assertContains(BabyLogFormatters.eventSummary(
+                babyEvent("ultrasound", "2026-05-18T12:00:00.000+0800", ultrasoundPayload)
+        ), "BPD 45 mm");
 
         BabyLogDomain.ChildProfile birthProfile = BabyLogService.withBirthDateFromBirthEvent(
                 BabyLogDomain.ChildProfile.createForNewFamily("栗子", "female", "2026-09-16", "", "auto", true),
@@ -441,7 +497,6 @@ public final class BabyLogServiceSmokeTest {
         if (endIso != null && !endIso.isEmpty()) {
             payload.put("sleepEnd", endIso);
         }
-        payload.put("summary", "睡眠");
         return BabyLogDomain.createEvent("sleep", startIso, payload, Collections.emptyList(), "manual");
     }
 
@@ -488,11 +543,9 @@ public final class BabyLogServiceSmokeTest {
         repository.putEvent(babyEvent("medication", "2026-05-25T16:00:00.000+0800",
                 BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.medication("布洛芬", "2 ml", ""))));
         JSONObject milestonePayload = new JSONObject();
-        milestonePayload.put("summary", "会翻身");
+        milestonePayload.put("detail", "会翻身");
         repository.putEvent(babyEvent("milestone", "2026-05-25T17:00:00.000+0800", milestonePayload));
-        JSONObject ultrasoundPayload = new JSONObject();
-        ultrasoundPayload.put("summary", "B 超");
-        repository.putEvent(babyEvent("ultrasound", "2026-05-25T18:00:00.000+0800", ultrasoundPayload));
+        repository.putEvent(babyEvent("ultrasound", "2026-05-25T18:00:00.000+0800", new JSONObject()));
 
         BabyLogService service = BabyLogService.forSmokeTest(repository);
         BabyLogDailyBabySummary day = service.dailyBabySummary("2026-05-25");
@@ -528,7 +581,7 @@ public final class BabyLogServiceSmokeTest {
         service.saveEventWithSyncChange(babyEvent(
                 "note",
                 "2026-06-09T09:00:00.000+0800",
-                new JSONObject().put("summary", "sync trigger smoke")
+                new JSONObject().put("detail", "sync trigger smoke")
         ));
         assertEquals(1, trigger.count);
     }
@@ -555,6 +608,8 @@ public final class BabyLogServiceSmokeTest {
 
         BabyLogDomain.BabyLogEvent wake = service.recordQuickEvent(wakeAction);
         BabyLogDomain.BabyLogEvent closedSleep = repository.findEventById(openSleep.id);
+        assertFalse(wake.payload.has("summary"));
+        assertContains(BabyLogFormatters.eventSummary(wake), "已闭合睡眠段");
         assertEquals(wake.occurredAt, closedSleep.payload.optString("sleepEnd"));
         assertTrue(BabyLogService.sleepDurationMinutes(closedSleep).isPresent());
         assertTrue(BabyLogService.sleepDurationMinutes(closedSleep).getAsInt() > 0);
@@ -597,6 +652,8 @@ public final class BabyLogServiceSmokeTest {
         BabyLogDomain.BabyLogEvent event = service.recordQuickEvent(
                 new BabyLogService.QuickAction("尿尿", "一拍即记", 0, "pee")
         );
+        assertFalse(event.payload.has("summary"));
+        assertEquals("尿尿", BabyLogFormatters.eventSummary(event));
         BabyLogDomain.BabyLogEvent deleted = service.deleteEvent(event.id);
         assertTrue(deleted.deletedAt != null);
         assertEquals(0, service.listTimelineEvents().size());

@@ -81,9 +81,9 @@ internal fun previewEvents(): List<BabyLogDomain.BabyLogEvent> = listOf(
         type = "pregnancy_checkup",
         occurredAt = "2026-06-05T10:10:00.000+0800",
         payload = JSONObject()
-            .put("hospital", "宁波妇儿医院")
-            .put("doctor", "产科门诊")
-            .put("summary", "血压、尿常规正常，继续记录胎动")
+            .put("provider", "宁波妇儿医院")
+            .put("department", "产科门诊")
+            .put("doctorConclusion", "血压、尿常规正常")
             .put("nextVisitDate", "2026-06-19")
     ),
     previewEvent(

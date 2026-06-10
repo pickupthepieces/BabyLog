@@ -49,10 +49,9 @@ final class BabyLogQuickEventRecorder {
     private static JSONObject buildPayload(
             BabyLogService.QuickAction action,
             String occurredAt,
-            boolean closedSleep
+        boolean closedSleep
     ) throws JSONException {
         JSONObject payload = new JSONObject();
-        payload.put("summary", closedSleep ? action.label + " · " + CLOSED_SLEEP_NOTE : action.label);
         payload.put("quickAction", action.label);
         if ("sleep".equals(action.eventType)) {
             payload.put("sleepStart", occurredAt);
