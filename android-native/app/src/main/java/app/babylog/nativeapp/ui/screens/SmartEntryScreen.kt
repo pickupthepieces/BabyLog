@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -66,17 +68,24 @@ internal fun SmartEntryScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(ChestnutPalette.Primary)
-                .padding(horizontal = 18.dp, vertical = 16.dp),
+                .background(ChestnutPalette.Bg)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("智能录入", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text("生成候选字段，核对后保存", color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
+                Text("智能录入", color = ChestnutPalette.Ink, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text("输入文字或按住说话，生成候选字段", color = ChestnutPalette.Muted, fontSize = 13.sp)
             }
-            OutlinedButton(onClick = onBack, enabled = !running) {
-                Text("返回", color = Color.White)
+            OutlinedButton(
+                onClick = onBack,
+                enabled = !running,
+                shape = CircleShape,
+                border = BorderStroke(1.dp, ChestnutPalette.Border.copy(alpha = 0.72f)),
+                colors = ButtonDefaults.outlinedButtonColors(backgroundColor = ChestnutPalette.Surface),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text("返回", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
             }
         }
         LazyColumn(
@@ -86,13 +95,6 @@ internal fun SmartEntryScreen(
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Text(
-                    "输入文字或按住说话，生成候选字段；保存前仍需核对。",
-                    color = ChestnutPalette.Muted,
-                    fontSize = 13.sp
-                )
-            }
             item {
                 VoiceHoldButton(
                     recording = voiceState.isRecording,
@@ -138,10 +140,14 @@ internal fun SmartEntryScreen(
                 .navigationBarsPadding()
                 .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
+            val submitEnabled = text.isNotBlank() && !running && !voiceState.isRecording && !voiceState.isTranscribing
             Button(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 onClick = { onSubmit(text) },
-                enabled = text.isNotBlank() && !running && !voiceState.isRecording && !voiceState.isTranscribing,
+                enabled = submitEnabled,
+                shape = RoundedCornerShape(ChestnutRadius.Control),
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = ChestnutPalette.Primary,
                     disabledBackgroundColor = ChestnutPalette.Surface2
@@ -149,7 +155,7 @@ internal fun SmartEntryScreen(
             ) {
                 Text(
                     if (running) "识别中..." else "生成候选",
-                    color = if (running) ChestnutPalette.Text3 else Color.White,
+                    color = if (submitEnabled) Color.White else ChestnutPalette.Muted,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -204,7 +210,7 @@ private fun SmartEntryCandidatePanel(
             if (candidate.warnings.isNotEmpty()) {
                 Text(
                     "需核对：" + candidate.warnings.joinToString("；"),
-                    color = Color(0xFF7C4A21),
+                    color = ChestnutPalette.Primary,
                     fontSize = 12.sp
                 )
             }
