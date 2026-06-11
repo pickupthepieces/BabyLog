@@ -7,8 +7,11 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -29,8 +33,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,10 +46,12 @@ private val TimelineHourHeight = 48.dp
 private val TimelineLeftRailWidth = 54.dp
 private val TimelineHeight = TimelineHourHeight * 24
 private val TimelineViewportHeight = 420.dp
-private val TimelineEventLabelHeight = 44.dp
 
-// 同时刻/相近时刻的事件标签按"自然位置与上一条底部取大"逐条下推，避免互相叠字。
-private val TimelineEventStaggerGap = 46.dp
+// 同窗口内（从首条算起 40 分钟）的事件聚成一行胶囊，水平排开、放不下换行，
+// 避免同时刻多条记录垂直堆砌偏离时间刻度。
+private const val TIMELINE_CLUSTER_WINDOW_MINUTES = 40
+private val TimelineChipMaxWidth = 200.dp
+private val TimelineClusterBottomInset = 30.dp
 
 @Composable
 internal fun BabyDayTimeline(
@@ -116,15 +125,11 @@ private fun TimelineScrollableContent(
             slots.sleepSegments.forEach { segment ->
                 SleepSegmentView(segment, onClick = { onEventClick(segment.eventId) })
             }
-            val pointOffsets = remember(slots.eventPoints) {
-                staggeredEventOffsets(slots.eventPoints)
+            val clusters = remember(slots.eventPoints) {
+                clusterEventPoints(slots.eventPoints)
             }
-            slots.eventPoints.forEach { point ->
-                EventPointView(
-                    point = point,
-                    offsetY = pointOffsets[point.eventId] ?: minuteOffset(point.minuteOfDay),
-                    onClick = { onEventClick(point.eventId) }
-                )
+            clusters.forEach { cluster ->
+                EventClusterView(cluster, onEventClick)
             }
         }
     }
@@ -202,11 +207,56 @@ private fun SleepSegmentView(
     }
 }
 
+private data class TimelineEventCluster(
+    val points: List<BabyLogBabyDayTimelineSlots.EventPoint>,
+    val offsetY: Dp
+)
+
+private fun clusterEventPoints(
+    points: List<BabyLogBabyDayTimelineSlots.EventPoint>
+): List<TimelineEventCluster> {
+    val clusters = mutableListOf<MutableList<BabyLogBabyDayTimelineSlots.EventPoint>>()
+    var clusterStartMinute = Int.MIN_VALUE
+    points.sortedBy { it.minuteOfDay }.forEach { point ->
+        if (clusters.isEmpty() || point.minuteOfDay - clusterStartMinute >= TIMELINE_CLUSTER_WINDOW_MINUTES) {
+            clusters += mutableListOf(point)
+            clusterStartMinute = point.minuteOfDay
+        } else {
+            clusters.last() += point
+        }
+    }
+    return clusters.map { clusterPoints ->
+        TimelineEventCluster(
+            points = clusterPoints,
+            offsetY = minuteOffset(clusterPoints.first().minuteOfDay)
+                .coerceAtMost(TimelineHeight - TimelineClusterBottomInset)
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-@Suppress("LongMethod")
-private fun EventPointView(
+private fun EventClusterView(
+    cluster: TimelineEventCluster,
+    onEventClick: (String) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier
+            .padding(start = TimelineLeftRailWidth + 10.dp, end = 12.dp)
+            .offset(y = cluster.offsetY)
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        cluster.points.forEach { point ->
+            EventChip(point, onClick = { onEventClick(point.eventId) })
+        }
+    }
+}
+
+@Composable
+private fun EventChip(
     point: BabyLogBabyDayTimelineSlots.EventPoint,
-    offsetY: Dp,
     onClick: () -> Unit
 ) {
     val tone = remember(point.eventType) {
@@ -230,60 +280,38 @@ private fun EventPointView(
             .takeIf { it != "待补充详情" }
             .orEmpty()
     }
-    Box(
+    Row(
         modifier = Modifier
-            .padding(start = TimelineLeftRailWidth + 10.dp, end = 12.dp)
-            .offset(y = offsetY)
-            .fillMaxWidth()
-            .height(TimelineEventLabelHeight)
+            .widthIn(max = TimelineChipMaxWidth)
             .clip(RoundedCornerShape(ChestnutRadius.Small))
-            .background(ChestnutPalette.Surface.copy(alpha = 0.82f))
+            .background(ChestnutPalette.Surface.copy(alpha = 0.88f))
             .clickable { onClick() }
-            .padding(horizontal = 6.dp),
-        contentAlignment = Alignment.CenterStart
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(12.dp)
+                .size(8.dp)
                 .clip(CircleShape)
                 .background(tone)
         )
-        Column(modifier = Modifier.padding(start = 22.dp)) {
-            Text(
-                text = "${minuteLabel(point.minuteOfDay)} · $eventLabel",
-                color = tone,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (summaryLabel.isNotBlank()) {
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = summaryLabel,
-                    color = ChestnutPalette.Ink,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
+        Spacer(Modifier.width(5.dp))
+        Text(
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(color = tone, fontWeight = FontWeight.Bold)) {
+                    append("${minuteLabel(point.minuteOfDay)} $eventLabel")
+                }
+                if (summaryLabel.isNotBlank()) {
+                    withStyle(SpanStyle(color = ChestnutPalette.Ink)) {
+                        append(" · $summaryLabel")
+                    }
+                }
+            },
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
-}
-
-private fun staggeredEventOffsets(
-    points: List<BabyLogBabyDayTimelineSlots.EventPoint>
-): Map<String, Dp> {
-    val maxTop = (TimelineHeight - TimelineEventLabelHeight).value
-    val offsets = HashMap<String, Dp>(points.size)
-    var nextFreeTop = 0f
-    points.sortedBy { it.minuteOfDay }.forEach { point ->
-        val natural = minuteOffset(point.minuteOfDay).value
-        val top = maxOf(natural, nextFreeTop).coerceAtMost(maxTop)
-        offsets[point.eventId] = top.dp
-        nextFreeTop = top + TimelineEventStaggerGap.value
-    }
-    return offsets
 }
 
 private fun minuteOffset(minuteOfDay: Int): Dp {
