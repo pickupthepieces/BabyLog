@@ -57,6 +57,34 @@ public final class BabyLogReminderStoreSmokeTest {
         assertContainsTitle(fetalObservationReminders, "今天可以观察一下宝宝的活动模式");
         assertNoBannedWords(fetalObservationReminders);
 
+        BabyLogDomain.ChildProfile baby = BabyLogDomain.ChildProfile.createForNewFamily(
+                "栗子",
+                "female",
+                "",
+                BabyLogFormatters.offsetDateInput(today, -29),
+                BabyLogDomain.STAGE_BABY,
+                true
+        );
+        List<BabyLogReminderStore.Reminder> babyReminders = BabyLogReminderStore.generateSystemReminders(
+                baby,
+                Collections.emptyList()
+        );
+        assertContainsKind(babyReminders, BabyLogReminderStore.KIND_VACCINE_WINDOW);
+        assertContainsKind(babyReminders, BabyLogReminderStore.KIND_CHILD_CHECKUP_TODO);
+        assertContainsTitle(babyReminders, "满 1 月疫苗接种可核对");
+        assertContainsTitle(babyReminders, "42 天儿保可预约");
+        assertNoBannedWords(babyReminders);
+
+        BabyLogDomain.ChildProfile babyWithoutBirthDate = BabyLogDomain.ChildProfile.createForNewFamily(
+                "栗子",
+                "female",
+                "",
+                "",
+                BabyLogDomain.STAGE_BABY,
+                true
+        );
+        assertEquals(0, BabyLogReminderStore.generateSystemReminders(babyWithoutBirthDate, Collections.emptyList()).size());
+
         BabyLogReminderStore.Reminder first = reminders.get(0);
         assertTrue(BabyLogReminderStore.isActionable(first));
         BabyLogReminderStore.Reminder completed = new BabyLogReminderStore.Reminder(

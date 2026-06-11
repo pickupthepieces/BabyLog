@@ -271,6 +271,8 @@ private fun reminderKindLabel(kind: String): String {
         BabyLogReminderStore.KIND_CHECKUP_TODO -> "产检"
         BabyLogReminderStore.KIND_SCREENING_WINDOW -> "专项"
         BabyLogReminderStore.KIND_FETAL_OBSERVATION_HINT -> "胎动观察"
+        BabyLogReminderStore.KIND_VACCINE_WINDOW -> "疫苗"
+        BabyLogReminderStore.KIND_CHILD_CHECKUP_TODO -> "儿保"
         BabyLogReminderStore.KIND_BACKUP -> "备份"
         else -> "自定义"
     }

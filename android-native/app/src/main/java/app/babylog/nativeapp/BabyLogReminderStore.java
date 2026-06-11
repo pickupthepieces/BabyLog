@@ -23,10 +23,13 @@ public final class BabyLogReminderStore {
     public static final String KIND_CHECKUP_TODO = "CHECKUP_TODO";
     public static final String KIND_SCREENING_WINDOW = "SCREENING_WINDOW";
     public static final String KIND_FETAL_OBSERVATION_HINT = "FETAL_OBSERVATION_HINT";
+    public static final String KIND_VACCINE_WINDOW = "VACCINE_WINDOW";
+    public static final String KIND_CHILD_CHECKUP_TODO = "CHILD_CHECKUP_TODO";
     public static final String KIND_BACKUP = "BACKUP";
     public static final String KIND_USER_CUSTOM = "USER_CUSTOM";
     public static final String SOURCE_SYSTEM = "SYSTEM";
     public static final String SOURCE_USER = "USER";
+    private static final int BABY_REMINDER_LOOKAHEAD_DAYS = 45;
 
     private final Context appContext;
 
@@ -163,10 +166,18 @@ public final class BabyLogReminderStore {
             List<BabyLogDomain.BabyLogEvent> events
     ) {
         List<Reminder> reminders = new ArrayList<>();
-        if (profile == null || !BabyLogDomain.STAGE_PREGNANCY.equals(BabyLogFormatters.resolveCareStage(profile, BabyLogFormatters.todayDateInput()))) {
+        if (profile == null) {
             return reminders;
         }
         String today = BabyLogFormatters.todayDateInput();
+        String stage = BabyLogFormatters.resolveCareStage(profile, today);
+        if (BabyLogDomain.STAGE_BABY.equals(stage)) {
+            addBabyStageReminders(reminders, profile, today);
+            return reminders;
+        }
+        if (!BabyLogDomain.STAGE_PREGNANCY.equals(stage)) {
+            return reminders;
+        }
         Set<String> completedTypes = new HashSet<>();
         if (events != null) {
             for (BabyLogDomain.BabyLogEvent event : events) {
@@ -197,6 +208,82 @@ public final class BabyLogReminderStore {
                 "monthly"
         ));
         return reminders;
+    }
+
+    private static void addBabyStageReminders(
+            List<Reminder> reminders,
+            BabyLogDomain.ChildProfile profile,
+            String today
+    ) {
+        if (!BabyLogFormatters.isValidDateInput(profile.birthDate)) {
+            return;
+        }
+        addVaccineWindow(reminders, profile.birthDate, 0, "出生后疫苗接种记录可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 30, "满 1 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 60, "满 2 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 90, "满 3 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 120, "满 4 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 150, "满 5 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 180, "满 6 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 240, "满 8 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 270, "满 9 月疫苗接种可核对", today);
+        addVaccineWindow(reminders, profile.birthDate, 365, "满 12 月疫苗接种可核对", today);
+
+        addChildCheckupWindow(reminders, profile.birthDate, 42, "42 天儿保可预约", today);
+        addChildCheckupWindow(reminders, profile.birthDate, 90, "满 3 月儿保可预约", today);
+        addChildCheckupWindow(reminders, profile.birthDate, 180, "满 6 月儿保可预约", today);
+        addChildCheckupWindow(reminders, profile.birthDate, 240, "满 8 月儿保可预约", today);
+        addChildCheckupWindow(reminders, profile.birthDate, 365, "满 12 月儿保可预约", today);
+    }
+
+    private static void addVaccineWindow(
+            List<Reminder> reminders,
+            String birthDate,
+            int dayOffset,
+            String title,
+            String today
+    ) {
+        String dueDate = BabyLogFormatters.offsetDateInput(birthDate, dayOffset);
+        if (!isUpcomingBabyReminder(dueDate, today)) {
+            return;
+        }
+        reminders.add(systemReminder(
+                String.format(Locale.US, "sys_vaccine_day_%d", dayOffset),
+                KIND_VACCINE_WINDOW,
+                title,
+                "按当地接种门诊安排核对项目与时间，完成后可在提醒中心标记已做。",
+                dueIso(dueDate, 9, 0),
+                "babySchedule"
+        ));
+    }
+
+    private static void addChildCheckupWindow(
+            List<Reminder> reminders,
+            String birthDate,
+            int dayOffset,
+            String title,
+            String today
+    ) {
+        String dueDate = BabyLogFormatters.offsetDateInput(birthDate, dayOffset);
+        if (!isUpcomingBabyReminder(dueDate, today)) {
+            return;
+        }
+        reminders.add(systemReminder(
+                String.format(Locale.US, "sys_child_checkup_day_%d", dayOffset),
+                KIND_CHILD_CHECKUP_TODO,
+                title,
+                "用于提醒预约或核对儿保记录，具体频次以当地社区或医生安排为准。",
+                dueIso(dueDate, 9, 30),
+                "babySchedule"
+        ));
+    }
+
+    private static boolean isUpcomingBabyReminder(String dueDate, String today) {
+        if (!BabyLogFormatters.isValidDateInput(dueDate)) {
+            return false;
+        }
+        int days = BabyLogFormatters.daysBetweenDateInputs(today, dueDate);
+        return days >= 0 && days <= BABY_REMINDER_LOOKAHEAD_DAYS;
     }
 
     public static boolean isSystemMuted(BabyLogDomain.ChildProfile profile) {
