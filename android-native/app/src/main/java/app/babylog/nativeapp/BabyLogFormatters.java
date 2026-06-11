@@ -344,7 +344,7 @@ public final class BabyLogFormatters {
                     event.eventType,
                     localizeFeedType(payload.optString("feedType", "")),
                     numberWithUnit(payload, "amountMl", "", "ml"),
-                    firstNonBlank(payload.optString("breastSide"), payload.optString("solidFood"))
+                    firstNonBlank(localizeBreastSide(payload.optString("breastSide")), payload.optString("solidFood"))
             );
         }
         if ("bottle".equals(event.eventType)) {
@@ -948,6 +948,13 @@ public final class BabyLogFormatters {
         if ("bottle".equalsIgnoreCase(value)) return "奶瓶";
         if ("breast".equalsIgnoreCase(value)) return "母乳";
         if ("food".equalsIgnoreCase(value) || "solid".equalsIgnoreCase(value)) return "辅食";
+        return value;
+    }
+
+    private static String localizeBreastSide(String value) {
+        if ("L".equalsIgnoreCase(value) || "left".equalsIgnoreCase(value)) return "左侧";
+        if ("R".equalsIgnoreCase(value) || "right".equalsIgnoreCase(value)) return "右侧";
+        if ("BOTH".equalsIgnoreCase(value)) return "双侧";
         return value;
     }
 

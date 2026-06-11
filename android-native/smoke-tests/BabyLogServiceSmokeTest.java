@@ -128,7 +128,7 @@ public final class BabyLogServiceSmokeTest {
         assertFalse(feedSidePayload.has("summary"));
         assertContains(BabyLogFormatters.eventSummary(
                 babyEvent("feed", "2026-05-25T08:00:00.000+0800", feedSidePayload)
-        ), "L");
+        ), "左侧");
         JSONObject legacySummaryPayload = new JSONObject(feedSidePayload.toString())
                 .put("summary", "旧摘要不应显示");
         String legacySummaryRendered = BabyLogFormatters.eventSummary(
