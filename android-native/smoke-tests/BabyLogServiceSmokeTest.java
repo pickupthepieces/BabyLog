@@ -532,11 +532,16 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(0, empty.feedCount);
         assertEquals(0, empty.feedTotalMl);
         assertEquals("", empty.feedLastTime);
+        assertEquals("", empty.feedLastType);
         assertEquals(0, empty.sleepTotalMinutes);
         assertEquals(0, empty.sleepIncompleteCount);
+        assertEquals(0, empty.sleepLongestMinutes);
+        assertEquals("", empty.sleepLastTime);
         assertEquals(0, empty.peeCount);
         assertEquals(0, empty.poopCount);
         assertEquals(0, empty.diaperCount);
+        assertEquals("", empty.diaperLastKind);
+        assertEquals("", empty.diaperLastTime);
         assertTrue(Double.isNaN(empty.temperatureMax));
         assertTrue(Double.isNaN(empty.temperatureMin));
         assertEquals("", empty.temperatureLastTime);
@@ -587,11 +592,16 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(3, day.feedCount);
         assertEquals(210, day.feedTotalMl);
         assertEquals("2026-05-25T11:00:00.000+0800", day.feedLastTime);
+        assertEquals("母乳", day.feedLastType);
         assertEquals(450, day.sleepTotalMinutes);
         assertEquals(1, day.sleepIncompleteCount);
+        assertEquals(450, day.sleepLongestMinutes);
+        assertEquals("2026-05-26T06:30:00.000+0800", day.sleepLastTime);
         assertEquals(3, day.peeCount);
         assertEquals(2, day.poopCount);
         assertEquals(2, day.diaperCount);
+        assertEquals("尿", day.diaperLastKind);
+        assertEquals("2026-05-25T15:40:00.000+0800", day.diaperLastTime);
         assertEquals(37.4, day.temperatureMax);
         assertEquals(36.7, day.temperatureMin);
         assertEquals("2026-05-25T14:00:00.000+0800", day.temperatureLastTime);
@@ -606,6 +616,7 @@ public final class BabyLogServiceSmokeTest {
         BabyLogDailyBabySummary nextDay = service.dailyBabySummary("2026-05-26");
         assertEquals(0, nextDay.sleepTotalMinutes);
         assertEquals(0, nextDay.feedCount);
+        assertEquals("", nextDay.feedLastType);
         assertTrue(Double.isNaN(nextDay.growthWeightKg));
         assertEquals("", nextDay.growthLastTime);
     }

@@ -5,11 +5,16 @@ public final class BabyLogDailyBabySummary {
     public final int feedCount;
     public final int feedTotalMl;
     public final String feedLastTime;
+    public final String feedLastType;
     public final int sleepTotalMinutes;
     public final int sleepIncompleteCount;
+    public final int sleepLongestMinutes;
+    public final String sleepLastTime;
     public final int peeCount;
     public final int poopCount;
     public final int diaperCount;
+    public final String diaperLastKind;
+    public final String diaperLastTime;
     public final double temperatureMax;
     public final double temperatureMin;
     public final String temperatureLastTime;
@@ -26,11 +31,16 @@ public final class BabyLogDailyBabySummary {
             int feedCount,
             int feedTotalMl,
             String feedLastTime,
+            String feedLastType,
             int sleepTotalMinutes,
             int sleepIncompleteCount,
+            int sleepLongestMinutes,
+            String sleepLastTime,
             int peeCount,
             int poopCount,
             int diaperCount,
+            String diaperLastKind,
+            String diaperLastTime,
             double temperatureMax,
             double temperatureMin,
             String temperatureLastTime,
@@ -46,11 +56,16 @@ public final class BabyLogDailyBabySummary {
         this.feedCount = feedCount;
         this.feedTotalMl = feedTotalMl;
         this.feedLastTime = feedLastTime == null ? "" : feedLastTime;
+        this.feedLastType = feedLastType == null ? "" : feedLastType;
         this.sleepTotalMinutes = sleepTotalMinutes;
         this.sleepIncompleteCount = sleepIncompleteCount;
+        this.sleepLongestMinutes = sleepLongestMinutes;
+        this.sleepLastTime = sleepLastTime == null ? "" : sleepLastTime;
         this.peeCount = peeCount;
         this.poopCount = poopCount;
         this.diaperCount = diaperCount;
+        this.diaperLastKind = diaperLastKind == null ? "" : diaperLastKind;
+        this.diaperLastTime = diaperLastTime == null ? "" : diaperLastTime;
         this.temperatureMax = temperatureMax;
         this.temperatureMin = temperatureMin;
         this.temperatureLastTime = temperatureLastTime == null ? "" : temperatureLastTime;

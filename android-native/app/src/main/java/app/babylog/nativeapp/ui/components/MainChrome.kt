@@ -78,7 +78,7 @@ internal fun BabyLogScreenColumn(
             start = 18.dp,
             top = inner.calculateTopPadding() + 16.dp,
             end = 18.dp,
-            bottom = inner.calculateBottomPadding() + 22.dp
+            bottom = inner.calculateBottomPadding() + 132.dp
         ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         content = content

@@ -81,11 +81,16 @@ final class BabyLogDailySummaryCalculator {
         private int feedCount;
         private int feedTotalMl;
         private String feedLastTime = "";
+        private String feedLastType = "";
         private int sleepTotalMinutes;
         private int sleepIncompleteCount;
+        private int sleepLongestMinutes;
+        private String sleepLastTime = "";
         private int peeCount;
         private int poopCount;
         private int diaperCount;
+        private String diaperLastKind = "";
+        private String diaperLastTime = "";
         private double temperatureMax = Double.NaN;
         private double temperatureMin = Double.NaN;
         private String temperatureLastTime = "";
@@ -109,10 +114,12 @@ final class BabyLogDailySummaryCalculator {
                 acceptSleep(event, payload);
             } else if ("pee".equals(event.eventType)) {
                 peeCount += 1;
+                acceptDiaperQuickEvent(event, BabyLogDiaperKind.PEE);
             } else if ("poop".equals(event.eventType)) {
                 poopCount += 1;
+                acceptDiaperQuickEvent(event, BabyLogDiaperKind.POOP);
             } else if ("diaper".equals(event.eventType)) {
-                acceptDiaper(payload);
+                acceptDiaper(event, payload);
             } else if ("temperature".equals(event.eventType)) {
                 acceptTemperature(event, payload);
             } else if ("medication".equals(event.eventType)) {
@@ -132,19 +139,26 @@ final class BabyLogDailySummaryCalculator {
             }
             if (isNewer(event.occurredAt, feedLastTime)) {
                 feedLastTime = event.occurredAt;
+                feedLastType = feedTypeLabel(event.eventType, payload);
             }
         }
 
         private void acceptSleep(BabyLogDomain.BabyLogEvent event, JSONObject payload) {
             OptionalInt duration = BabyLogService.sleepDurationMinutes(event);
             if (duration.isPresent()) {
-                sleepTotalMinutes += duration.getAsInt();
+                int minutes = duration.getAsInt();
+                sleepTotalMinutes += minutes;
+                sleepLongestMinutes = Math.max(sleepLongestMinutes, minutes);
             } else if (!isBlank(payload.optString("sleepStart")) && isBlank(payload.optString("sleepEnd"))) {
                 sleepIncompleteCount += 1;
             }
+            String marker = firstNonBlank(payload.optString("sleepEnd"), payload.optString("sleepStart"), event.occurredAt);
+            if (isNewer(marker, sleepLastTime)) {
+                sleepLastTime = marker;
+            }
         }
 
-        private void acceptDiaper(JSONObject payload) {
+        private void acceptDiaper(BabyLogDomain.BabyLogEvent event, JSONObject payload) {
             diaperCount += 1;
             String kind = BabyLogDiaperKind.fromPayload(payload);
             if (BabyLogDiaperKind.PEE.equals(kind) || BabyLogDiaperKind.BOTH.equals(kind)) {
@@ -152,6 +166,17 @@ final class BabyLogDailySummaryCalculator {
             }
             if (BabyLogDiaperKind.POOP.equals(kind) || BabyLogDiaperKind.BOTH.equals(kind)) {
                 poopCount += 1;
+            }
+            if (isNewer(event.occurredAt, diaperLastTime)) {
+                diaperLastTime = event.occurredAt;
+                diaperLastKind = diaperKindLabel(kind);
+            }
+        }
+
+        private void acceptDiaperQuickEvent(BabyLogDomain.BabyLogEvent event, String kind) {
+            if (isNewer(event.occurredAt, diaperLastTime)) {
+                diaperLastTime = event.occurredAt;
+                diaperLastKind = diaperKindLabel(kind);
             }
         }
 
@@ -196,11 +221,16 @@ final class BabyLogDailySummaryCalculator {
                     feedCount,
                     feedTotalMl,
                     feedLastTime,
+                    feedLastType,
                     sleepTotalMinutes,
                     sleepIncompleteCount,
+                    sleepLongestMinutes,
+                    sleepLastTime,
                     peeCount,
                     poopCount,
                     diaperCount,
+                    diaperLastKind,
+                    diaperLastTime,
                     temperatureMax,
                     temperatureMin,
                     temperatureLastTime,
@@ -212,6 +242,51 @@ final class BabyLogDailySummaryCalculator {
                     growthHeadCircumferenceCm,
                     growthLastTime
             );
+        }
+
+        private static String feedTypeLabel(String eventType, JSONObject payload) {
+            if ("bottle".equals(eventType)) {
+                return "奶瓶";
+            }
+            if ("breastfeed".equals(eventType)) {
+                return "母乳";
+            }
+            String feedType = payload.optString("feedType");
+            if ("bottle".equalsIgnoreCase(feedType)) {
+                return "奶瓶";
+            }
+            if ("breast".equalsIgnoreCase(feedType)) {
+                return "母乳";
+            }
+            if ("food".equalsIgnoreCase(feedType) || "solid".equalsIgnoreCase(feedType)) {
+                return "辅食";
+            }
+            return isBlank(feedType) ? BabyLogFormatters.eventLabel(eventType) : feedType;
+        }
+
+        private static String diaperKindLabel(String kind) {
+            if (BabyLogDiaperKind.PEE.equals(kind)) {
+                return "尿";
+            }
+            if (BabyLogDiaperKind.POOP.equals(kind)) {
+                return "便";
+            }
+            if (BabyLogDiaperKind.BOTH.equals(kind)) {
+                return "混合";
+            }
+            return "尿布";
+        }
+
+        private static String firstNonBlank(String... values) {
+            if (values == null) {
+                return "";
+            }
+            for (String value : values) {
+                if (!isBlank(value)) {
+                    return value;
+                }
+            }
+            return "";
         }
     }
 }
