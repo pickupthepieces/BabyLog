@@ -4,8 +4,12 @@ public final class BabyLogDailyBabySummary {
     public final String dateInput;
     public final int feedCount;
     public final int feedTotalMl;
+    public final int feedBreastCount;
+    public final int feedBottleCount;
+    public final int feedSolidCount;
     public final String feedLastTime;
     public final String feedLastType;
+    public final int feedLastAmountMl;
     public final int sleepTotalMinutes;
     public final int sleepIncompleteCount;
     public final int sleepLongestMinutes;
@@ -30,8 +34,12 @@ public final class BabyLogDailyBabySummary {
             String dateInput,
             int feedCount,
             int feedTotalMl,
+            int feedBreastCount,
+            int feedBottleCount,
+            int feedSolidCount,
             String feedLastTime,
             String feedLastType,
+            int feedLastAmountMl,
             int sleepTotalMinutes,
             int sleepIncompleteCount,
             int sleepLongestMinutes,
@@ -55,8 +63,12 @@ public final class BabyLogDailyBabySummary {
         this.dateInput = dateInput == null ? "" : dateInput;
         this.feedCount = feedCount;
         this.feedTotalMl = feedTotalMl;
+        this.feedBreastCount = feedBreastCount;
+        this.feedBottleCount = feedBottleCount;
+        this.feedSolidCount = feedSolidCount;
         this.feedLastTime = feedLastTime == null ? "" : feedLastTime;
         this.feedLastType = feedLastType == null ? "" : feedLastType;
+        this.feedLastAmountMl = feedLastAmountMl;
         this.sleepTotalMinutes = sleepTotalMinutes;
         this.sleepIncompleteCount = sleepIncompleteCount;
         this.sleepLongestMinutes = sleepLongestMinutes;

@@ -104,6 +104,12 @@ public final class BabyLogSmartTextClientSmokeTest {
         ultrasoundFields.put("examDate", "检查日期");
         ultrasoundFields.put("bpdMm", "BPD mm");
         forms.put("ultrasound", ultrasoundFields);
+        Map<String, String> feedFields = new LinkedHashMap<>();
+        feedFields.put("primary", "喂养方式，例如 母乳 / 奶瓶 / 辅食");
+        feedFields.put("secondary", "奶量 ml");
+        feedFields.put("tertiary", "侧别或辅食内容");
+        feedFields.put("note", "备注");
+        forms.put("feed", feedFields);
         Map<String, String> childCheckupFields = new LinkedHashMap<>();
         childCheckupFields.put("primary", "体重 kg");
         childCheckupFields.put("secondary", "身长 cm");
@@ -131,6 +137,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertTrue(entryPrompt.contains("语音转写"));
         assertTrue(entryPrompt.contains("错误切分"));
         assertTrue(entryPrompt.contains("maternal_metric"));
+        assertTrue(entryPrompt.contains("辅食"));
         assertTrue(entryPrompt.contains("child_checkup"));
         assertTrue(entryPrompt.contains("nextCheckupDate"));
         assertTrue(entryPrompt.contains("\"weightKg\":\"52\""));

@@ -3,9 +3,14 @@ package app.babylog.nativeapp;
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.OptionalInt;
 
 final class BabyLogDailySummaryCalculator {
+    private static final String FEED_KIND_BREAST = "breast";
+    private static final String FEED_KIND_BOTTLE = "bottle";
+    private static final String FEED_KIND_SOLID = "solid";
+
     private BabyLogDailySummaryCalculator() {
     }
 
@@ -81,8 +86,12 @@ final class BabyLogDailySummaryCalculator {
         private final String dateInput;
         private int feedCount;
         private int feedTotalMl;
+        private int feedBreastCount;
+        private int feedBottleCount;
+        private int feedSolidCount;
         private String feedLastTime = "";
         private String feedLastType = "";
+        private int feedLastAmountMl;
         private int sleepTotalMinutes;
         private int sleepIncompleteCount;
         private int sleepLongestMinutes;
@@ -135,12 +144,23 @@ final class BabyLogDailySummaryCalculator {
         private void acceptFeed(BabyLogDomain.BabyLogEvent event, JSONObject payload) {
             feedCount += 1;
             Double amount = payloadNumber(payload, "amountMl");
+            int roundedAmount = 0;
             if (amount != null) {
-                feedTotalMl += (int) Math.round(amount);
+                roundedAmount = (int) Math.round(amount);
+                feedTotalMl += roundedAmount;
+            }
+            String feedKind = feedKind(event.eventType, payload);
+            if (FEED_KIND_BREAST.equals(feedKind)) {
+                feedBreastCount += 1;
+            } else if (FEED_KIND_BOTTLE.equals(feedKind)) {
+                feedBottleCount += 1;
+            } else if (FEED_KIND_SOLID.equals(feedKind)) {
+                feedSolidCount += 1;
             }
             if (isNewer(event.occurredAt, feedLastTime)) {
                 feedLastTime = event.occurredAt;
-                feedLastType = feedTypeLabel(event.eventType, payload);
+                feedLastType = feedTypeLabel(feedKind, event.eventType, payload);
+                feedLastAmountMl = roundedAmount;
             }
         }
 
@@ -221,8 +241,12 @@ final class BabyLogDailySummaryCalculator {
                     dateInput,
                     feedCount,
                     feedTotalMl,
+                    feedBreastCount,
+                    feedBottleCount,
+                    feedSolidCount,
                     feedLastTime,
                     feedLastType,
+                    feedLastAmountMl,
                     sleepTotalMinutes,
                     sleepIncompleteCount,
                     sleepLongestMinutes,
@@ -245,23 +269,38 @@ final class BabyLogDailySummaryCalculator {
             );
         }
 
-        private static String feedTypeLabel(String eventType, JSONObject payload) {
+        private static String feedKind(String eventType, JSONObject payload) {
             if ("bottle".equals(eventType)) {
-                return "奶瓶";
+                return FEED_KIND_BOTTLE;
             }
             if ("breastfeed".equals(eventType)) {
-                return "母乳";
+                return FEED_KIND_BREAST;
             }
             String feedType = payload.optString("feedType");
-            if ("bottle".equalsIgnoreCase(feedType)) {
+            String normalized = feedType.trim().toLowerCase(Locale.ROOT);
+            if ("bottle".equals(normalized) || feedType.contains("奶瓶")) {
+                return FEED_KIND_BOTTLE;
+            }
+            if ("breast".equals(normalized) || feedType.contains("母乳")) {
+                return FEED_KIND_BREAST;
+            }
+            if ("food".equals(normalized) || "solid".equals(normalized) || feedType.contains("辅")) {
+                return FEED_KIND_SOLID;
+            }
+            return "";
+        }
+
+        private static String feedTypeLabel(String feedKind, String eventType, JSONObject payload) {
+            if (FEED_KIND_BOTTLE.equals(feedKind)) {
                 return "奶瓶";
             }
-            if ("breast".equalsIgnoreCase(feedType)) {
+            if (FEED_KIND_BREAST.equals(feedKind)) {
                 return "母乳";
             }
-            if ("food".equalsIgnoreCase(feedType) || "solid".equalsIgnoreCase(feedType)) {
+            if (FEED_KIND_SOLID.equals(feedKind)) {
                 return "辅食";
             }
+            String feedType = payload.optString("feedType");
             return isBlank(feedType) ? BabyLogFormatters.eventLabel(eventType) : feedType;
         }
 

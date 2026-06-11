@@ -338,7 +338,7 @@ private fun shouldShowTrendPanel(events: List<BabyLogDomain.BabyLogEvent>, stage
         return true
     }
     return events.any { event ->
-        event.eventType == "growth" &&
+        (event.eventType == "growth" || event.eventType == "child_checkup") &&
             event.deletedAt == null &&
             (event.payload.has("weightKg") ||
                 event.payload.has("heightCm") ||

@@ -53,10 +53,21 @@ private fun dailyBabySummaryRows(summary: BabyLogDailyBabySummary): List<DailyBa
 
 private fun feedSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
     if (summary.feedCount <= 0) return null
-    val amount = if (summary.feedTotalMl > 0) " / ${summary.feedTotalMl} mL" else ""
+    fun kindCount(label: String, count: Int): String? {
+        return count.takeIf { it > 0 }?.let { "$label ${it}次" }
+    }
+
+    val breakdown = listOfNotNull(
+        kindCount("母乳", summary.feedBreastCount),
+        kindCount("奶瓶", summary.feedBottleCount),
+        kindCount("辅食", summary.feedSolidCount)
+    ).joinToString(" / ")
+    val total = breakdown.ifBlank { countLabel(summary.feedCount) }
+    val amount = if (summary.feedTotalMl > 0) " · 总 ${summary.feedTotalMl} mL" else ""
+    val latestAmount = if (summary.feedLastAmountMl > 0) " ${summary.feedLastAmountMl} mL" else ""
     val feedTime = BabyLogFormatters.formatEventTime(summary.feedLastTime).takeIf { it != "--:--" }?.let { " $it" }.orEmpty()
-    val latest = if (summary.feedLastType.isBlank()) "" else " · 最近 ${summary.feedLastType}$feedTime"
-    return DailyBabySummaryRow("喂养", "${countLabel(summary.feedCount)}$amount$latest")
+    val latest = if (summary.feedLastType.isBlank()) "" else " · 最近 ${summary.feedLastType}$latestAmount$feedTime"
+    return DailyBabySummaryRow("喂养", "$total$amount$latest")
 }
 
 private fun sleepSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {

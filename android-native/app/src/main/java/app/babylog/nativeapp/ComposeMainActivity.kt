@@ -1972,8 +1972,9 @@ public final class ComposeMainActivity : ComponentActivity() {
             )
         } else if (stage == BabyLogDomain.STAGE_BABY) {
             forms["feed"] = smartFormFields(
-                "primary" to "喂养方式，例如 母乳 / 奶瓶",
+                "primary" to "喂养方式，例如 母乳 / 奶瓶 / 辅食",
                 "secondary" to "奶量 ml",
+                "tertiary" to "侧别或辅食内容",
                 "note" to "备注"
             )
             forms["breastfeed"] = smartFormFields(

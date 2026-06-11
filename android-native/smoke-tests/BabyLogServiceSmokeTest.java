@@ -562,8 +562,12 @@ public final class BabyLogServiceSmokeTest {
         BabyLogDailyBabySummary empty = BabyLogService.forSmokeTest(emptyRepository).dailyBabySummary("2026-05-25");
         assertEquals(0, empty.feedCount);
         assertEquals(0, empty.feedTotalMl);
+        assertEquals(0, empty.feedBreastCount);
+        assertEquals(0, empty.feedBottleCount);
+        assertEquals(0, empty.feedSolidCount);
         assertEquals("", empty.feedLastTime);
         assertEquals("", empty.feedLastType);
+        assertEquals(0, empty.feedLastAmountMl);
         assertEquals(0, empty.sleepTotalMinutes);
         assertEquals(0, empty.sleepIncompleteCount);
         assertEquals(0, empty.sleepLongestMinutes);
@@ -591,6 +595,10 @@ public final class BabyLogServiceSmokeTest {
                 BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.bottle("90", "A2", ""))));
         repository.putEvent(babyEvent("breastfeed", "2026-05-25T11:00:00.000+0800",
                 BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.breastfeed("12", "8", ""))));
+        repository.putEvent(babyEvent("feed", "2026-05-25T11:20:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.feed("辅食", "", "米糊", ""))));
+        repository.putEvent(babyEvent("feed", "2026-05-25T11:40:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.feed("奶瓶", "40", ""))));
         repository.putEvent(sleepEvent("2026-05-25T23:00:00.000+0800", "2026-05-26T06:30:00.000+0800"));
         repository.putEvent(sleepEvent("2026-05-25T12:00:00.000+0800", ""));
         repository.putEvent(babyEvent("pee", "2026-05-25T13:00:00.000+0800",
@@ -622,10 +630,14 @@ public final class BabyLogServiceSmokeTest {
         BabyLogService service = BabyLogService.forSmokeTest(repository);
         BabyLogDailyBabySummary day = service.dailyBabySummary("2026-05-25");
         assertEquals("2026-05-25", day.dateInput);
-        assertEquals(3, day.feedCount);
-        assertEquals(210, day.feedTotalMl);
-        assertEquals("2026-05-25T11:00:00.000+0800", day.feedLastTime);
-        assertEquals("母乳", day.feedLastType);
+        assertEquals(5, day.feedCount);
+        assertEquals(250, day.feedTotalMl);
+        assertEquals(1, day.feedBreastCount);
+        assertEquals(3, day.feedBottleCount);
+        assertEquals(1, day.feedSolidCount);
+        assertEquals("2026-05-25T11:40:00.000+0800", day.feedLastTime);
+        assertEquals("奶瓶", day.feedLastType);
+        assertEquals(40, day.feedLastAmountMl);
         assertEquals(450, day.sleepTotalMinutes);
         assertEquals(1, day.sleepIncompleteCount);
         assertEquals(450, day.sleepLongestMinutes);
@@ -649,7 +661,11 @@ public final class BabyLogServiceSmokeTest {
         BabyLogDailyBabySummary nextDay = service.dailyBabySummary("2026-05-26");
         assertEquals(0, nextDay.sleepTotalMinutes);
         assertEquals(0, nextDay.feedCount);
+        assertEquals(0, nextDay.feedBreastCount);
+        assertEquals(0, nextDay.feedBottleCount);
+        assertEquals(0, nextDay.feedSolidCount);
         assertEquals("", nextDay.feedLastType);
+        assertEquals(0, nextDay.feedLastAmountMl);
         assertTrue(Double.isNaN(nextDay.growthWeightKg));
         assertEquals("", nextDay.growthLastTime);
     }
