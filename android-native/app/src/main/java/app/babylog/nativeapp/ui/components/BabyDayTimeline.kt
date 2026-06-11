@@ -1,4 +1,4 @@
-@file:Suppress("FunctionNaming", "InvalidPackageDeclaration", "MagicNumber")
+@file:Suppress("FunctionNaming", "InvalidPackageDeclaration", "MagicNumber", "TooManyFunctions")
 
 package app.babylog.nativeapp
 
@@ -39,6 +39,10 @@ private val TimelineHourHeight = 48.dp
 private val TimelineLeftRailWidth = 54.dp
 private val TimelineHeight = TimelineHourHeight * 24
 private val TimelineViewportHeight = 420.dp
+private val TimelineEventLabelHeight = 44.dp
+
+// 同时刻/相近时刻的事件标签按"自然位置与上一条底部取大"逐条下推，避免互相叠字。
+private val TimelineEventStaggerGap = 46.dp
 
 @Composable
 internal fun BabyDayTimeline(
@@ -112,8 +116,15 @@ private fun TimelineScrollableContent(
             slots.sleepSegments.forEach { segment ->
                 SleepSegmentView(segment, onClick = { onEventClick(segment.eventId) })
             }
+            val pointOffsets = remember(slots.eventPoints) {
+                staggeredEventOffsets(slots.eventPoints)
+            }
             slots.eventPoints.forEach { point ->
-                EventPointView(point, onClick = { onEventClick(point.eventId) })
+                EventPointView(
+                    point = point,
+                    offsetY = pointOffsets[point.eventId] ?: minuteOffset(point.minuteOfDay),
+                    onClick = { onEventClick(point.eventId) }
+                )
             }
         }
     }
@@ -192,8 +203,10 @@ private fun SleepSegmentView(
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun EventPointView(
     point: BabyLogBabyDayTimelineSlots.EventPoint,
+    offsetY: Dp,
     onClick: () -> Unit
 ) {
     val tone = remember(point.eventType) {
@@ -213,15 +226,20 @@ private fun EventPointView(
             .trim()
             .trimStart('·', ':', '：', '-', ' ')
             .trim()
+            // 占位文案在时间轴上没有信息量，只显示真实摘要。
+            .takeIf { it != "待补充详情" }
+            .orEmpty()
     }
     Box(
         modifier = Modifier
             .padding(start = TimelineLeftRailWidth + 10.dp, end = 12.dp)
-            .offset(y = minuteOffset(point.minuteOfDay).coerceAtMost(TimelineHeight - 40.dp))
+            .offset(y = offsetY)
             .fillMaxWidth()
-            .height(40.dp)
+            .height(TimelineEventLabelHeight)
             .clip(RoundedCornerShape(ChestnutRadius.Small))
-            .clickable { onClick() },
+            .background(ChestnutPalette.Surface.copy(alpha = 0.82f))
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Box(
@@ -235,7 +253,9 @@ private fun EventPointView(
                 text = "${minuteLabel(point.minuteOfDay)} · $eventLabel",
                 color = tone,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (summaryLabel.isNotBlank()) {
                 Spacer(Modifier.height(1.dp))
@@ -249,6 +269,21 @@ private fun EventPointView(
             }
         }
     }
+}
+
+private fun staggeredEventOffsets(
+    points: List<BabyLogBabyDayTimelineSlots.EventPoint>
+): Map<String, Dp> {
+    val maxTop = (TimelineHeight - TimelineEventLabelHeight).value
+    val offsets = HashMap<String, Dp>(points.size)
+    var nextFreeTop = 0f
+    points.sortedBy { it.minuteOfDay }.forEach { point ->
+        val natural = minuteOffset(point.minuteOfDay).value
+        val top = maxOf(natural, nextFreeTop).coerceAtMost(maxTop)
+        offsets[point.eventId] = top.dp
+        nextFreeTop = top + TimelineEventStaggerGap.value
+    }
+    return offsets
 }
 
 private fun minuteOffset(minuteOfDay: Int): Dp {
