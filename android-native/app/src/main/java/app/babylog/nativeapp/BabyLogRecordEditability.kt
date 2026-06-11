@@ -16,6 +16,8 @@ internal fun isEditableBabyRecord(eventType: String): Boolean {
         eventType == "diaper" ||
         eventType == "temperature" ||
         eventType == "medication" ||
+        eventType == "growth" ||
+        eventType == "child_checkup" ||
         eventType == "breastfeed" ||
         eventType == "bottle" ||
         eventType == "wake" ||

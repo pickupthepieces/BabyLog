@@ -324,6 +324,7 @@ internal fun quickActionIcon(eventType: String): LineIcon {
         "fetal_movement" -> LineIcon.Movement
         "contraction" -> LineIcon.Contraction
         "maternal_metric", "growth" -> LineIcon.Metric
+        "child_checkup" -> LineIcon.Checkup
         "breastfeed" -> LineIcon.Breastfeed
         "bottle" -> LineIcon.Bottle
         "sleep" -> LineIcon.Sleep

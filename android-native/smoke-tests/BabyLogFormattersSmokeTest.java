@@ -72,6 +72,7 @@ public final class BabyLogFormattersSmokeTest {
                 {"medication", "baby"},
                 {"illness", "baby"},
                 {"growth", "baby"},
+                {"child_checkup", "baby"},
                 {"vaccine", "baby"},
                 {"milestone", "baby"},
                 {"note", "all"}

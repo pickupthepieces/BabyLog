@@ -175,7 +175,7 @@ private data class BabyGrowthPoint(
 private fun babyGrowthPoints(events: List<BabyLogDomain.BabyLogEvent>): List<BabyGrowthPoint> {
     return events
         .asSequence()
-        .filter { it.eventType == "growth" && it.deletedAt == null }
+        .filter { (it.eventType == "growth" || it.eventType == "child_checkup") && it.deletedAt == null }
         .mapNotNull { event ->
             val payload = event.payload ?: return@mapNotNull null
             val point = BabyGrowthPoint(

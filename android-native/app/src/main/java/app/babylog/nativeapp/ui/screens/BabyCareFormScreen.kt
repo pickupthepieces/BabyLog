@@ -29,6 +29,15 @@ internal fun BabyCareFormScreen(
     var secondary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["secondary"].orEmpty()) }
     var tertiary by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["tertiary"].orEmpty()) }
     var note by rememberSaveable(action.eventType, draft?.nonce) { mutableStateOf(values["note"].orEmpty()) }
+    var checkupInstitution by rememberSaveable(action.eventType, draft?.nonce) {
+        mutableStateOf(values["checkupInstitution"].orEmpty())
+    }
+    var checkupConclusion by rememberSaveable(action.eventType, draft?.nonce) {
+        mutableStateOf(values["checkupConclusion"].orEmpty())
+    }
+    var nextCheckupDate by rememberSaveable(action.eventType, draft?.nonce) {
+        mutableStateOf(values["nextCheckupDate"].orEmpty())
+    }
     var occurredTime by rememberSaveable(action.eventType, draft?.nonce) {
         mutableStateOf(values["occurredTime"].orEmpty().ifBlank { currentBabyCareTimeInput() })
     }
@@ -41,7 +50,19 @@ internal fun BabyCareFormScreen(
         saveText = if (isEditing) "保存修改" else "保存记录",
         onBack = onBack,
         onSave = {
-            val input = buildBabyCareInput(action.eventType, primary, secondary, tertiary, note, occurredTime)
+            val input = if (action.eventType == "child_checkup") {
+                BabyLogService.BabyCareInput.childCheckup(
+                    primary,
+                    secondary,
+                    tertiary,
+                    checkupInstitution,
+                    checkupConclusion,
+                    nextCheckupDate,
+                    note
+                ).withOccurredTime(occurredTime)
+            } else {
+                buildBabyCareInput(action.eventType, primary, secondary, tertiary, note, occurredTime)
+            }
             if (!BabyLogService.hasBabyCareMinimumContent(input)) {
                 formError = "请至少填写一项记录内容"
             } else {
@@ -108,6 +129,31 @@ internal fun BabyCareFormScreen(
                         isTime = false
                     )
                 }
+            }
+        }
+        if (action.eventType == "child_checkup") {
+            item {
+                ChestnutTextField("机构 / 社区", checkupInstitution, { checkupInstitution = it }, KeyboardType.Text)
+            }
+            item {
+                ChestnutLongTextField(
+                    "儿保记录 / 医生备注",
+                    checkupConclusion,
+                    { checkupConclusion = it },
+                    minLines = 2,
+                    maxLines = 4,
+                    voiceState = voiceState,
+                    onVoiceStart = onLongTextVoiceStart,
+                    onVoiceStop = onLongTextVoiceStop
+                )
+            }
+            item {
+                DateInputRow(
+                    label = "下次儿保日期",
+                    value = nextCheckupDate,
+                    onValueChange = { nextCheckupDate = it },
+                    allowClear = true
+                )
             }
         }
         if (labels.note != null) {

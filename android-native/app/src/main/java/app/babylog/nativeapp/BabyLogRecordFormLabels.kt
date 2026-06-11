@@ -75,6 +75,7 @@ internal fun babyCareLabels(eventType: String): BabyCareLabels {
         )
         "medication" -> BabyCareLabels("药名", "剂量，例如 2 ml", "原因", null)
         "growth" -> growthLabels
+        "child_checkup" -> childCheckupLabels
         "breastfeed" -> BabyCareLabels("左侧时长（分钟）", "右侧时长（分钟）", "备注", null, KeyboardType.Decimal, KeyboardType.Decimal)
         "bottle" -> BabyCareLabels("奶量 mL", "品牌", "备注", null, KeyboardType.Decimal, KeyboardType.Text)
         "wake" -> BabyCareLabels("状态，例如 自然醒 / 哭醒", "备注", null, null)
@@ -89,6 +90,16 @@ private val growthLabels = BabyCareLabels(
     "身长 cm",
     "头围 cm",
     "备注",
+    KeyboardType.Decimal,
+    KeyboardType.Decimal,
+    KeyboardType.Decimal
+)
+
+private val childCheckupLabels = BabyCareLabels(
+    "体重 kg",
+    "身长 cm",
+    "头围 cm",
+    "家庭备注",
     KeyboardType.Decimal,
     KeyboardType.Decimal,
     KeyboardType.Decimal
@@ -187,6 +198,7 @@ internal fun buildBabyCareInput(
         "temperature" -> BabyLogService.BabyCareInput.temperature(primary, secondary, note)
         "medication" -> BabyLogService.BabyCareInput.medication(primary, secondary, tertiary)
         "growth" -> BabyLogService.BabyCareInput.growth(primary, secondary, tertiary, note)
+        "child_checkup" -> BabyLogService.BabyCareInput.childCheckup(primary, secondary, tertiary, "", "", "", note)
         "breastfeed" -> BabyLogService.BabyCareInput.breastfeed(primary, secondary, tertiary)
         "bottle" -> BabyLogService.BabyCareInput.bottle(primary, secondary, tertiary)
         "wake", "pee", "poop" -> BabyLogService.BabyCareInput.quick(eventType, primary, secondary)

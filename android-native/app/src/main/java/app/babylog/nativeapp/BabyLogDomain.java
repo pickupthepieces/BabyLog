@@ -47,6 +47,7 @@ public final class BabyLogDomain {
             "medication",
             "illness",
             "growth",
+            "child_checkup",
             "vaccine",
             "milestone",
             "note"

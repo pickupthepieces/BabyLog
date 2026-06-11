@@ -104,6 +104,16 @@ public final class BabyLogSmartTextClientSmokeTest {
         ultrasoundFields.put("examDate", "检查日期");
         ultrasoundFields.put("bpdMm", "BPD mm");
         forms.put("ultrasound", ultrasoundFields);
+        Map<String, String> childCheckupFields = new LinkedHashMap<>();
+        childCheckupFields.put("primary", "体重 kg");
+        childCheckupFields.put("secondary", "身长 cm");
+        childCheckupFields.put("tertiary", "头围 cm");
+        childCheckupFields.put("checkupInstitution", "儿保机构");
+        childCheckupFields.put("checkupConclusion", "儿保记录");
+        childCheckupFields.put("nextCheckupDate", "下次儿保日期 yyyy-MM-dd");
+        childCheckupFields.put("occurredTime", "发生时间 HH:mm");
+        childCheckupFields.put("note", "家庭备注");
+        forms.put("child_checkup", childCheckupFields);
 
         JSONObject entryRequest = BabyLogSmartTextClient.buildSmartEntryRequest(
                         "test-model",
@@ -121,6 +131,8 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertTrue(entryPrompt.contains("语音转写"));
         assertTrue(entryPrompt.contains("错误切分"));
         assertTrue(entryPrompt.contains("maternal_metric"));
+        assertTrue(entryPrompt.contains("child_checkup"));
+        assertTrue(entryPrompt.contains("nextCheckupDate"));
         assertTrue(entryPrompt.contains("\"weightKg\":\"52\""));
         assertTrue(entryPrompt.contains("多事件"));
 
@@ -144,6 +156,25 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertEquals(null, entry.values.get("bpdMm"));
         assertEquals(null, entry.values.get("extra"));
         assertEquals("血糖需核对测量时间", entry.warnings.get(0));
+
+        String childCheckupResponse = "{"
+                + "\"choices\":[{\"message\":{\"content\":\"{"
+                + "\\\"eventType\\\":\\\"child_checkup\\\","
+                + "\\\"values\\\":{"
+                + "\\\"primary\\\":\\\"7.4\\\","
+                + "\\\"secondary\\\":\\\"66\\\","
+                + "\\\"tertiary\\\":\\\"42.5\\\","
+                + "\\\"checkupInstitution\\\":\\\"社区儿保\\\","
+                + "\\\"nextCheckupDate\\\":\\\"2026-07-25\\\","
+                + "\\\"extra\\\":\\\"drop\\\"},"
+                + "\\\"warnings\\\":[\\\"候选字段请人工核对\\\"]}\"}}]}";
+        BabyLogSmartTextClient.SmartEntryCandidate childCheckup =
+                BabyLogSmartTextClient.parseSmartEntryResponse(childCheckupResponse, forms, "fallback child checkup");
+        assertEquals("child_checkup", childCheckup.eventType);
+        assertEquals("7.4", childCheckup.values.get("primary"));
+        assertEquals("社区儿保", childCheckup.values.get("checkupInstitution"));
+        assertEquals("2026-07-25", childCheckup.values.get("nextCheckupDate"));
+        assertEquals(null, childCheckup.values.get("extra"));
 
         String unknownType = "{\"message\":{\"content\":\"{\\\"eventType\\\":\\\"unknown\\\",\\\"values\\\":{\\\"weightKg\\\":\\\"62\\\"}}\"}}";
         BabyLogSmartTextClient.SmartEntryCandidate unknown =

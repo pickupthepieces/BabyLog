@@ -321,6 +321,7 @@ public final class BabyLogFormatters {
         if ("medication".equals(eventType)) return "用药";
         if ("illness".equals(eventType)) return "不适";
         if ("growth".equals(eventType)) return "成长";
+        if ("child_checkup".equals(eventType)) return "儿保";
         if ("vaccine".equals(eventType)) return "疫苗";
         if ("milestone".equals(eventType)) return "里程碑";
         return "备注";
@@ -440,6 +441,18 @@ public final class BabyLogFormatters {
                     growthPart(payload, "weightKg", "体重", "kg"),
                     growthPart(payload, "heightCm", "身长", "cm"),
                     growthPart(payload, "headCircumferenceCm", "头围", "cm"),
+                    payload.optString("note", "")
+            );
+        }
+        if ("child_checkup".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    growthPart(payload, "weightKg", "体重", "kg"),
+                    growthPart(payload, "heightCm", "身长", "cm"),
+                    growthPart(payload, "headCircumferenceCm", "头围", "cm"),
+                    payload.optString("checkupInstitution", ""),
+                    payload.optString("checkupConclusion", ""),
+                    withLabel("下次", payload.optString("nextCheckupDate", "")),
                     payload.optString("note", "")
             );
         }
@@ -619,6 +632,7 @@ public final class BabyLogFormatters {
                 || "medication".equals(eventType)
                 || "illness".equals(eventType)
                 || "growth".equals(eventType)
+                || "child_checkup".equals(eventType)
                 || "vaccine".equals(eventType)
                 || "milestone".equals(eventType)) {
             return "baby";

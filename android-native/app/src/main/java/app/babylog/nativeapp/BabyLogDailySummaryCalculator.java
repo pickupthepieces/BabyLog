@@ -33,7 +33,8 @@ final class BabyLogDailySummaryCalculator {
                 || "temperature".equals(eventType)
                 || "medication".equals(eventType)
                 || "milestone".equals(eventType)
-                || "growth".equals(eventType);
+                || "growth".equals(eventType)
+                || "child_checkup".equals(eventType);
     }
 
     private static boolean isFeedSummaryEvent(String eventType) {
@@ -126,7 +127,7 @@ final class BabyLogDailySummaryCalculator {
                 acceptMedication(event, payload);
             } else if ("milestone".equals(event.eventType)) {
                 milestoneCount += 1;
-            } else if ("growth".equals(event.eventType)) {
+            } else if ("growth".equals(event.eventType) || "child_checkup".equals(event.eventType)) {
                 acceptGrowth(event, payload);
             }
         }

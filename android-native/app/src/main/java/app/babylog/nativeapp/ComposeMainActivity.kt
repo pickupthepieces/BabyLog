@@ -1008,12 +1008,40 @@ public final class ComposeMainActivity : ComponentActivity() {
                     babyCareDraft = null
                     markRecordSaved(event)
                 }
+                completeChildCheckupReminderIfNeeded(input, event)
                 showToast(if (editing != null) "已更新记录" else "已保存记录")
                 reloadData()
             } catch (error: Exception) {
                 showBabyLogError("保存失败", "无法保存记录", error)
             }
         }
+    }
+
+    private fun completeChildCheckupReminderIfNeeded(
+        input: BabyLogService.BabyCareInput,
+        event: BabyLogDomain.BabyLogEvent
+    ) {
+        if (input.eventType != "child_checkup") {
+            return
+        }
+        val recordDate = BabyLogFormatters.recordDay(event.occurredAt)
+        val reminder = reminderStore.listReminders()
+            .asSequence()
+            .filter { it.kind == BabyLogReminderStore.KIND_CHILD_CHECKUP_TODO }
+            .filter { BabyLogReminderStore.isActionable(it) }
+            .mapNotNull {
+                val dueDate = it.dueAtIso.take(DATE_INPUT_LENGTH)
+                if (!BabyLogFormatters.isValidDateInput(dueDate)) {
+                    null
+                } else {
+                    it to BabyLogFormatters.daysBetweenDateInputs(dueDate, recordDate)
+                }
+            }
+            .filter { it.second in 0..CHILD_CHECKUP_COMPLETION_WINDOW_DAYS }
+            .minByOrNull { it.second }
+            ?.first ?: return
+        reminderStore.complete(reminder.id)
+        BabyLogReminderScheduler.scheduleAll(this, reminderStore.listReminders(), repository.loadChildProfile())
     }
 
     private fun recordPregnancy(input: BabyLogService.PregnancyInput) {
@@ -1448,7 +1476,7 @@ public final class ComposeMainActivity : ComponentActivity() {
                 maternalMetricDraft = draft
                 pendingNavRoute = BabyLogRoutes.RecordMaternalMetric
             }
-            "feed", "sleep", "diaper", "temperature", "medication", "breastfeed", "bottle", "wake", "pee", "poop" -> {
+            "feed", "sleep", "diaper", "temperature", "medication", "growth", "child_checkup", "breastfeed", "bottle", "wake", "pee", "poop" -> {
                 val action = quickActionByEventType(candidate.eventType)
                 if (action == null) {
                     showInfo("无法打开表单", "当前阶段没有对应表单。")
@@ -1800,6 +1828,8 @@ public final class ComposeMainActivity : ComponentActivity() {
             "diaper" -> BabyLogService.QuickAction("尿布", "类型 / 性状 / 备注", ChestnutPalette.YellowArgb, "diaper")
             "temperature" -> BabyLogService.QuickAction("体温", "温度 / 测量方式", ChestnutPalette.GreenArgb, "temperature")
             "medication" -> BabyLogService.QuickAction("用药", "药名 / 剂量 / 原因", ChestnutPalette.PeachArgb, "medication")
+            "growth" -> BabyLogService.QuickAction("成长", "体重 / 身长 / 头围", ChestnutPalette.BlueArgb, "growth")
+            "child_checkup" -> BabyLogService.QuickAction("儿保", "体重 / 身长 / 下次", ChestnutPalette.GreenArgb, "child_checkup")
             "wake" -> BabyLogService.QuickAction("起床", "补充状态 / 备注", ChestnutPalette.GreenArgb, "wake")
             "pee" -> BabyLogService.QuickAction("尿尿", "补充尿布情况 / 备注", ChestnutPalette.YellowArgb, "pee")
             "poop" -> BabyLogService.QuickAction("便便", "补充性状 / 备注", ChestnutPalette.PeachArgb, "poop")
@@ -1987,6 +2017,23 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "primary" to "药名",
                 "secondary" to "剂量",
                 "tertiary" to "原因"
+            )
+            forms["growth"] = smartFormFields(
+                "primary" to "体重 kg",
+                "secondary" to "身长 cm",
+                "tertiary" to "头围 cm",
+                "occurredTime" to "发生时间 HH:mm",
+                "note" to "备注"
+            )
+            forms["child_checkup"] = smartFormFields(
+                "primary" to "体重 kg",
+                "secondary" to "身长 cm",
+                "tertiary" to "头围 cm",
+                "checkupInstitution" to "儿保机构 / 社区",
+                "checkupConclusion" to "儿保记录或医生备注，照原文填",
+                "nextCheckupDate" to "下次儿保日期 yyyy-MM-dd",
+                "occurredTime" to "发生时间 HH:mm",
+                "note" to "家庭备注"
             )
         }
         return forms
@@ -2256,7 +2303,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 BabyLogService.QuickAction("起床", "", ChestnutPalette.GreenArgb, "wake"),
                 BabyLogService.QuickAction("尿尿", "", ChestnutPalette.YellowArgb, "pee"),
                 BabyLogService.QuickAction("便便", "", ChestnutPalette.PeachArgb, "poop"),
-                BabyLogService.QuickAction("成长", "体重 / 身长 / 头围", ChestnutPalette.BlueArgb, "growth")
+                BabyLogService.QuickAction("成长", "体重 / 身长 / 头围", ChestnutPalette.BlueArgb, "growth"),
+                BabyLogService.QuickAction("儿保", "体重 / 身长 / 下次", ChestnutPalette.GreenArgb, "child_checkup")
             )
         }
         return emptyList()
@@ -2269,6 +2317,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             || eventType == "temperature"
             || eventType == "medication"
             || eventType == "growth"
+            || eventType == "child_checkup"
     }
 
     private fun isPregnancyFormAction(eventType: String): Boolean {
@@ -2313,5 +2362,7 @@ public final class ComposeMainActivity : ComponentActivity() {
     private companion object {
         private const val META_PREFS_NAME = "babylog_native_meta_v1"
         private const val LAST_BACKUP_EXPORT_MS = "lastBackupExportMs"
+        private const val DATE_INPUT_LENGTH = 10
+        private const val CHILD_CHECKUP_COMPLETION_WINDOW_DAYS = 21
     }
 }
