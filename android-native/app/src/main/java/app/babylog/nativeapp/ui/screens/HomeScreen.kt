@@ -32,8 +32,6 @@ internal fun HomeScreen(
     onBabyDaySelected: (String) -> Unit,
     onShowTimeline: () -> Unit,
     onOpenDetail: (BabyLogDomain.BabyLogEvent) -> Unit,
-    onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
-    onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
     onOpenWeightGain: () -> Unit,
     onOpenReminderCenter: () -> Unit,
     syncPulling: Boolean,
@@ -149,9 +147,7 @@ internal fun HomeScreen(
                             TimelineRow(
                                 event,
                                 highlighted = event.id == highlightedEventId,
-                                onClick = { onOpenDetail(event) },
-                                onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                                onDelete = { onDeleteEvent(event) }
+                                onClick = { onOpenDetail(event) }
                             )
                         }
                     }
@@ -180,9 +176,7 @@ internal fun HomeScreen(
                         TimelineRow(
                             event,
                             highlighted = event.id == highlightedEventId,
-                            onClick = { onOpenDetail(event) },
-                            onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                            onDelete = { onDeleteEvent(event) }
+                            onClick = { onOpenDetail(event) }
                         )
                     }
                 }

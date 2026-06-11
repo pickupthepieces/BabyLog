@@ -416,8 +416,6 @@ internal fun BabyLogApp(
                         onBabyDaySelected = onBabyDaySelected,
                         onShowTimeline = { selectTopLevelTab(BabyLogRoutes.Timeline) },
                         onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Home) },
-                        onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Home) },
-                        onDeleteEvent = onDeleteEvent,
                         onOpenWeightGain = { navController.navigate(BabyLogRoutes.ToolsWeightGain) },
                         onOpenReminderCenter = onOpenReminderCenter,
                         syncPulling = syncPullRunning,
@@ -442,9 +440,7 @@ internal fun BabyLogApp(
                     onFilterSelected = onTimelineFilterSelected,
                     onPullSyncNow = onPullSyncNow,
                     onDismissSyncBanner = onDismissRemoteUpdateBanner,
-                    onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Timeline) },
-                    onEditEvent = { event -> onEditEvent(event, BabyLogRoutes.Timeline) },
-                    onDeleteEvent = onDeleteEvent
+                    onOpenDetail = { event -> onOpenEventDetail(event, BabyLogRoutes.Timeline) }
                 )
             }
             composable(BabyLogRoutes.RecordDetail) {

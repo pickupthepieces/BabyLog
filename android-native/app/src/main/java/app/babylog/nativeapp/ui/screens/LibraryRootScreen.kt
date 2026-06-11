@@ -8,17 +8,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +43,7 @@ internal fun LibraryRootScreen(
     var typeFilter by rememberSaveable { mutableStateOf("all") }
     var startDate by rememberSaveable { mutableStateOf("") }
     var endDate by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     val filteredAttachments = remember(state.attachments, keyword, typeFilter, startDate, endDate) {
         state.attachments.filter { attachment ->
             attachmentMatchesLibrarySearch(attachment, keyword, typeFilter, startDate, endDate)
@@ -46,15 +51,23 @@ internal fun LibraryRootScreen(
     }
     BabyLogScreenColumn(inner) {
         item {
+            LibraryTypeFilters(selected = typeFilter, onSelect = { typeFilter = it })
+        }
+        item {
             LibrarySearchPanel(
+                expanded = searchExpanded,
+                onToggleExpanded = { searchExpanded = !searchExpanded },
                 keyword = keyword,
                 onKeywordChange = { keyword = it },
-                typeFilter = typeFilter,
-                onTypeSelected = { typeFilter = it },
                 startDate = startDate,
                 onStartDateChange = { startDate = it },
                 endDate = endDate,
-                onEndDateChange = { endDate = it }
+                onEndDateChange = { endDate = it },
+                onClear = {
+                    keyword = ""
+                    startDate = ""
+                    endDate = ""
+                }
             )
         }
         item {
@@ -87,41 +100,76 @@ internal fun LibraryRootScreen(
 
 @Composable
 private fun LibrarySearchPanel(
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     keyword: String,
     onKeywordChange: (String) -> Unit,
-    typeFilter: String,
-    onTypeSelected: (String) -> Unit,
     startDate: String,
     onStartDateChange: (String) -> Unit,
     endDate: String,
-    onEndDateChange: (String) -> Unit
+    onEndDateChange: (String) -> Unit,
+    onClear: () -> Unit
 ) {
+    val filterActive = keyword.isNotBlank() || startDate.isNotBlank() || endDate.isNotBlank()
     Panel {
-        SectionHeader("资料库筛选")
-        Spacer(Modifier.height(10.dp))
-        ChestnutTextField(
-            label = "关键词",
-            value = keyword,
-            onValueChange = onKeywordChange,
-            keyboardType = KeyboardType.Text,
-            placeholder = "文件名、类型、日期"
-        )
-        Spacer(Modifier.height(10.dp))
-        LibraryTypeFilters(selected = typeFilter, onSelect = onTypeSelected)
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DateInputRow(
-                label = "开始日期",
-                value = startDate,
-                onValueChange = onStartDateChange,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggleExpanded() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "搜索与日期筛选",
+                color = ChestnutPalette.Ink,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
-            DateInputRow(
-                label = "结束日期",
-                value = endDate,
-                onValueChange = onEndDateChange,
-                modifier = Modifier.weight(1f)
+            if (filterActive && !expanded) {
+                Chip(
+                    text = "筛选中",
+                    bg = ChestnutPalette.PrimarySoft,
+                    fg = ChestnutPalette.Primary
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(
+                if (expanded) "收起" else "展开",
+                color = ChestnutPalette.Primary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
             )
+        }
+        if (expanded) {
+            Spacer(Modifier.height(12.dp))
+            ChestnutTextField(
+                label = "关键词",
+                value = keyword,
+                onValueChange = onKeywordChange,
+                keyboardType = KeyboardType.Text,
+                placeholder = "文件名、类型、日期"
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DateInputRow(
+                    label = "开始日期",
+                    value = startDate,
+                    onValueChange = onStartDateChange,
+                    modifier = Modifier.weight(1f)
+                )
+                DateInputRow(
+                    label = "结束日期",
+                    value = endDate,
+                    onValueChange = onEndDateChange,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (filterActive) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onClear) {
+                    Text("清空筛选条件", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                }
+            }
         }
     }
 }

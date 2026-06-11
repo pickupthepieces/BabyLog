@@ -1,20 +1,28 @@
 package app.babylog.nativeapp
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 @Composable
@@ -27,13 +35,12 @@ internal fun TimelineScreen(
     onFilterSelected: (String) -> Unit,
     onPullSyncNow: () -> Unit,
     onDismissSyncBanner: () -> Unit,
-    onOpenDetail: (BabyLogDomain.BabyLogEvent) -> Unit,
-    onEditEvent: (BabyLogDomain.BabyLogEvent) -> Unit,
-    onDeleteEvent: (BabyLogDomain.BabyLogEvent) -> Unit
+    onOpenDetail: (BabyLogDomain.BabyLogEvent) -> Unit
 ) {
     var keyword by rememberSaveable { mutableStateOf("") }
     var startDate by rememberSaveable { mutableStateOf("") }
     var endDate by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     val events = remember(state.timeline, selectedFilter, keyword, startDate, endDate) {
         state.timeline.filter { event ->
             BabyLogFormatters.matchesTimelineFilter(event.eventType, selectedFilter) &&
@@ -55,19 +62,26 @@ internal fun TimelineScreen(
                 }
             }
             item {
+                TimelineFilters(
+                    selected = selectedFilter,
+                    onSelect = onFilterSelected
+                )
+            }
+            item {
                 TimelineSearchPanel(
+                    expanded = searchExpanded,
+                    onToggleExpanded = { searchExpanded = !searchExpanded },
                     keyword = keyword,
                     onKeywordChange = { keyword = it },
                     startDate = startDate,
                     onStartDateChange = { startDate = it },
                     endDate = endDate,
-                    onEndDateChange = { endDate = it }
-                )
-            }
-            item {
-                TimelineFilters(
-                    selected = selectedFilter,
-                    onSelect = onFilterSelected
+                    onEndDateChange = { endDate = it },
+                    onClear = {
+                        keyword = ""
+                        startDate = ""
+                        endDate = ""
+                    }
                 )
             }
             if (events.isEmpty()) {
@@ -77,9 +91,7 @@ internal fun TimelineScreen(
                     TimelineRow(
                         event,
                         highlighted = event.id == highlightedEventId,
-                        onClick = { onOpenDetail(event) },
-                        onEdit = if (isEditablePregnancyRecord(event.eventType)) { { onEditEvent(event) } } else null,
-                        onDelete = { onDeleteEvent(event) }
+                        onClick = { onOpenDetail(event) }
                     )
                 }
             }
@@ -89,37 +101,76 @@ internal fun TimelineScreen(
 
 @Composable
 private fun TimelineSearchPanel(
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     keyword: String,
     onKeywordChange: (String) -> Unit,
     startDate: String,
     onStartDateChange: (String) -> Unit,
     endDate: String,
-    onEndDateChange: (String) -> Unit
+    onEndDateChange: (String) -> Unit,
+    onClear: () -> Unit
 ) {
+    val filterActive = keyword.isNotBlank() || startDate.isNotBlank() || endDate.isNotBlank()
     Panel {
-        SectionHeader("时间线筛选")
-        Spacer(Modifier.height(10.dp))
-        ChestnutTextField(
-            label = "关键词",
-            value = keyword,
-            onValueChange = onKeywordChange,
-            keyboardType = KeyboardType.Text,
-            placeholder = "类型、摘要、医生结论、数值"
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DateInputRow(
-                label = "开始日期",
-                value = startDate,
-                onValueChange = onStartDateChange,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggleExpanded() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "搜索与日期筛选",
+                color = ChestnutPalette.Ink,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
-            DateInputRow(
-                label = "结束日期",
-                value = endDate,
-                onValueChange = onEndDateChange,
-                modifier = Modifier.weight(1f)
+            if (filterActive && !expanded) {
+                Chip(
+                    text = "筛选中",
+                    bg = ChestnutPalette.PrimarySoft,
+                    fg = ChestnutPalette.Primary
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(
+                if (expanded) "收起" else "展开",
+                color = ChestnutPalette.Primary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
             )
+        }
+        if (expanded) {
+            Spacer(Modifier.height(12.dp))
+            ChestnutTextField(
+                label = "关键词",
+                value = keyword,
+                onValueChange = onKeywordChange,
+                keyboardType = KeyboardType.Text,
+                placeholder = "类型、摘要、医生结论、数值"
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DateInputRow(
+                    label = "开始日期",
+                    value = startDate,
+                    onValueChange = onStartDateChange,
+                    modifier = Modifier.weight(1f)
+                )
+                DateInputRow(
+                    label = "结束日期",
+                    value = endDate,
+                    onValueChange = onEndDateChange,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (filterActive) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onClear) {
+                    Text("清空筛选条件", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                }
+            }
         }
     }
 }

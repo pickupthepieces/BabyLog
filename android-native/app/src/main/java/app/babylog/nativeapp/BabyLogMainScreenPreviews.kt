@@ -18,8 +18,6 @@ private fun homeScreenPreview() {
             onBabyDaySelected = {},
             onShowTimeline = {},
             onOpenDetail = {},
-            onEditEvent = {},
-            onDeleteEvent = {},
             onOpenWeightGain = {},
             onOpenReminderCenter = {},
             syncPulling = false,
@@ -43,9 +41,7 @@ private fun timelineScreenPreview() {
             onFilterSelected = {},
             onPullSyncNow = {},
             onDismissSyncBanner = {},
-            onOpenDetail = {},
-            onEditEvent = {},
-            onDeleteEvent = {}
+            onOpenDetail = {}
         )
     }
 }
