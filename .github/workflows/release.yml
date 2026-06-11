@@ -80,7 +80,7 @@ jobs:
             index($0, ver) == 1 { in_section=1; next }
             in_section && /^## / { exit }
             in_section { print }
-          ' CHANGELOG.md | sed '/./,$!d' | awk '{lines[NR]=$0} END{for(i=NR;i>0;i--) if(lines[i]!="") last=i; for(i=1;i<=last;i++) print lines[i]}')
+          ' CHANGELOG.md | sed '/./,$!d' | awk '{lines[NR]=$0} END{last=0; for(i=NR;i>0;i--) if(lines[i]!=""){last=i; break}; for(i=1;i<=last;i++) print lines[i]}')
           if [[ -z "$SECTION" ]]; then
             echo "::warning::No CHANGELOG section found for version $VERSION; using fallback note"
             SECTION="本次发布未提供 CHANGELOG。"
