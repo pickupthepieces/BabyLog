@@ -25,9 +25,19 @@ import java.util.UUID;
 
 public final class BabyLogAttachmentInputBuilder {
     private final Context context;
+    private final File filesDir;
 
     public BabyLogAttachmentInputBuilder(Context context) {
+        this(context, null);
+    }
+
+    private BabyLogAttachmentInputBuilder(Context context, File filesDir) {
         this.context = context;
+        this.filesDir = filesDir;
+    }
+
+    public static BabyLogAttachmentInputBuilder forSmokeTest(File filesDir) {
+        return new BabyLogAttachmentInputBuilder(null, filesDir);
     }
 
     public List<BabyLogDomain.AttachmentRecord> createPregnancyAttachments(BabyLogService.PregnancyInput input) throws JSONException {
@@ -94,8 +104,8 @@ public final class BabyLogAttachmentInputBuilder {
     }
 
     public File createCameraCaptureFile(String nameHint) throws IOException {
-        File base = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File dir = new File(base == null ? context.getFilesDir() : base, "camera-captures");
+        File base = context == null ? filesDir() : context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File dir = new File(base == null ? filesDir() : base, "camera-captures");
         if (!dir.exists() && !dir.mkdirs()) {
             throw new IOException("无法创建拍照目录");
         }
@@ -104,7 +114,7 @@ public final class BabyLogAttachmentInputBuilder {
     }
 
     public File createAttachmentFile(String nameHint) {
-        File dir = new File(context.getFilesDir(), "attachments");
+        File dir = new File(filesDir(), "attachments");
         if (!dir.exists()) {
             dir.mkdirs();
         }
@@ -113,16 +123,22 @@ public final class BabyLogAttachmentInputBuilder {
     }
 
     public void clearLocalAttachmentFiles() {
-        deleteRecursively(new File(context.getFilesDir(), "attachments"));
-        deleteRecursively(new File(context.getFilesDir(), "camera-captures"));
-        File pictureBase = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        if (pictureBase != null) {
-            deleteRecursively(new File(pictureBase, "camera-captures"));
+        deleteRecursively(new File(filesDir(), "attachments"));
+        deleteRecursively(new File(filesDir(), "camera-captures"));
+        if (context != null) {
+            File pictureBase = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+            if (pictureBase != null) {
+                deleteRecursively(new File(pictureBase, "camera-captures"));
+            }
         }
     }
 
     public long estimateAttachmentBytes() {
-        return directoryBytes(new File(context.getFilesDir(), "attachments"));
+        return directoryBytes(new File(filesDir(), "attachments"));
+    }
+
+    private File filesDir() {
+        return context == null ? filesDir : context.getFilesDir();
     }
 
     public void deleteLocalFile(String path) {
@@ -158,7 +174,7 @@ public final class BabyLogAttachmentInputBuilder {
             blob.put("mimeType", attachment.mimeType);
             blob.put("byteSize", file.length());
             blob.put("createdAt", attachment.createdAt);
-            blob.put("dataBase64", Base64.encodeToString(readFileBytes(file), Base64.NO_WRAP));
+            blob.put("dataBase64", encodeBase64(readFileBytes(file)));
             blobs.put(blob);
         }
         return blobs;
@@ -179,7 +195,7 @@ public final class BabyLogAttachmentInputBuilder {
                 continue;
             }
             String attachmentId = blob.optString("attachmentId");
-            byte[] bytes = Base64.decode(blob.optString("dataBase64", ""), Base64.DEFAULT);
+            byte[] bytes = decodeBase64(blob.optString("dataBase64", ""));
             File file = createAttachmentFile(attachmentId + ".jpg");
             try (FileOutputStream output = new FileOutputStream(file)) {
                 output.write(bytes);
@@ -288,6 +304,22 @@ public final class BabyLogAttachmentInputBuilder {
                 output.write(buffer, 0, read);
             }
             return output.toByteArray();
+        }
+    }
+
+    private static String encodeBase64(byte[] value) {
+        try {
+            return Base64.encodeToString(value, Base64.NO_WRAP);
+        } catch (RuntimeException stubbedAndroidJar) {
+            return java.util.Base64.getEncoder().encodeToString(value);
+        }
+    }
+
+    private static byte[] decodeBase64(String value) {
+        try {
+            return Base64.decode(value, Base64.DEFAULT);
+        } catch (RuntimeException stubbedAndroidJar) {
+            return java.util.Base64.getDecoder().decode(value);
         }
     }
 

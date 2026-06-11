@@ -48,8 +48,9 @@ public final class BabyLogService {
     public static BabyLogService forSmokeTest(BabyLogRepository repository) { return new BabyLogService(repository); }
     public static BabyLogService forSmokeTest(BabyLogRepository repository, BabyLogSyncTrigger syncTrigger) { return new BabyLogService(repository, syncTrigger); }
     private BabyLogService(BabyLogRepository repository, BabyLogSyncTrigger syncTrigger) {
-        this.context = null; this.repository = repository; this.attachmentBuilder = null;
-        this.backupManager = new BabyLogBackupManager(null, repository, null);
+        File filesDir = new File(System.getProperty("java.io.tmpdir"), "babylog-service-smoke-" + System.nanoTime());
+        this.context = null; this.repository = repository; this.attachmentBuilder = BabyLogAttachmentInputBuilder.forSmokeTest(filesDir);
+        this.backupManager = new BabyLogBackupManager(filesDir, repository, attachmentBuilder);
         this.syncTrigger = syncTrigger == null ? BabyLogSyncTrigger.noop() : syncTrigger;
     }
 

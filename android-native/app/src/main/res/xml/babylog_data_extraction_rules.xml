@@ -29,6 +29,18 @@
             domain="sharedpref"
             path="babylog_pre_visit.xml" />
         <exclude
+            domain="sharedpref"
+            path="babylog_sync_pull.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_sync_push.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_sync_attachment_download.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_reminder_refresh.xml" />
+        <exclude
             domain="file"
             path="attachments/" />
         <exclude
@@ -72,6 +84,18 @@
         <exclude
             domain="sharedpref"
             path="babylog_pre_visit.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_sync_pull.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_sync_push.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_sync_attachment_download.xml" />
+        <exclude
+            domain="sharedpref"
+            path="babylog_reminder_refresh.xml" />
         <exclude
             domain="file"
             path="attachments/" />

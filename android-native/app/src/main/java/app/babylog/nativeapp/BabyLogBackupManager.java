@@ -14,18 +14,28 @@ import java.nio.charset.StandardCharsets;
 final class BabyLogBackupManager {
     private static final String LAST_IMPORT_UNDO_FILE = "last-import-undo.json";
 
-    private final Context context;
     private final BabyLogRepository repository;
     private final BabyLogAttachmentInputBuilder attachmentBuilder;
+    private final File filesDir;
 
     BabyLogBackupManager(
             Context context,
             BabyLogRepository repository,
             BabyLogAttachmentInputBuilder attachmentBuilder
     ) {
-        this.context = context;
         this.repository = repository;
         this.attachmentBuilder = attachmentBuilder;
+        this.filesDir = context == null ? null : context.getFilesDir();
+    }
+
+    BabyLogBackupManager(
+            File filesDir,
+            BabyLogRepository repository,
+            BabyLogAttachmentInputBuilder attachmentBuilder
+    ) {
+        this.repository = repository;
+        this.attachmentBuilder = attachmentBuilder;
+        this.filesDir = filesDir;
     }
 
     String createBackupJson() throws BabyLogException {
@@ -144,13 +154,17 @@ final class BabyLogBackupManager {
     }
 
     private File importUndoSnapshotFile() {
-        return context == null ? null : new File(context.getFilesDir(), LAST_IMPORT_UNDO_FILE);
+        return filesDir == null ? null : new File(filesDir, LAST_IMPORT_UNDO_FILE);
     }
 
     private void writeImportUndoSnapshot(String raw) throws IOException {
         File file = importUndoSnapshotFile();
         if (file == null) {
             throw new IOException("没有可写入的导入快照位置");
+        }
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("无法创建导入快照目录");
         }
         try (FileOutputStream output = new FileOutputStream(file)) {
             output.write(raw.getBytes(StandardCharsets.UTF_8));

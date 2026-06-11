@@ -406,6 +406,7 @@ public final class BabyLogServiceSmokeTest {
         assertQuickSleepWakeClosure();
         assertBabyCareOccurredTimeBackfill();
         assertQuickUndoUsesTrashDelete();
+        assertBackupRoundTripRestoresEventsAttachmentsAndUndo();
 
         List<BabyLogDomain.BabyLogEvent> manyEvents = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
@@ -659,6 +660,67 @@ public final class BabyLogServiceSmokeTest {
         assertEquals(0, service.listTimelineEvents().size());
         assertEquals(1, service.listTrashEvents().size());
         assertEquals(event.id, service.listTrashEvents().get(0).id);
+    }
+
+    private static void assertBackupRoundTripRestoresEventsAttachmentsAndUndo() throws Exception {
+        BabyLogRepository repository = BabyLogRepository.forSmokeTest();
+        BabyLogService service = BabyLogService.forSmokeTest(repository);
+        BabyLogDomain.BabyLogEvent feed = babyEvent(
+                "feed",
+                "2026-06-10T08:00:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.feed("奶瓶", "120", ""))
+        );
+        BabyLogDomain.BabyLogEvent sleep = sleepEvent(
+                "2026-06-10T12:30:00.000+0800",
+                "2026-06-10T14:00:00.000+0800"
+        );
+        BabyLogDomain.BabyLogEvent diaper = babyEvent(
+                "diaper",
+                "2026-06-10T15:30:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.diaper("混合", "量中", "黄色软便", ""))
+        );
+        repository.putEvent(feed);
+        repository.putEvent(sleep);
+        repository.putEvent(diaper);
+
+        byte[] blobBytes = new byte[] { 11, 12, 13, 14, 15 };
+        BabyLogDomain.AttachmentRecord attachment = BabyLogDomain.createAttachment(
+                "document_image",
+                "backup-smoke.jpg",
+                "image/jpeg",
+                blobBytes.length,
+                ""
+        );
+        repository.putAttachment(attachment);
+        assertTrue(repository.putAttachmentBlobFromRemote(attachment.id, blobBytes, "hash_backup_smoke"));
+
+        String backup = service.createBackupJson();
+        JSONObject data = new JSONObject(backup).getJSONObject("data");
+        assertEquals(3, data.getJSONArray("events").length());
+        assertEquals(1, data.getJSONArray("attachments").length());
+        assertEquals(1, data.getJSONArray("attachmentBlobs").length());
+
+        service.clearLocalData();
+        assertEquals(0, repository.listEvents().size());
+        assertEquals(0, repository.listAttachments().size());
+        assertFalse(repository.hasAttachmentBlob(attachment.id));
+
+        assertEquals(3, service.importBackupJson(backup));
+        assertTrue(service.hasImportUndoSnapshot());
+        assertEquals(3, repository.listEvents().size());
+        assertEquals(1, repository.listAttachments().size());
+        assertNotNull(repository.findEventById(feed.id));
+        assertNotNull(repository.findEventById(sleep.id));
+        assertNotNull(repository.findEventById(diaper.id));
+        assertTrue(repository.hasAttachmentBlob(attachment.id));
+        assertEquals("hash_backup_smoke", repository.attachmentBlobContentHash(attachment.id));
+        assertTrue(Arrays.equals(blobBytes, repository.findAttachmentBlobBytes(attachment.id)));
+
+        assertEquals(0, service.undoLastImport());
+        assertFalse(service.hasImportUndoSnapshot());
+        assertEquals(0, repository.listEvents().size());
+        assertEquals(0, repository.listAttachments().size());
+        assertFalse(repository.hasAttachmentBlob(attachment.id));
     }
 
     private static void assertServiceExceptionTypes() throws Exception {
