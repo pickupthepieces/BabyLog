@@ -1,7 +1,13 @@
 package app.babylog.nativeapp
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -91,7 +97,8 @@ internal fun TimelineScreen(
                     TimelineRow(
                         event,
                         highlighted = event.id == highlightedEventId,
-                        onClick = { onOpenDetail(event) }
+                        onClick = { onOpenDetail(event) },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
@@ -141,34 +148,40 @@ private fun TimelineSearchPanel(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        if (expanded) {
-            Spacer(Modifier.height(12.dp))
-            ChestnutTextField(
-                label = "关键词",
-                value = keyword,
-                onValueChange = onKeywordChange,
-                keyboardType = KeyboardType.Text,
-                placeholder = "类型、摘要、医生结论、数值"
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DateInputRow(
-                    label = "开始日期",
-                    value = startDate,
-                    onValueChange = onStartDateChange,
-                    modifier = Modifier.weight(1f)
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                Spacer(Modifier.height(12.dp))
+                ChestnutTextField(
+                    label = "关键词",
+                    value = keyword,
+                    onValueChange = onKeywordChange,
+                    keyboardType = KeyboardType.Text,
+                    placeholder = "类型、摘要、医生结论、数值"
                 )
-                DateInputRow(
-                    label = "结束日期",
-                    value = endDate,
-                    onValueChange = onEndDateChange,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            if (filterActive) {
-                Spacer(Modifier.height(4.dp))
-                TextButton(onClick = onClear) {
-                    Text("清空筛选条件", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DateInputRow(
+                        label = "开始日期",
+                        value = startDate,
+                        onValueChange = onStartDateChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DateInputRow(
+                        label = "结束日期",
+                        value = endDate,
+                        onValueChange = onEndDateChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (filterActive) {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = onClear) {
+                        Text("清空筛选条件", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                    }
                 }
             }
         }

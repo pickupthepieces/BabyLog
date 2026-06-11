@@ -2,6 +2,7 @@
 
 package app.babylog.nativeapp
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +29,7 @@ import androidx.compose.material.Card
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -311,19 +313,31 @@ internal fun TimelineFilters(selected: String, onSelect: (String) -> Unit) {
     ) {
         filters.forEach { (key, label) ->
             val active = key == selected
+            val chipFg by animateColorAsState(
+                targetValue = if (active) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                label = "timelineFilterFg"
+            )
+            val chipBg by animateColorAsState(
+                targetValue = if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface,
+                label = "timelineFilterBg"
+            )
+            val chipBorder by animateColorAsState(
+                targetValue = if (active) {
+                    ChestnutPalette.Primary.copy(alpha = 0.32f)
+                } else {
+                    ChestnutPalette.Border.copy(alpha = 0.54f)
+                },
+                label = "timelineFilterBorder"
+            )
             Text(
                 text = label,
-                color = if (active) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                color = chipFg,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface)
-                    .border(
-                        1.dp,
-                        if (active) ChestnutPalette.Primary.copy(alpha = 0.32f) else ChestnutPalette.Border.copy(alpha = 0.54f),
-                        CircleShape
-                    )
+                    .background(chipBg)
+                    .border(1.dp, chipBorder, CircleShape)
                     .clickable { onSelect(key) }
                     .padding(horizontal = 15.dp, vertical = 9.dp)
             )
@@ -335,7 +349,8 @@ internal fun TimelineFilters(selected: String, onSelect: (String) -> Unit) {
 internal fun TimelineRow(
     event: BabyLogDomain.BabyLogEvent,
     highlighted: Boolean = false,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val tone = remember(event.eventType) { eventTone(event.eventType) }
     val rowText = remember(event) {
@@ -348,7 +363,7 @@ internal fun TimelineRow(
     }
     val interactionSource = remember { MutableInteractionSource() }
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .babyLogPressScale(interactionSource, pressedScale = 0.985f)
             .then(

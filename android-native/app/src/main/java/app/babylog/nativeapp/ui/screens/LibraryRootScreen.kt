@@ -1,8 +1,15 @@
 package app.babylog.nativeapp
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -140,34 +147,40 @@ private fun LibrarySearchPanel(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        if (expanded) {
-            Spacer(Modifier.height(12.dp))
-            ChestnutTextField(
-                label = "关键词",
-                value = keyword,
-                onValueChange = onKeywordChange,
-                keyboardType = KeyboardType.Text,
-                placeholder = "文件名、类型、日期"
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DateInputRow(
-                    label = "开始日期",
-                    value = startDate,
-                    onValueChange = onStartDateChange,
-                    modifier = Modifier.weight(1f)
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                Spacer(Modifier.height(12.dp))
+                ChestnutTextField(
+                    label = "关键词",
+                    value = keyword,
+                    onValueChange = onKeywordChange,
+                    keyboardType = KeyboardType.Text,
+                    placeholder = "文件名、类型、日期"
                 )
-                DateInputRow(
-                    label = "结束日期",
-                    value = endDate,
-                    onValueChange = onEndDateChange,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            if (filterActive) {
-                Spacer(Modifier.height(4.dp))
-                TextButton(onClick = onClear) {
-                    Text("清空筛选条件", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DateInputRow(
+                        label = "开始日期",
+                        value = startDate,
+                        onValueChange = onStartDateChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DateInputRow(
+                        label = "结束日期",
+                        value = endDate,
+                        onValueChange = onEndDateChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (filterActive) {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = onClear) {
+                        Text("清空筛选条件", color = ChestnutPalette.Muted, fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -188,19 +201,31 @@ private fun LibraryTypeFilters(selected: String, onSelect: (String) -> Unit) {
     ) {
         options.forEach { (key, label) ->
             val active = selected == key
+            val chipFg by animateColorAsState(
+                targetValue = if (active) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                label = "libraryFilterFg"
+            )
+            val chipBg by animateColorAsState(
+                targetValue = if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface,
+                label = "libraryFilterBg"
+            )
+            val chipBorder by animateColorAsState(
+                targetValue = if (active) {
+                    ChestnutPalette.Primary.copy(alpha = 0.32f)
+                } else {
+                    ChestnutPalette.Border.copy(alpha = 0.54f)
+                },
+                label = "libraryFilterBorder"
+            )
             Text(
                 label,
-                color = if (active) ChestnutPalette.Primary else ChestnutPalette.Muted,
+                color = chipFg,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(if (active) ChestnutPalette.PrimarySoft else ChestnutPalette.Surface)
-                    .border(
-                        1.dp,
-                        if (active) ChestnutPalette.Primary.copy(alpha = 0.32f) else ChestnutPalette.Border.copy(alpha = 0.54f),
-                        CircleShape
-                    )
+                    .background(chipBg)
+                    .border(1.dp, chipBorder, CircleShape)
                     .clickable { onSelect(key) }
                     .padding(horizontal = 15.dp, vertical = 9.dp)
             )

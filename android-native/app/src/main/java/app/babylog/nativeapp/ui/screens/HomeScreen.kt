@@ -148,7 +148,8 @@ internal fun HomeScreen(
                             TimelineRow(
                                 event,
                                 highlighted = event.id == highlightedEventId,
-                                onClick = { onOpenDetail(event) }
+                                onClick = { onOpenDetail(event) },
+                                modifier = Modifier.animateItem()
                             )
                         }
                     }
@@ -177,7 +178,8 @@ internal fun HomeScreen(
                         TimelineRow(
                             event,
                             highlighted = event.id == highlightedEventId,
-                            onClick = { onOpenDetail(event) }
+                            onClick = { onOpenDetail(event) },
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }

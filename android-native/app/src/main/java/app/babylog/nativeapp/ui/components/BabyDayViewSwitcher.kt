@@ -2,6 +2,7 @@
 
 package app.babylog.nativeapp
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,7 +11,9 @@ import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -51,13 +54,21 @@ private fun BabyDayModeButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val backgroundColor by animateColorAsState(
+        targetValue = if (selected) ChestnutPalette.Primary else ChestnutPalette.Surface,
+        label = "babyDayModeBackground"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) Color.White else ChestnutPalette.Muted,
+        label = "babyDayModeContent"
+    )
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(ChestnutRadius.Sheet),
         colors = ButtonDefaults.outlinedButtonColors(
-            backgroundColor = if (selected) ChestnutPalette.Primary else ChestnutPalette.Surface,
-            contentColor = if (selected) androidx.compose.ui.graphics.Color.White else ChestnutPalette.Muted
+            backgroundColor = backgroundColor,
+            contentColor = contentColor
         )
     ) {
         Text(text, fontWeight = FontWeight.Bold)
