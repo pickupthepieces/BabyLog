@@ -271,18 +271,22 @@ internal fun PregnancySummaryPanel(
 
 @Composable
 internal fun TrendPanel(events: List<BabyLogDomain.BabyLogEvent>, stage: String) {
+    if (stage == BabyLogDomain.STAGE_BABY) {
+        BabyGrowthTrendPanel(events)
+        return
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         TrendCard(
-            title = if (stage == BabyLogDomain.STAGE_BABY) "宝宝体重" else "胎儿 EFW",
-            value = if (stage == BabyLogDomain.STAGE_BABY) "暂无数据" else latestEfwValue(events),
-            subtitle = if (stage == BabyLogDomain.STAGE_BABY) "录入成长后显示" else latestUltrasoundCaption(events),
+            title = "胎儿 EFW",
+            value = latestEfwValue(events),
+            subtitle = latestUltrasoundCaption(events),
             tone = ChestnutPalette.Rose,
             modifier = Modifier.weight(1f)
         )
         TrendCard(
-            title = if (stage == BabyLogDomain.STAGE_BABY) "身长 / 头围" else "BPD / FL",
-            value = if (stage == BabyLogDomain.STAGE_BABY) "暂无数据" else latestBpdFlValue(events),
-            subtitle = if (stage == BabyLogDomain.STAGE_BABY) "录入儿保后显示" else latestUltrasoundCaption(events),
+            title = "BPD / FL",
+            value = latestBpdFlValue(events),
+            subtitle = latestUltrasoundCaption(events),
             tone = ChestnutPalette.Green,
             modifier = Modifier.weight(1f)
         )

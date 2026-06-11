@@ -102,7 +102,7 @@ internal fun BabyCareFormScreen(
                         label = labels.tertiary,
                         value = tertiary,
                         onValueChange = { tertiary = it },
-                        keyboardType = KeyboardType.Text,
+                        keyboardType = labels.tertiaryKeyboard,
                         options = labels.tertiaryOptions,
                         allowCustom = labels.tertiaryAllowCustom,
                         isTime = false

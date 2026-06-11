@@ -323,7 +323,7 @@ internal fun quickActionIcon(eventType: String): LineIcon {
         "screening_nt", "screening_serum", "screening_nipt", "screening_anomaly", "screening_ogtt", "screening_gbs", "screening_nst" -> LineIcon.Checkup
         "fetal_movement" -> LineIcon.Movement
         "contraction" -> LineIcon.Contraction
-        "maternal_metric" -> LineIcon.Metric
+        "maternal_metric", "growth" -> LineIcon.Metric
         "breastfeed" -> LineIcon.Breastfeed
         "bottle" -> LineIcon.Bottle
         "sleep" -> LineIcon.Sleep

@@ -2255,7 +2255,8 @@ public final class ComposeMainActivity : ComponentActivity() {
                 BabyLogService.QuickAction("睡眠", "", ChestnutPalette.VioletArgb, "sleep"),
                 BabyLogService.QuickAction("起床", "", ChestnutPalette.GreenArgb, "wake"),
                 BabyLogService.QuickAction("尿尿", "", ChestnutPalette.YellowArgb, "pee"),
-                BabyLogService.QuickAction("便便", "", ChestnutPalette.PeachArgb, "poop")
+                BabyLogService.QuickAction("便便", "", ChestnutPalette.PeachArgb, "poop"),
+                BabyLogService.QuickAction("成长", "体重 / 身长 / 头围", ChestnutPalette.BlueArgb, "growth")
             )
         }
         return emptyList()
@@ -2267,6 +2268,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             || eventType == "diaper"
             || eventType == "temperature"
             || eventType == "medication"
+            || eventType == "growth"
     }
 
     private fun isPregnancyFormAction(eventType: String): Boolean {

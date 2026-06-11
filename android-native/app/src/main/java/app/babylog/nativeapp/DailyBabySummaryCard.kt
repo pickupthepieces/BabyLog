@@ -46,7 +46,8 @@ private fun dailyBabySummaryRows(summary: BabyLogDailyBabySummary): List<DailyBa
         diaperSummaryRow(summary),
         temperatureSummaryRow(summary),
         medicationSummaryRow(summary),
-        milestoneSummaryRow(summary)
+        growthSummaryRow(summary),
+        summary.milestoneCount.takeIf { it > 0 }?.let { DailyBabySummaryRow("里程碑", countLabel(it)) }
     )
 }
 
@@ -92,8 +93,20 @@ private fun medicationSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySum
     return DailyBabySummaryRow("用药", "$name${summaryTimeSuffix(summary.medicationLastTime)}")
 }
 
-private fun milestoneSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
-    return if (summary.milestoneCount > 0) DailyBabySummaryRow("里程碑", countLabel(summary.milestoneCount)) else null
+private fun growthSummaryRow(summary: BabyLogDailyBabySummary): DailyBabySummaryRow? {
+    val parts = mutableListOf<String>()
+    if (!summary.growthWeightKg.isNaN()) {
+        parts += "体重 ${BabyLogFormatters.formatNumber(summary.growthWeightKg)} kg"
+    }
+    if (!summary.growthHeightCm.isNaN()) {
+        parts += "身长 ${BabyLogFormatters.formatNumber(summary.growthHeightCm)} cm"
+    }
+    if (!summary.growthHeadCircumferenceCm.isNaN()) {
+        parts += "头围 ${BabyLogFormatters.formatNumber(summary.growthHeadCircumferenceCm)} cm"
+    }
+    return parts.takeIf { it.isNotEmpty() }?.let {
+        DailyBabySummaryRow("成长", it.joinToString(" · ") + summaryTimeSuffix(summary.growthLastTime))
+    }
 }
 
 private fun summaryTimeSuffix(iso: String): String {

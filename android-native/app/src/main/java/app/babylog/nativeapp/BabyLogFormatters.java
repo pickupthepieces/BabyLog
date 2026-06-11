@@ -426,12 +426,20 @@ public final class BabyLogFormatters {
             return formatUltrasoundSummary(payload);
         }
         if ("milestone".equals(event.eventType)
-                || "growth".equals(event.eventType)
                 || "vaccine".equals(event.eventType)
                 || "illness".equals(event.eventType)) {
             return babyCareSummary(
                     event.eventType,
                     payload.optString("detail", ""),
+                    payload.optString("note", "")
+            );
+        }
+        if ("growth".equals(event.eventType)) {
+            return babyCareSummary(
+                    event.eventType,
+                    growthPart(payload, "weightKg", "体重", "kg"),
+                    growthPart(payload, "heightCm", "身长", "cm"),
+                    growthPart(payload, "headCircumferenceCm", "头围", "cm"),
                     payload.optString("note", "")
             );
         }
@@ -711,6 +719,17 @@ public final class BabyLogFormatters {
             summary.append(" · ");
         }
         summary.append(value.trim());
+    }
+
+    private static String growthPart(JSONObject payload, String key, String label, String unit) {
+        if (payload == null || !payload.has(key)) {
+            return "";
+        }
+        double value = payload.optDouble(key, Double.NaN);
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return "";
+        }
+        return label + " " + formatNumber(value) + " " + unit;
     }
 
     private static String sleepSummary(BabyLogDomain.BabyLogEvent event) {

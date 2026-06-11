@@ -10,6 +10,7 @@ internal data class BabyCareLabels(
     val note: String?,
     val primaryKeyboard: KeyboardType = KeyboardType.Text,
     val secondaryKeyboard: KeyboardType = KeyboardType.Text,
+    val tertiaryKeyboard: KeyboardType = KeyboardType.Text,
     val primaryOptions: List<Option>? = null,
     val secondaryOptions: List<Option>? = null,
     val tertiaryOptions: List<Option>? = null,
@@ -73,6 +74,7 @@ internal fun babyCareLabels(eventType: String): BabyCareLabels {
             secondaryAllowCustom = true
         )
         "medication" -> BabyCareLabels("药名", "剂量，例如 2 ml", "原因", null)
+        "growth" -> growthLabels
         "breastfeed" -> BabyCareLabels("左侧时长（分钟）", "右侧时长（分钟）", "备注", null, KeyboardType.Decimal, KeyboardType.Decimal)
         "bottle" -> BabyCareLabels("奶量 mL", "品牌", "备注", null, KeyboardType.Decimal, KeyboardType.Text)
         "wake" -> BabyCareLabels("状态，例如 自然醒 / 哭醒", "备注", null, null)
@@ -81,6 +83,16 @@ internal fun babyCareLabels(eventType: String): BabyCareLabels {
         else -> BabyCareLabels("详情", "备注", null, null)
     }
 }
+
+private val growthLabels = BabyCareLabels(
+    "体重 kg",
+    "身长 cm",
+    "头围 cm",
+    "备注",
+    KeyboardType.Decimal,
+    KeyboardType.Decimal,
+    KeyboardType.Decimal
+)
 
 private val feedMethodOptions = listOf(
     Option("母乳", "母乳"),
@@ -174,6 +186,7 @@ internal fun buildBabyCareInput(
         "diaper" -> BabyLogService.BabyCareInput.diaper(primary, secondary, tertiary, note)
         "temperature" -> BabyLogService.BabyCareInput.temperature(primary, secondary, note)
         "medication" -> BabyLogService.BabyCareInput.medication(primary, secondary, tertiary)
+        "growth" -> BabyLogService.BabyCareInput.growth(primary, secondary, tertiary, note)
         "breastfeed" -> BabyLogService.BabyCareInput.breastfeed(primary, secondary, tertiary)
         "bottle" -> BabyLogService.BabyCareInput.bottle(primary, secondary, tertiary)
         "wake", "pee", "poop" -> BabyLogService.BabyCareInput.quick(eventType, primary, secondary)

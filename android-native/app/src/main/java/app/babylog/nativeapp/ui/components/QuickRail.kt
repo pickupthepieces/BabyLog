@@ -214,6 +214,7 @@ private val quickRailGlyphKinds = mapOf(
     "fetal_movement" to QuickRailGlyphKind.Movement,
     "contraction" to QuickRailGlyphKind.Contraction,
     "maternal_metric" to QuickRailGlyphKind.Metric,
+    "growth" to QuickRailGlyphKind.Metric,
     "breastfeed" to QuickRailGlyphKind.Breastfeed,
     "feed" to QuickRailGlyphKind.Breastfeed,
     "bottle" to QuickRailGlyphKind.Bottle,

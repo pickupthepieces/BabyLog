@@ -530,6 +530,11 @@ public final class BabyLogService {
             putStringIfNotBlank(payload, "dosage", input.secondary);
             putStringIfNotBlank(payload, "reason", input.tertiary);
             putStringIfNotBlank(payload, "note", input.note);
+        } else if ("growth".equals(input.eventType)) {
+            putNumberIfNotNull(payload, "weightKg", BabyLogFormatters.parseOptionalNumber(input.primary));
+            putNumberIfNotNull(payload, "heightCm", BabyLogFormatters.parseOptionalNumber(input.secondary));
+            putNumberIfNotNull(payload, "headCircumferenceCm", BabyLogFormatters.parseOptionalNumber(input.tertiary));
+            putStringIfNotBlank(payload, "note", input.note);
         } else {
             putStringIfNotBlank(payload, "detail", input.primary);
             putStringIfNotBlank(payload, "note", input.secondary);
@@ -693,6 +698,11 @@ public final class BabyLogService {
             appendSummary(summary, input.primary);
             appendSummary(summary, input.secondary);
             appendSummary(summary, input.tertiary);
+        } else if ("growth".equals(input.eventType)) {
+            appendGrowthSummary(summary, BabyLogFormatters.parseOptionalNumber(input.primary), "体重", "kg");
+            appendGrowthSummary(summary, BabyLogFormatters.parseOptionalNumber(input.secondary), "身长", "cm");
+            appendGrowthSummary(summary, BabyLogFormatters.parseOptionalNumber(input.tertiary), "头围", "cm");
+            appendSummary(summary, input.note);
         } else {
             appendSummary(summary, input.primary);
             appendSummary(summary, input.secondary);
@@ -744,6 +754,11 @@ public final class BabyLogService {
             putDraftField(values, "primary", payload.optString("medicationName"));
             putDraftField(values, "secondary", payload.optString("dosage"));
             putDraftField(values, "tertiary", payload.optString("reason"));
+        } else if ("growth".equals(eventType)) {
+            putDraftField(values, "primary", payloadNumberText(payload, "weightKg"));
+            putDraftField(values, "secondary", payloadNumberText(payload, "heightCm"));
+            putDraftField(values, "tertiary", payloadNumberText(payload, "headCircumferenceCm"));
+            putDraftField(values, "note", payload.optString("note"));
         } else {
             putDraftField(values, "primary", payload.optString("detail"));
             putDraftField(values, "secondary", payload.optString("note"));
@@ -1366,6 +1381,13 @@ public final class BabyLogService {
         summary.append(value.trim());
     }
 
+    private static void appendGrowthSummary(StringBuilder summary, Double value, String label, String unit) {
+        if (value == null) {
+            return;
+        }
+        appendSummary(summary, label + " " + BabyLogFormatters.formatNumber(value) + " " + unit);
+    }
+
     private static void putDraftField(Map<String, String> values, String key, String value) {
         if (!isBlank(value)) {
             values.put(key, value.trim());
@@ -1749,6 +1771,10 @@ public final class BabyLogService {
 
         public static BabyCareInput medication(String medicationName, String dosage, String reason) {
             return new BabyCareInput("medication", medicationName, dosage, reason, "");
+        }
+
+        public static BabyCareInput growth(String weightKg, String heightCm, String headCircumferenceCm, String note) {
+            return new BabyCareInput("growth", weightKg, heightCm, headCircumferenceCm, note);
         }
 
         public static BabyCareInput quick(String eventType, String detail, String note) {

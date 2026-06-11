@@ -32,7 +32,8 @@ final class BabyLogDailySummaryCalculator {
                 || "diaper".equals(eventType)
                 || "temperature".equals(eventType)
                 || "medication".equals(eventType)
-                || "milestone".equals(eventType);
+                || "milestone".equals(eventType)
+                || "growth".equals(eventType);
     }
 
     private static boolean isFeedSummaryEvent(String eventType) {
@@ -91,6 +92,10 @@ final class BabyLogDailySummaryCalculator {
         private String medicationLastName = "";
         private String medicationLastTime = "";
         private int milestoneCount;
+        private double growthWeightKg = Double.NaN;
+        private double growthHeightCm = Double.NaN;
+        private double growthHeadCircumferenceCm = Double.NaN;
+        private String growthLastTime = "";
 
         Builder(String dateInput) {
             this.dateInput = dateInput;
@@ -114,6 +119,8 @@ final class BabyLogDailySummaryCalculator {
                 acceptMedication(event, payload);
             } else if ("milestone".equals(event.eventType)) {
                 milestoneCount += 1;
+            } else if ("growth".equals(event.eventType)) {
+                acceptGrowth(event, payload);
             }
         }
 
@@ -167,6 +174,22 @@ final class BabyLogDailySummaryCalculator {
             }
         }
 
+        private void acceptGrowth(BabyLogDomain.BabyLogEvent event, JSONObject payload) {
+            if (!isNewer(event.occurredAt, growthLastTime)) {
+                return;
+            }
+            Double weight = payloadNumber(payload, "weightKg");
+            Double height = payloadNumber(payload, "heightCm");
+            Double head = payloadNumber(payload, "headCircumferenceCm");
+            if (weight == null && height == null && head == null) {
+                return;
+            }
+            growthLastTime = event.occurredAt;
+            growthWeightKg = weight == null ? Double.NaN : weight;
+            growthHeightCm = height == null ? Double.NaN : height;
+            growthHeadCircumferenceCm = head == null ? Double.NaN : head;
+        }
+
         BabyLogDailyBabySummary build() {
             return new BabyLogDailyBabySummary(
                     dateInput,
@@ -183,7 +206,11 @@ final class BabyLogDailySummaryCalculator {
                     temperatureLastTime,
                     medicationLastName,
                     medicationLastTime,
-                    milestoneCount
+                    milestoneCount,
+                    growthWeightKg,
+                    growthHeightCm,
+                    growthHeadCircumferenceCm,
+                    growthLastTime
             );
         }
     }

@@ -16,6 +16,10 @@ public final class BabyLogDailyBabySummary {
     public final String medicationLastName;
     public final String medicationLastTime;
     public final int milestoneCount;
+    public final double growthWeightKg;
+    public final double growthHeightCm;
+    public final double growthHeadCircumferenceCm;
+    public final String growthLastTime;
 
     public BabyLogDailyBabySummary(
             String dateInput,
@@ -32,7 +36,11 @@ public final class BabyLogDailyBabySummary {
             String temperatureLastTime,
             String medicationLastName,
             String medicationLastTime,
-            int milestoneCount
+            int milestoneCount,
+            double growthWeightKg,
+            double growthHeightCm,
+            double growthHeadCircumferenceCm,
+            String growthLastTime
     ) {
         this.dateInput = dateInput == null ? "" : dateInput;
         this.feedCount = feedCount;
@@ -49,5 +57,9 @@ public final class BabyLogDailyBabySummary {
         this.medicationLastName = medicationLastName == null ? "" : medicationLastName;
         this.medicationLastTime = medicationLastTime == null ? "" : medicationLastTime;
         this.milestoneCount = milestoneCount;
+        this.growthWeightKg = growthWeightKg;
+        this.growthHeightCm = growthHeightCm;
+        this.growthHeadCircumferenceCm = growthHeadCircumferenceCm;
+        this.growthLastTime = growthLastTime == null ? "" : growthLastTime;
     }
 }

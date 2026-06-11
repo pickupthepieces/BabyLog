@@ -107,6 +107,31 @@ public final class BabyLogServiceSmokeTest {
                 )
         );
         assertEquals(
+                "成长 · 体重 7.2 kg · 身长 65 cm · 头围 42 cm · 满月儿保",
+                BabyLogService.formatBabyCareSummary(
+                BabyLogService.BabyCareInput.growth("7.2", "65", "42", "满月儿保")
+                )
+        );
+        JSONObject growthPayload = BabyLogService.buildBabyCarePayload(
+                BabyLogService.BabyCareInput.growth("7.2", "65", "42", "满月儿保")
+        );
+        assertNear(7.2, growthPayload.optDouble("weightKg"), 0.001);
+        assertNear(65.0, growthPayload.optDouble("heightCm"), 0.001);
+        assertNear(42.0, growthPayload.optDouble("headCircumferenceCm"), 0.001);
+        assertEquals("满月儿保", growthPayload.optString("note"));
+        assertFalse(growthPayload.has("summary"));
+        String growthSummary = BabyLogFormatters.eventSummary(
+                babyEvent("growth", "2026-05-25T18:30:00.000+0800", growthPayload)
+        );
+        assertContains(growthSummary, "体重 7.2 kg");
+        assertContains(growthSummary, "身长 65 cm");
+        assertContains(growthSummary, "头围 42 cm");
+        Map<String, String> growthDraft = BabyLogService.babyCareDraftFields("growth", growthPayload);
+        assertEquals("7.2", growthDraft.get("primary"));
+        assertEquals("65", growthDraft.get("secondary"));
+        assertEquals("42", growthDraft.get("tertiary"));
+        assertEquals("满月儿保", growthDraft.get("note"));
+        assertEquals(
                 "喂养 · 待补充详情",
                 BabyLogService.formatBabyCareSummary(BabyLogService.BabyCareInput.feed("", "", ""))
         );
@@ -518,6 +543,10 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("", empty.medicationLastName);
         assertEquals("", empty.medicationLastTime);
         assertEquals(0, empty.milestoneCount);
+        assertTrue(Double.isNaN(empty.growthWeightKg));
+        assertTrue(Double.isNaN(empty.growthHeightCm));
+        assertTrue(Double.isNaN(empty.growthHeadCircumferenceCm));
+        assertEquals("", empty.growthLastTime);
 
         BabyLogRepository repository = BabyLogRepository.forSmokeTest();
         repository.putEvent(babyEvent("feed", "2026-05-25T08:00:00.000+0800",
@@ -546,6 +575,10 @@ public final class BabyLogServiceSmokeTest {
         JSONObject milestonePayload = new JSONObject();
         milestonePayload.put("detail", "会翻身");
         repository.putEvent(babyEvent("milestone", "2026-05-25T17:00:00.000+0800", milestonePayload));
+        repository.putEvent(babyEvent("growth", "2026-05-25T07:30:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.growth("7", "64", "41.5", ""))));
+        repository.putEvent(babyEvent("growth", "2026-05-25T18:30:00.000+0800",
+                BabyLogService.buildBabyCarePayload(BabyLogService.BabyCareInput.growth("7.2", "65", "42", "满月儿保"))));
         repository.putEvent(babyEvent("ultrasound", "2026-05-25T18:00:00.000+0800", new JSONObject()));
 
         BabyLogService service = BabyLogService.forSmokeTest(repository);
@@ -565,10 +598,16 @@ public final class BabyLogServiceSmokeTest {
         assertEquals("布洛芬", day.medicationLastName);
         assertEquals("2026-05-25T16:00:00.000+0800", day.medicationLastTime);
         assertEquals(1, day.milestoneCount);
+        assertNear(7.2, day.growthWeightKg, 0.001);
+        assertNear(65.0, day.growthHeightCm, 0.001);
+        assertNear(42.0, day.growthHeadCircumferenceCm, 0.001);
+        assertEquals("2026-05-25T18:30:00.000+0800", day.growthLastTime);
 
         BabyLogDailyBabySummary nextDay = service.dailyBabySummary("2026-05-26");
         assertEquals(0, nextDay.sleepTotalMinutes);
         assertEquals(0, nextDay.feedCount);
+        assertTrue(Double.isNaN(nextDay.growthWeightKg));
+        assertEquals("", nextDay.growthLastTime);
     }
 
     private static BabyLogDomain.BabyLogEvent babyEvent(String eventType, String occurredAt, JSONObject payload) {
