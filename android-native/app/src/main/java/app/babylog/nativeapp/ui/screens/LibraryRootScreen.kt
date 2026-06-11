@@ -180,8 +180,7 @@ private fun LibraryTypeFilters(selected: String, onSelect: (String) -> Unit) {
         "all" to "全部",
         "ultrasound_image" to "B 超单",
         "document_image" to "检查单",
-        "vaccine_image" to "疫苗本",
-        "other" to "其他"
+        "vaccine_image" to "疫苗本"
     )
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),

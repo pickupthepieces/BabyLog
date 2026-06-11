@@ -34,17 +34,6 @@ internal fun stageLabel(stage: String): String {
     }
 }
 
-internal fun stageOverrideLabel(stageOverride: String): String {
-    return when (stageOverride) {
-        BabyLogDomain.STAGE_PREGNANCY -> "孕期中"
-        BabyLogDomain.STAGE_BABY -> "出生后"
-        BabyLogDomain.STAGE_PREGNANCY_ENDED -> "妊娠结束"
-        BabyLogDomain.STAGE_PAUSED -> "暂停"
-        BabyLogDomain.STAGE_UNKNOWN -> "待补档案"
-        else -> "自动"
-    }
-}
-
 internal fun normalizeSexInput(value: String): String {
     val normalized = value.trim().lowercase(Locale.US)
     return when (normalized) {

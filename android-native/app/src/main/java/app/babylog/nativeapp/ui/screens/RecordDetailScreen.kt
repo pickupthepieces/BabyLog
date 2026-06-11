@@ -112,9 +112,8 @@ internal fun RecordDetailScreen(
         item {
             SettingsPanel("元数据") {
                 DetailField("记录 ID", event.id)
-                DetailField("来源", event.source)
-                DetailField("创建时间", event.createdAt)
-                DetailField("更新时间", event.updatedAt)
+                DetailField("创建时间", BabyLogFormatters.formatDateTime(event.createdAt))
+                DetailField("更新时间", BabyLogFormatters.formatDateTime(event.updatedAt))
                 DetailField("更新者", event.updatedBy)
             }
         }

@@ -454,12 +454,10 @@ internal fun LibraryScreen(
     val pregnancyEntries = listOf(
         LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "已保存本机；表单内可识别字段", LineIcon.Ultrasound, "ultrasound_image", ultrasoundAttachments),
         LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, "document_image", documentAttachments),
-        LibraryEntry("出生证明", "规划中", "出生资料归档", LineIcon.File, "other", null),
-        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, "vaccine_image", vaccineAttachments)
+        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可提前导入附件", LineIcon.Vaccine, "vaccine_image", vaccineAttachments)
     )
     val babyEntries = listOf(
-        LibraryEntry("出生证明", "规划中", "出生资料归档", LineIcon.File, "other", null),
-        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "出生后启用；可显示已导入附件", LineIcon.Vaccine, "vaccine_image", vaccineAttachments),
+        LibraryEntry("疫苗本", attachmentCount(vaccineAttachments), "接种页照片归档", LineIcon.Vaccine, "vaccine_image", vaccineAttachments),
         LibraryEntry("B 超单", attachmentCount(ultrasoundAttachments), "孕期资料仍可查看", LineIcon.Ultrasound, "ultrasound_image", ultrasoundAttachments),
         LibraryEntry("检查单", attachmentCount(documentAttachments), "孕期常规检查、血检报告", LineIcon.Checkup, "document_image", documentAttachments)
     )
@@ -504,6 +502,8 @@ internal fun SettingsScreen(
     onOpenReminderCenter: () -> Unit,
     onEditProfile: () -> Unit
 ) {
+    val stage = currentCareStage(state.childProfile)
+    val isBabyStage = stage == BabyLogDomain.STAGE_BABY
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SettingsPanel("档案") {
             ActionRow(
@@ -515,38 +515,37 @@ internal fun SettingsScreen(
             SettingsDivider()
             ActionRow(
                 title = "记录阶段",
-                subtitle = stageLabel(currentCareStage(state.childProfile)),
+                subtitle = stageLabel(stage),
                 action = "编辑",
                 onClick = onEditProfile
             )
             SettingsDivider()
             ActionRow(
-                title = "预产期 / 出生日期",
-                subtitle = "预产期 ${state.childProfile.expectedDueDate.ifBlank { "待补" }} · 出生 ${state.childProfile.birthDate.ifBlank { "待补" }}",
+                title = if (isBabyStage) "出生日期" else "预产期 / 出生日期",
+                subtitle = if (isBabyStage) {
+                    state.childProfile.birthDate.ifBlank { "待补" }
+                } else {
+                    "预产期 ${state.childProfile.expectedDueDate.ifBlank { "待补" }} · 出生 ${state.childProfile.birthDate.ifBlank { "待补" }}"
+                },
                 action = "编辑",
                 onClick = onEditProfile
             )
-            SettingsDivider()
-            ActionRow(
-                title = "阶段覆盖",
-                subtitle = stageOverrideLabel(state.childProfile.stageOverride),
-                action = "编辑",
-                onClick = onEditProfile
-            )
-            SettingsDivider()
-            ActionRow(
-                title = "预产期计算器",
-                subtitle = "LMP、周期与早期 B 超 CRL 推算",
-                action = "打开",
-                onClick = onOpenDueDateCalculator
-            )
-            SettingsDivider()
-            ActionRow(
-                title = "孕期增重曲线",
-                subtitle = "IOM 参考带与体重历史",
-                action = "查看",
-                onClick = onOpenWeightGain
-            )
+            if (!isBabyStage) {
+                SettingsDivider()
+                ActionRow(
+                    title = "预产期计算器",
+                    subtitle = "LMP、周期与早期 B 超 CRL 推算",
+                    action = "打开",
+                    onClick = onOpenDueDateCalculator
+                )
+                SettingsDivider()
+                ActionRow(
+                    title = "孕期增重曲线",
+                    subtitle = "IOM 参考带与体重历史",
+                    action = "查看",
+                    onClick = onOpenWeightGain
+                )
+            }
             SettingsDivider()
             ActionRow(
                 title = "待问问题",
@@ -646,7 +645,7 @@ internal fun SettingsScreen(
             ActionRow(
                 title = "本机占用",
                 subtitle = "记录和附件 ${BabyLogFormatters.formatByteSize(state.dashboard?.localBytes ?: 0)}",
-                action = "查看",
+                action = "",
                 onClick = null
             )
             SettingsDivider()

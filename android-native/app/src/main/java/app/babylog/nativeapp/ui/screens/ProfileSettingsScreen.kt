@@ -83,33 +83,39 @@ internal fun ProfileSettingsScreen(
                 onSelect = { sex = it }
             )
         }
-        item {
-            DateInputRow("预产期", expectedDueDate, { expectedDueDate = it })
-            TextButton(
-                onClick = {
-                    onOpenDueDateCalculator(
-                        ProfileInput(
-                            nickname.trim(),
-                            sex.trim(),
-                            expectedDueDate.trim(),
-                            birthDate.trim(),
-                            prePregnancyWeightKg.trim(),
-                            heightCm.trim(),
-                            stageOverride.trim()
-                        ),
-                        state.firstRun
-                    )
+        if (stageOverride != BabyLogDomain.STAGE_BABY) {
+            item {
+                DateInputRow("预产期", expectedDueDate, { expectedDueDate = it })
+                TextButton(
+                    onClick = {
+                        onOpenDueDateCalculator(
+                            ProfileInput(
+                                nickname.trim(),
+                                sex.trim(),
+                                expectedDueDate.trim(),
+                                birthDate.trim(),
+                                prePregnancyWeightKg.trim(),
+                                heightCm.trim(),
+                                stageOverride.trim()
+                            ),
+                            state.firstRun
+                        )
+                    }
+                ) {
+                    Text("按 LMP / CRL 推算预产期", color = ChestnutPalette.Primary)
                 }
-            ) {
-                Text("按 LMP / CRL 推算预产期", color = ChestnutPalette.Primary)
             }
         }
-        item { DateInputRow("出生日期", birthDate, { birthDate = it }) }
-        item {
-            UnitInputRow("孕前体重", prePregnancyWeightKg, { prePregnancyWeightKg = it }, "kg")
+        if (stageOverride != BabyLogDomain.STAGE_PREGNANCY) {
+            item { DateInputRow("出生日期", birthDate, { birthDate = it }) }
         }
-        item {
-            UnitInputRow("身高", heightCm, { heightCm = it }, "cm")
+        if (stageOverride != BabyLogDomain.STAGE_BABY) {
+            item {
+                UnitInputRow("孕前体重", prePregnancyWeightKg, { prePregnancyWeightKg = it }, "kg")
+            }
+            item {
+                UnitInputRow("身高", heightCm, { heightCm = it }, "cm")
+            }
         }
         item {
             ChoiceChipRow(

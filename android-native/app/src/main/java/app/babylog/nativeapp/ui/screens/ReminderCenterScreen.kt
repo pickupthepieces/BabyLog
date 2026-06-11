@@ -232,7 +232,7 @@ private fun ReminderRow(
             listOf(
                 reminderKindLabel(reminder.kind),
                 reminder.dueAtIso.take(16).replace("T", " "),
-                if (muted) "已静音" else if (!reminder.enabled) "已关闭" else "",
+                if (muted) "已静音" else if (!reminder.enabled) "已停用" else "",
                 if (reminder.dismissedAt.isNotBlank()) "已忽略" else "",
                 if (reminder.completedAt.isNotBlank()) "已完成" else ""
             ).filter { it.isNotBlank() }.joinToString(" · "),
@@ -244,7 +244,7 @@ private fun ReminderRow(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(modifier = Modifier.weight(1f), onClick = onToggle) {
-                Text(if (reminder.enabled) "关闭" else "开启", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
+                Text(if (reminder.enabled) "停用" else "启用", color = ChestnutPalette.Primary, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(modifier = Modifier.weight(1f), onClick = onDismiss) {
                 Text("忽略", color = ChestnutPalette.Muted, fontWeight = FontWeight.Bold)

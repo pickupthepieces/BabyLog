@@ -1,8 +1,10 @@
 package app.babylog.nativeapp
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -12,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -113,11 +117,27 @@ internal fun SyncSettingsScreen(
             }
         }
         item {
-            Text(
-                "待同步：$pendingSyncCount 条\n已推送：$syncedSyncCount 条\n失败：$failedSyncCount 条\n附件待上传：$pendingAttachmentUploadCount 个 / ${BabyLogFormatters.formatByteSize(pendingAttachmentUploadBytes)}\n附件待下载：$pendingAttachmentDownloadCount 个\n上次拉取：${formatLastPulledAt(lastPulledAt)}\n本轮新拉取：$remoteUpdateBannerCount 条",
-                color = ChestnutPalette.Muted,
-                fontSize = 13.sp
-            )
+            SettingsPanel("同步状态") {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SyncStatusLine("待同步", "$pendingSyncCount 条")
+                    SyncStatusLine("已推送", "$syncedSyncCount 条")
+                    SyncStatusLine(
+                        "失败",
+                        "$failedSyncCount 条",
+                        valueColor = if (failedSyncCount > 0) ChestnutPalette.Danger else ChestnutPalette.Ink
+                    )
+                    SyncStatusLine(
+                        "附件待上传",
+                        "$pendingAttachmentUploadCount 个 / ${BabyLogFormatters.formatByteSize(pendingAttachmentUploadBytes)}"
+                    )
+                    SyncStatusLine("附件待下载", "$pendingAttachmentDownloadCount 个")
+                    SyncStatusLine("上次拉取", formatLastPulledAt(lastPulledAt))
+                    SyncStatusLine("本轮新拉取", "$remoteUpdateBannerCount 条")
+                }
+            }
         }
         if (pendingAttachmentUploadCount > 0) {
             item {
@@ -140,6 +160,22 @@ internal fun SyncSettingsScreen(
                 Text(pushMessage, color = ChestnutPalette.Muted, fontSize = 13.sp)
             }
         }
+    }
+}
+
+@Composable
+@Suppress("FunctionNaming")
+private fun SyncStatusLine(
+    label: String,
+    value: String,
+    valueColor: Color = ChestnutPalette.Ink
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = ChestnutPalette.Muted, fontSize = 13.sp)
+        Text(value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

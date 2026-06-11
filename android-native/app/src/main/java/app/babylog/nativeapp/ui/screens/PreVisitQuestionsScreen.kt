@@ -84,7 +84,7 @@ internal fun PreVisitQuestionsScreen(
                         placeholder = "例如：这次报告里哪些项目需要医生解释？"
                     )
                     DateInputRow(
-                        label = "关联产检日期",
+                        label = "关联复诊日期",
                         value = visitDate,
                         onValueChange = { visitDate = it }
                     )
