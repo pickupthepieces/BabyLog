@@ -250,7 +250,7 @@ private enum class QuickRailGlyphKind(val draw: DrawScope.(Color) -> Unit) {
     File({ color -> drawFileGlyph(color) })
 }
 
-private fun DrawScope.railStroke(widthRatio: Float = 0.075f): Stroke {
+private fun DrawScope.railStroke(widthRatio: Float = 0.085f): Stroke {
     return Stroke(
         width = size.minDimension * widthRatio,
         cap = StrokeCap.Round,
@@ -258,214 +258,197 @@ private fun DrawScope.railStroke(widthRatio: Float = 0.075f): Stroke {
     )
 }
 
+// B 超：探头扇形（两条边线 + 底弧）
 private fun DrawScope.drawUltrasoundGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawRoundRect(
+    drawLine(tint, Offset(w * 0.50f, h * 0.16f), Offset(w * 0.235f, h * 0.62f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.50f, h * 0.16f), Offset(w * 0.765f, h * 0.62f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawArc(
         color = tint,
-        topLeft = Offset(w * 0.13f, h * 0.18f),
-        size = Size(w * 0.74f, h * 0.52f),
-        cornerRadius = CornerRadius(w * 0.10f, h * 0.10f),
+        startAngle = 60f,
+        sweepAngle = 60f,
+        useCenter = false,
+        topLeft = Offset(w * 0.50f - w * 0.53f, h * 0.16f - h * 0.53f),
+        size = Size(w * 1.06f, h * 1.06f),
         style = stroke
     )
-    drawLine(tint, Offset(w * 0.26f, h * 0.50f), Offset(w * 0.38f, h * 0.42f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.38f, h * 0.42f), Offset(w * 0.50f, h * 0.55f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.50f, h * 0.55f), Offset(w * 0.66f, h * 0.36f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.40f, h * 0.78f), Offset(w * 0.60f, h * 0.78f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.50f, h * 0.70f), Offset(w * 0.50f, h * 0.78f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawArc(
+        color = tint,
+        startAngle = 60f,
+        sweepAngle = 60f,
+        useCenter = false,
+        topLeft = Offset(w * 0.50f - w * 0.30f, h * 0.16f - h * 0.30f),
+        size = Size(w * 0.60f, h * 0.60f),
+        style = stroke
+    )
 }
 
+// 产检：写字板 + 对勾
 private fun DrawScope.drawCheckupGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
     drawRoundRect(
         color = tint,
-        topLeft = Offset(w * 0.24f, h * 0.18f),
-        size = Size(w * 0.52f, h * 0.68f),
-        cornerRadius = CornerRadius(w * 0.08f, h * 0.08f),
+        topLeft = Offset(w * 0.26f, h * 0.14f),
+        size = Size(w * 0.48f, h * 0.72f),
+        cornerRadius = CornerRadius(w * 0.10f, h * 0.10f),
         style = stroke
     )
-    drawRoundRect(
-        color = tint,
-        topLeft = Offset(w * 0.38f, h * 0.10f),
-        size = Size(w * 0.24f, h * 0.18f),
-        cornerRadius = CornerRadius(w * 0.08f, h * 0.08f),
-        style = stroke
-    )
-    drawLine(tint, Offset(w * 0.36f, h * 0.50f), Offset(w * 0.45f, h * 0.60f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.45f, h * 0.60f), Offset(w * 0.64f, h * 0.42f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.38f, h * 0.50f), Offset(w * 0.47f, h * 0.60f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.47f, h * 0.60f), Offset(w * 0.64f, h * 0.40f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
+// NT：颈部弧线 + 卡尺测量线
 private fun DrawScope.drawNtGlyph(tint: Color) {
-    val stroke = railStroke(0.082f)
+    val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawArc(
-        color = tint,
-        startAngle = 145f,
-        sweepAngle = 250f,
-        useCenter = false,
-        topLeft = Offset(w * 0.18f, h * 0.20f),
-        size = Size(w * 0.62f, h * 0.56f),
-        style = stroke
-    )
-    drawCircle(tint, radius = w * 0.05f, center = Offset(w * 0.56f, h * 0.45f))
-    drawArc(
-        color = tint,
-        startAngle = 20f,
-        sweepAngle = 120f,
-        useCenter = false,
-        topLeft = Offset(w * 0.46f, h * 0.48f),
-        size = Size(w * 0.22f, h * 0.18f),
-        style = stroke
-    )
-    drawLine(tint, Offset(w * 0.64f, h * 0.34f), Offset(w * 0.80f, h * 0.22f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    val curve = Path().apply {
+        moveTo(w * 0.24f, h * 0.40f)
+        cubicTo(w * 0.41f, h * 0.20f, w * 0.59f, h * 0.20f, w * 0.76f, h * 0.40f)
+    }
+    drawPath(curve, tint, style = stroke)
+    drawLine(tint, Offset(w * 0.28f, h * 0.68f), Offset(w * 0.72f, h * 0.68f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.28f, h * 0.58f), Offset(w * 0.28f, h * 0.78f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.72f, h * 0.58f), Offset(w * 0.72f, h * 0.78f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
+// 唐筛：试管 + 液面线
 private fun DrawScope.drawSerumGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawLine(tint, Offset(w * 0.38f, h * 0.18f), Offset(w * 0.68f, h * 0.18f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.48f, h * 0.18f), Offset(w * 0.36f, h * 0.72f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.58f, h * 0.18f), Offset(w * 0.70f, h * 0.72f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.36f, h * 0.72f), Offset(w * 0.70f, h * 0.72f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.42f, h * 0.54f), Offset(w * 0.64f, h * 0.54f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawCircle(tint, radius = w * 0.045f, center = Offset(w * 0.30f, h * 0.30f))
-    drawCircle(tint, radius = w * 0.035f, center = Offset(w * 0.76f, h * 0.38f))
+    val tube = Path().apply {
+        moveTo(w * 0.38f, h * 0.14f)
+        lineTo(w * 0.38f, h * 0.64f)
+        cubicTo(w * 0.38f, h * 0.86f, w * 0.62f, h * 0.86f, w * 0.62f, h * 0.64f)
+        lineTo(w * 0.62f, h * 0.14f)
+    }
+    drawPath(tube, tint, style = stroke)
+    drawLine(tint, Offset(w * 0.38f, h * 0.52f), Offset(w * 0.62f, h * 0.52f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
+// 无创 DNA：两条交叉螺旋线
 private fun DrawScope.drawNiptGlyph(tint: Color) {
-    val stroke = railStroke(0.070f)
+    val stroke = railStroke()
     val w = size.width
     val h = size.height
     val left = Path().apply {
-        moveTo(w * 0.32f, h * 0.18f)
-        cubicTo(w * 0.68f, h * 0.30f, w * 0.28f, h * 0.48f, w * 0.66f, h * 0.62f)
-        cubicTo(w * 0.78f, h * 0.68f, w * 0.70f, h * 0.80f, w * 0.50f, h * 0.84f)
+        moveTo(w * 0.36f, h * 0.14f)
+        cubicTo(w * 0.74f, h * 0.34f, w * 0.26f, h * 0.62f, w * 0.64f, h * 0.86f)
     }
     val right = Path().apply {
-        moveTo(w * 0.68f, h * 0.18f)
-        cubicTo(w * 0.32f, h * 0.30f, w * 0.72f, h * 0.48f, w * 0.34f, h * 0.62f)
-        cubicTo(w * 0.22f, h * 0.68f, w * 0.30f, h * 0.80f, w * 0.50f, h * 0.84f)
+        moveTo(w * 0.64f, h * 0.14f)
+        cubicTo(w * 0.26f, h * 0.34f, w * 0.74f, h * 0.62f, w * 0.36f, h * 0.86f)
     }
     drawPath(left, tint, style = stroke)
     drawPath(right, tint, style = stroke)
-    listOf(0.28f, 0.43f, 0.58f, 0.73f).forEach { y ->
-        drawLine(tint, Offset(w * 0.38f, h * y), Offset(w * 0.62f, h * y), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    }
 }
 
+// 大排畸：放大镜
 private fun DrawScope.drawAnomalyGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawRoundRect(
-        color = tint,
-        topLeft = Offset(w * 0.17f, h * 0.17f),
-        size = Size(w * 0.66f, h * 0.66f),
-        cornerRadius = CornerRadius(w * 0.10f, h * 0.10f),
-        style = stroke
-    )
-    drawLine(tint, Offset(w * 0.50f, h * 0.20f), Offset(w * 0.50f, h * 0.80f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.20f, h * 0.50f), Offset(w * 0.80f, h * 0.50f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawCircle(tint, radius = w * 0.045f, center = Offset(w * 0.36f, h * 0.36f))
-    drawCircle(tint, radius = w * 0.045f, center = Offset(w * 0.64f, h * 0.64f))
+    drawCircle(tint, radius = w * 0.23f, center = Offset(w * 0.43f, h * 0.41f), style = stroke)
+    drawLine(tint, Offset(w * 0.60f, h * 0.58f), Offset(w * 0.80f, h * 0.78f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
+// 糖耐：杯子 + 吸管
 private fun DrawScope.drawOgttGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawRoundRect(
-        color = tint,
-        topLeft = Offset(w * 0.26f, h * 0.24f),
-        size = Size(w * 0.40f, h * 0.58f),
-        cornerRadius = CornerRadius(w * 0.10f, h * 0.10f),
-        style = stroke
-    )
-    drawArc(tint, startAngle = -70f, sweepAngle = 150f, useCenter = false, topLeft = Offset(w * 0.58f, h * 0.40f), size = Size(w * 0.24f, h * 0.22f), style = stroke)
-    val drop = Path().apply {
-        moveTo(w * 0.42f, h * 0.42f)
-        cubicTo(w * 0.34f, h * 0.53f, w * 0.36f, h * 0.62f, w * 0.43f, h * 0.64f)
-        cubicTo(w * 0.51f, h * 0.62f, w * 0.52f, h * 0.53f, w * 0.42f, h * 0.42f)
+    val cup = Path().apply {
+        moveTo(w * 0.26f, h * 0.34f)
+        lineTo(w * 0.33f, h * 0.82f)
+        lineTo(w * 0.67f, h * 0.82f)
+        lineTo(w * 0.74f, h * 0.34f)
+        close()
     }
-    drawPath(drop, tint, style = stroke)
+    drawPath(cup, tint, style = stroke)
+    drawLine(tint, Offset(w * 0.70f, h * 0.12f), Offset(w * 0.56f, h * 0.42f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
+// GBS：棉签（斜杆 + 圆头）
 private fun DrawScope.drawGbsGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawLine(tint, Offset(w * 0.30f, h * 0.78f), Offset(w * 0.72f, h * 0.24f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawCircle(tint, radius = w * 0.10f, center = Offset(w * 0.72f, h * 0.24f), style = stroke)
-    drawLine(tint, Offset(w * 0.30f, h * 0.78f), Offset(w * 0.18f, h * 0.88f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.54f, h * 0.34f), Offset(w * 0.74f, h * 0.52f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.28f, h * 0.80f), Offset(w * 0.62f, h * 0.38f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawCircle(tint, radius = w * 0.12f, center = Offset(w * 0.68f, h * 0.30f), style = stroke)
 }
 
+// 胎心监护：单条心电折线
 private fun DrawScope.drawNstGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
-    drawRoundRect(
-        color = tint,
-        topLeft = Offset(w * 0.14f, h * 0.26f),
-        size = Size(w * 0.72f, h * 0.48f),
-        cornerRadius = CornerRadius(w * 0.10f, h * 0.10f),
-        style = stroke
-    )
-    drawLine(tint, Offset(w * 0.24f, h * 0.52f), Offset(w * 0.34f, h * 0.52f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.34f, h * 0.52f), Offset(w * 0.42f, h * 0.40f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.42f, h * 0.40f), Offset(w * 0.52f, h * 0.64f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.52f, h * 0.64f), Offset(w * 0.62f, h * 0.48f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.62f, h * 0.48f), Offset(w * 0.76f, h * 0.48f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    val wave = Path().apply {
+        moveTo(w * 0.12f, h * 0.52f)
+        lineTo(w * 0.34f, h * 0.52f)
+        lineTo(w * 0.44f, h * 0.28f)
+        lineTo(w * 0.56f, h * 0.74f)
+        lineTo(w * 0.66f, h * 0.52f)
+        lineTo(w * 0.88f, h * 0.52f)
+    }
+    drawPath(wave, tint, style = stroke)
 }
 
+// 胎动：圆点 + 两道扩散弧
 private fun DrawScope.drawMovementGlyph(tint: Color) {
+    val stroke = railStroke()
+    val w = size.width
+    val h = size.height
+    drawCircle(tint, radius = w * 0.08f, center = Offset(w * 0.32f, h * 0.50f))
+    drawArc(
+        color = tint,
+        startAngle = -52f,
+        sweepAngle = 104f,
+        useCenter = false,
+        topLeft = Offset(w * 0.32f - w * 0.22f, h * 0.50f - h * 0.22f),
+        size = Size(w * 0.44f, h * 0.44f),
+        style = stroke
+    )
+    drawArc(
+        color = tint,
+        startAngle = -52f,
+        sweepAngle = 104f,
+        useCenter = false,
+        topLeft = Offset(w * 0.32f - w * 0.38f, h * 0.50f - h * 0.38f),
+        size = Size(w * 0.76f, h * 0.76f),
+        style = stroke
+    )
+}
+
+// 宫缩：秒表（表盘 + 单针 + 顶钮）
+private fun DrawScope.drawContractionGlyph(tint: Color) {
+    val stroke = railStroke()
+    val w = size.width
+    val h = size.height
+    drawCircle(tint, radius = w * 0.30f, center = Offset(w * 0.50f, h * 0.58f), style = stroke)
+    drawLine(tint, Offset(w * 0.50f, h * 0.58f), Offset(w * 0.50f, h * 0.38f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.50f, h * 0.12f), Offset(w * 0.50f, h * 0.22f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+}
+
+// 孕妈指标：仪表盘（半圆弧 + 指针）
+private fun DrawScope.drawMetricGlyph(tint: Color) {
     val stroke = railStroke()
     val w = size.width
     val h = size.height
     drawArc(
         color = tint,
-        startAngle = 112f,
-        sweepAngle = 275f,
+        startAngle = 180f,
+        sweepAngle = 180f,
         useCenter = false,
-        topLeft = Offset(w * 0.11f, h * 0.18f),
-        size = Size(w * 0.72f, h * 0.70f),
+        topLeft = Offset(w * 0.16f, h * 0.30f),
+        size = Size(w * 0.68f, h * 0.68f),
         style = stroke
     )
-    drawOval(tint, topLeft = Offset(w * 0.52f, h * 0.40f), size = Size(w * 0.22f, h * 0.30f), style = stroke)
-    drawCircle(tint, radius = w * 0.035f, center = Offset(w * 0.47f, h * 0.38f))
-    drawCircle(tint, radius = w * 0.030f, center = Offset(w * 0.43f, h * 0.46f))
-    drawCircle(tint, radius = w * 0.028f, center = Offset(w * 0.42f, h * 0.55f))
-}
-
-private fun DrawScope.drawContractionGlyph(tint: Color) {
-    val stroke = railStroke()
-    val w = size.width
-    val h = size.height
-    drawCircle(tint, radius = w * 0.31f, center = Offset(w * 0.50f, h * 0.56f), style = stroke)
-    drawRoundRect(tint, topLeft = Offset(w * 0.42f, h * 0.10f), size = Size(w * 0.16f, h * 0.14f), cornerRadius = CornerRadius(w * 0.05f), style = stroke)
-    drawLine(tint, Offset(w * 0.50f, h * 0.56f), Offset(w * 0.50f, h * 0.36f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.50f, h * 0.56f), Offset(w * 0.64f, h * 0.64f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawMetricGlyph(tint: Color) {
-    val stroke = railStroke()
-    val w = size.width
-    val h = size.height
-    drawRoundRect(
-        color = tint,
-        topLeft = Offset(w * 0.15f, h * 0.20f),
-        size = Size(w * 0.70f, h * 0.54f),
-        cornerRadius = CornerRadius(w * 0.12f, h * 0.12f),
-        style = stroke
-    )
-    drawArc(tint, startAngle = 205f, sweepAngle = 130f, useCenter = false, topLeft = Offset(w * 0.28f, h * 0.30f), size = Size(w * 0.44f, h * 0.34f), style = stroke)
-    drawLine(tint, Offset(w * 0.50f, h * 0.51f), Offset(w * 0.62f, h * 0.39f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.18f, h * 0.84f), Offset(w * 0.82f, h * 0.84f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.50f, h * 0.64f), Offset(w * 0.67f, h * 0.42f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
 private fun DrawScope.drawHeartGlyph(tint: Color) {
@@ -488,8 +471,7 @@ private fun DrawScope.drawBottleGlyph(tint: Color) {
     val h = size.height
     drawRoundRect(tint, topLeft = Offset(w * 0.34f, h * 0.20f), size = Size(w * 0.32f, h * 0.12f), cornerRadius = CornerRadius(w * 0.04f), style = stroke)
     drawRoundRect(tint, topLeft = Offset(w * 0.28f, h * 0.32f), size = Size(w * 0.44f, h * 0.52f), cornerRadius = CornerRadius(w * 0.12f), style = stroke)
-    drawLine(tint, Offset(w * 0.37f, h * 0.48f), Offset(w * 0.63f, h * 0.48f), strokeWidth = stroke.width, cap = StrokeCap.Round)
-    drawLine(tint, Offset(w * 0.37f, h * 0.62f), Offset(w * 0.57f, h * 0.62f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+    drawLine(tint, Offset(w * 0.37f, h * 0.54f), Offset(w * 0.63f, h * 0.54f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 }
 
 private fun DrawScope.drawSleepGlyph(tint: Color) {
