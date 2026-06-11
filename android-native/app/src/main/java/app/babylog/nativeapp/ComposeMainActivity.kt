@@ -510,10 +510,6 @@ public final class ComposeMainActivity : ComponentActivity() {
                     actions = appActions
                 )
 
-                if (smartVoiceState.isRecording) {
-                    VoiceRecordingPopup()
-                }
-
                 if (showFetalMovementSession) {
                     FetalMovementSessionDialog(
                         voiceState = smartVoiceState,
@@ -1341,7 +1337,7 @@ public final class ComposeMainActivity : ComponentActivity() {
             val recorder = BabyLogPcmVoiceRecorder()
             recorder.start(cacheDir)
             voiceRecorder = recorder
-            smartVoiceState = SmartVoiceUiState(isRecording = true, message = "正在录音，松开后转文字")
+            smartVoiceState = SmartVoiceUiState(isRecording = true, message = "正在录音")
         } catch (error: Exception) {
             voiceRecorder = null
             smartVoiceState = SmartVoiceUiState(message = error.message ?: "无法开始录音")

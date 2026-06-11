@@ -733,6 +733,9 @@ internal fun BabyLogApp(
                 onClose = ::hideRecordSheet
             )
         }
+        if (smartVoiceState.isRecording && currentRoute != BabyLogRoutes.SmartEntry) {
+            VoiceRecordingPopup()
+        }
     }
 }
 
