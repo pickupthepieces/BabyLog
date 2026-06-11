@@ -111,18 +111,6 @@ private fun UltrasoundSoftWarnings(state: UltrasoundFormState) {
         derivedStateOf { state.softWarnings() }
     }
     if (warnings.isNotBlank()) {
-        InlineWarning(warnings)
+        NoticeBanner(warnings)
     }
-}
-
-@Composable
-internal fun InlineWarning(text: String) {
-    Text(
-        text,
-        color = Color(0xFF7C4A21),
-        modifier = Modifier
-            .clip(RoundedCornerShape(ChestnutRadius.Small))
-            .background(Color(0xFFFFEBCB))
-            .padding(12.dp)
-    )
 }

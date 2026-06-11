@@ -130,16 +130,7 @@ internal fun SpeechSettingsScreen(
             )
         }
         item {
-            Text(
-                "Key 仅保存在本机。只有按住说话时，本次语音才会发送给识别服务商。",
-                color = Color(0xFF7C4A21),
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(ChestnutRadius.Small))
-                    .background(Color(0xFFFFEBCB))
-                    .border(1.dp, Color(0xFFFFD89C), RoundedCornerShape(ChestnutRadius.Small))
-                    .padding(12.dp)
-            )
+            NoticeBanner("Key 仅保存在本机。只有按住说话时，本次语音才会发送给识别服务商。")
         }
     }
 }

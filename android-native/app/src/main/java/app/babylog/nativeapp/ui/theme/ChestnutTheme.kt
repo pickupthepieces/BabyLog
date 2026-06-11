@@ -28,6 +28,9 @@ object ChestnutPalette {
     val Yellow = Color(0xFFE8B94A)
     val Peach = Color(0xFFE28A4F)
     val Danger = Color(0xFFC94A3A)
+    val DangerSoft = Color(0xFFFFE4DF)
+    val Notice = Color(0xFF7C4A21)
+    val NoticeBg = Color(0xFFFFEBCB)
 
     val BgArgb = 0xFFFFF7EE.toInt()
     val SurfaceArgb = 0xFFFFFFFF.toInt()

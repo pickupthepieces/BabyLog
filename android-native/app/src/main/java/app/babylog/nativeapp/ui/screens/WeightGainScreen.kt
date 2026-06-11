@@ -72,19 +72,6 @@ internal fun WeightGainScreen(
         subtitle = "IOM 参考区间，便于复诊沟通",
         onBack = onBack
     ) {
-        item {
-            Text(
-                text = "展示公开参考区间，便于复诊时对照体重历史。",
-                color = Color(0xFF7C4A21),
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFFFEBCB), RoundedCornerShape(ChestnutRadius.Small))
-                    .padding(12.dp)
-            )
-        }
-
         if (preWeight == null || heightCm == null || recommendation == null) {
             item {
                 Panel {

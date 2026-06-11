@@ -136,16 +136,7 @@ internal fun SmartModelSettingsScreen(
             )
         }
         item {
-            Text(
-                "Key 仅保存在本机。识别或智能录入时，图片和文字才会发送给模型服务商。",
-                color = Color(0xFF7C4A21),
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(ChestnutRadius.Small))
-                    .background(Color(0xFFFFEBCB))
-                    .border(1.dp, Color(0xFFFFD89C), RoundedCornerShape(ChestnutRadius.Small))
-                    .padding(12.dp)
-            )
+            NoticeBanner("Key 仅保存在本机。识别或智能录入时，图片和文字才会发送给模型服务商。")
         }
     }
 }

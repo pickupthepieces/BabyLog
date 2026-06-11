@@ -65,7 +65,7 @@ internal fun LazyListScope.ultrasoundPhotoSection(
         }
     }
     if (saveError.isNotBlank()) {
-        item(key = "save_error") { InlineWarning(saveError) }
+        item(key = "save_error") { NoticeBanner(saveError) }
     }
     if (ocrCandidate != null) {
         item(key = "ocr_candidate") {
@@ -153,7 +153,7 @@ private fun UltrasoundOcrCandidateCard(
             }
         }
         if (candidate.warnings.isNotEmpty()) {
-            Text("需核对：" + candidate.warnings.joinToString("；"), color = Color(0xFF7C4A21), fontSize = 12.sp)
+            Text("需核对：" + candidate.warnings.joinToString("；"), color = ChestnutPalette.Notice, fontSize = 12.sp)
         }
         if (!candidate.rawText.isNullOrBlank()) {
             Text("原文片段", color = ChestnutPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)

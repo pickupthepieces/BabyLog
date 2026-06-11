@@ -73,14 +73,7 @@ internal fun DueDateCalcScreen(
         onBack = onBack
     ) {
         item {
-            Text(
-                "用于核对 LMP 与早期 B 超 CRL 推算结果。",
-                color = Color(0xFF7C4A21),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(ChestnutRadius.Control))
-                    .background(Color(0xFFFFEBCB))
-                    .padding(14.dp)
-            )
+            NoticeBanner("用于核对 LMP 与早期 B 超 CRL 推算结果。")
         }
         item {
             SettingsPanel("末次月经推算") {
@@ -95,10 +88,10 @@ internal fun DueDateCalcScreen(
                         ResultLine("当前孕周", result.gestationalAgeLabel)
                         BabyLogDueDateCalculator.formatCycleWarning(result.nonStandardCycle)
                             .takeIf { it.isNotBlank() }
-                            ?.let { WarningText(it) }
+                            ?.let { NoticeBanner(it) }
                         BabyLogDueDateCalculator.formatRangeWarning(result.beyondTypicalRange)
                             .takeIf { it.isNotBlank() }
-                            ?.let { WarningText(it) }
+                            ?.let { NoticeBanner(it) }
                     } ?: Text("选择 LMP 后显示结果。", color = ChestnutPalette.Text3, fontSize = 13.sp)
                 }
             }
@@ -127,7 +120,7 @@ internal fun DueDateCalcScreen(
                                     fontSize = 12.sp
                                 )
                             } else {
-                                WarningText(result.message)
+                                NoticeBanner(result.message)
                             }
                         } ?: Text("填写 CRL 后显示结果。", color = ChestnutPalette.Text3, fontSize = 13.sp)
                     }
@@ -201,14 +194,3 @@ private fun ResultLine(label: String, value: String) {
     }
 }
 
-@Composable
-private fun WarningText(message: String) {
-    Text(
-        message,
-        color = Color(0xFF7C4A21),
-        modifier = Modifier
-            .clip(RoundedCornerShape(ChestnutRadius.Small))
-            .background(Color(0xFFFFEBCB))
-            .padding(12.dp)
-    )
-}

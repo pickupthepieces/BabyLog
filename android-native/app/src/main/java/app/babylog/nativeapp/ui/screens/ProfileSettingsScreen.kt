@@ -1,8 +1,5 @@
 package app.babylog.nativeapp
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
@@ -10,11 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun ProfileSettingsScreen(
@@ -138,25 +131,11 @@ internal fun ProfileSettingsScreen(
         }
         if (showPregnancyEndedNotice && stageOverride == BabyLogDomain.STAGE_PREGNANCY_ENDED) {
             item {
-                Text(
-                    "记录会保留；提醒停止，可随时在档案里恢复。",
-                    color = Color(0xFF7C4A21),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(ChestnutRadius.Small))
-                        .background(Color(0xFFFFEBCB))
-                        .padding(12.dp)
-                )
+                NoticeBanner("记录会保留；提醒停止，可随时在档案里恢复。")
             }
         }
         item {
-            Text(
-                "日期可稍后补充。",
-                color = Color(0xFF7C4A21),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(ChestnutRadius.Small))
-                    .background(Color(0xFFFFEBCB))
-                    .padding(12.dp)
-            )
+            NoticeBanner("日期可稍后补充。")
         }
     }
 }

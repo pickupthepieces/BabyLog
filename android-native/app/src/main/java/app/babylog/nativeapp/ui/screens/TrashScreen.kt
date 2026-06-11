@@ -36,20 +36,9 @@ internal fun TrashScreen(
     val nowIso = remember(events) { BabyLogFormatters.nowIso() }
     SettingsPageScaffold(
         title = "回收站",
-        subtitle = "删除记录 7 天内可恢复",
+        subtitle = "删除记录保留 7 天，超期自动永久清理",
         onBack = onBack
     ) {
-        item {
-            Text(
-                "删除记录保留 7 天，超期自动永久清理",
-                color = Color(0xFF7C4A21),
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(ChestnutRadius.Small))
-                    .background(Color(0xFFFFEBCB))
-                    .padding(12.dp)
-            )
-        }
         if (events.isEmpty()) {
             item { EmptyPanel("回收站是空的") }
         } else {
@@ -105,7 +94,7 @@ private fun TrashRow(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(if (remainingDays <= 1) Color(0xFFFFE4DF) else ChestnutPalette.AccentSoft)
+                        .background(if (remainingDays <= 1) ChestnutPalette.DangerSoft else ChestnutPalette.AccentSoft)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }

@@ -658,13 +658,6 @@ internal fun SettingsScreen(
                 onClick = onClearLocalData
             )
         }
-        Text(
-            text = "栗记用于家庭记录和资料整理；完整边界见医疗免责声明。",
-            color = Color(0xFF7C4A21),
-            modifier = Modifier
-                .clip(RoundedCornerShape(ChestnutRadius.Control))
-                .background(Color(0xFFFFEBCB))
-                .padding(14.dp)
-        )
+        NoticeBanner("栗记用于家庭记录和资料整理；完整边界见医疗免责声明。")
     }
 }

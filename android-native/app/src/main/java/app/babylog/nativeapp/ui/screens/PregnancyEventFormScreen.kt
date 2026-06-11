@@ -651,7 +651,7 @@ private fun CheckupOcrCandidateCard(
             if (candidate.warnings.isNotEmpty()) {
                 Text(
                     "需核对：" + candidate.warnings.joinToString("；"),
-                    color = Color(0xFF7C4A21),
+                    color = ChestnutPalette.Notice,
                     fontSize = 12.sp
                 )
             }

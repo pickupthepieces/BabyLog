@@ -72,6 +72,23 @@ internal typealias LongTextVoiceStart = ((String) -> Unit) -> Unit
 
 data class Option(val value: String, val label: String)
 
+/** 统一的提示条：边界说明、隐私提示、保留策略等弱警示文案。 */
+@Composable
+@Suppress("FunctionNaming")
+fun NoticeBanner(text: String) {
+    Text(
+        text,
+        color = ChestnutPalette.Notice,
+        fontSize = 13.sp,
+        lineHeight = 19.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ChestnutRadius.Small))
+            .background(ChestnutPalette.NoticeBg)
+            .padding(12.dp)
+    )
+}
+
 private const val GESTATIONAL_WEEK_MAX_DIGITS = 2
 private const val GESTATIONAL_DAY_MAX_DIGITS = 1
 private const val GESTATIONAL_MAX_EXTRA_DAYS = 6
