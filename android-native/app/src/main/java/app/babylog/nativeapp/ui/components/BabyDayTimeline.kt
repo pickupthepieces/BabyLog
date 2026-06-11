@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
@@ -42,7 +43,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val TimelineHourHeight = 48.dp
+private val TimelineHourHeight = 56.dp
 private val TimelineLeftRailWidth = 54.dp
 private val TimelineHeight = TimelineHourHeight * 24
 private val TimelineViewportHeight = 420.dp
@@ -139,9 +140,11 @@ private fun TimelineScrollableContent(
 private fun TimelineGrid() {
     val lineColor = ChestnutPalette.Border
     val mainLineColor = ChestnutPalette.Primary.copy(alpha = 0.26f)
+    val halfHourColor = lineColor.copy(alpha = 0.40f)
     Canvas(modifier = Modifier.fillMaxWidth().height(TimelineHeight)) {
         val hourHeightPx = TimelineHourHeight.toPx()
         val railWidthPx = TimelineLeftRailWidth.toPx()
+        val halfHourDash = PathEffect.dashPathEffect(floatArrayOf(7f, 9f))
         for (hour in 0..24) {
             val y = hour * hourHeightPx
             val main = hour % 6 == 0
@@ -151,6 +154,16 @@ private fun TimelineGrid() {
                 end = Offset(size.width, y),
                 strokeWidth = if (main) 1.6f else 1f
             )
+            // 半点虚线只画在记录区，左侧时间栏保持干净。
+            if (hour < 24) {
+                drawLine(
+                    color = halfHourColor,
+                    start = Offset(railWidthPx, y + hourHeightPx / 2f),
+                    end = Offset(size.width, y + hourHeightPx / 2f),
+                    strokeWidth = 1f,
+                    pathEffect = halfHourDash
+                )
+            }
         }
         drawLine(
             color = ChestnutPalette.Primary,
