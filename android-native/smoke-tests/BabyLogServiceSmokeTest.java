@@ -733,6 +733,14 @@ public final class BabyLogServiceSmokeTest {
         );
         assertEquals("2026-05-25T03:00:00.000+0800", feed.occurredAt);
 
+        BabyLogDomain.BabyLogEvent yesterdayFeed = service.recordBabyCareEvent(
+                BabyLogService.BabyCareInput.feed("奶瓶", "90", "")
+                        .withOccurredDate("2026-05-24")
+                        .withOccurredTime("20:00"),
+                "2026-05-25"
+        );
+        assertEquals("2026-05-24T20:00:00.000+0800", yesterdayFeed.occurredAt);
+
         BabyLogBabyDayTimelineSlots.TimelineSlots slots =
                 BabyLogBabyDayTimelineSlots.compute(repository.listEvents(), "2026-05-25");
         assertEquals(1, slots.eventPoints.size());
@@ -744,6 +752,15 @@ public final class BabyLogServiceSmokeTest {
         );
         assertEquals("2026-05-25T04:15:00.000+0800", edited.occurredAt);
         assertEquals(feed.createdAt, edited.createdAt);
+
+        BabyLogDomain.BabyLogEvent editedDate = service.updateBabyCareEvent(
+                feed.id,
+                BabyLogService.BabyCareInput.feed("奶瓶", "150", "")
+                        .withOccurredDate("2026-05-26")
+                        .withOccurredTime("04:15")
+        );
+        assertEquals("2026-05-26T04:15:00.000+0800", editedDate.occurredAt);
+        assertEquals(feed.createdAt, editedDate.createdAt);
     }
 
     private static void assertQuickUndoUsesTrashDelete() throws Exception {

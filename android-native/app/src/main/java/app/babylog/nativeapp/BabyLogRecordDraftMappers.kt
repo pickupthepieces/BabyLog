@@ -13,6 +13,7 @@ internal fun smartFormFields(vararg values: Pair<String, String?>): Map<String, 
 internal fun draftFromBabyCareEvent(event: BabyLogDomain.BabyLogEvent): SmartEntryDraft {
     return SmartEntryDraft(
         values = BabyLogService.babyCareDraftFields(event.eventType, event.payload) + smartFormFields(
+            "occurredDate" to BabyLogFormatters.recordDay(event.occurredAt).takeIf { BabyLogFormatters.isValidDateInput(it) },
             "occurredTime" to BabyLogFormatters.formatEventTime(event.occurredAt).takeUnless { it == "--:--" }
         )
     )

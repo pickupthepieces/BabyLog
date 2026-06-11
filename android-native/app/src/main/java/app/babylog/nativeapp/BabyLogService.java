@@ -980,10 +980,13 @@ public final class BabyLogService {
     }
 
     private static String babyCareOccurredAt(BabyCareInput input, String dateInput, String fallbackOccurredAt) {
+        String recordDate = input != null && BabyLogFormatters.isValidDateInput(input.occurredDate)
+                ? input.occurredDate
+                : dateInput;
         if (input != null
-                && BabyLogFormatters.isValidDateInput(dateInput)
+                && BabyLogFormatters.isValidDateInput(recordDate)
                 && BabyLogFormatters.isValidTimeInput(input.occurredTime)) {
-            return BabyLogFormatters.createOccurredAtFromDateTime(dateInput, input.occurredTime);
+            return BabyLogFormatters.createOccurredAtFromDateTime(recordDate, input.occurredTime);
         }
         return isBlank(fallbackOccurredAt) ? BabyLogFormatters.nowIso() : fallbackOccurredAt;
     }
@@ -1533,13 +1536,14 @@ public final class BabyLogService {
         public final String secondary;
         public final String tertiary;
         public final String note;
+        public final String occurredDate;
         public final String occurredTime;
         public final String checkupInstitution;
         public final String checkupConclusion;
         public final String nextCheckupDate;
 
         private BabyCareInput(String eventType, String primary, String secondary, String tertiary, String note) {
-            this(eventType, primary, secondary, tertiary, note, "", "", "", "");
+            this(eventType, primary, secondary, tertiary, note, "", "", "", "", "");
         }
 
         private BabyCareInput(
@@ -1550,7 +1554,7 @@ public final class BabyLogService {
                 String note,
                 String occurredTime
         ) {
-            this(eventType, primary, secondary, tertiary, note, occurredTime, "", "", "");
+            this(eventType, primary, secondary, tertiary, note, "", occurredTime, "", "", "");
         }
 
         private BabyCareInput(
@@ -1559,6 +1563,7 @@ public final class BabyLogService {
                 String secondary,
                 String tertiary,
                 String note,
+                String occurredDate,
                 String occurredTime,
                 String checkupInstitution,
                 String checkupConclusion,
@@ -1569,6 +1574,7 @@ public final class BabyLogService {
             this.secondary = secondary;
             this.tertiary = tertiary;
             this.note = note;
+            this.occurredDate = occurredDate;
             this.occurredTime = occurredTime;
             this.checkupInstitution = checkupInstitution;
             this.checkupConclusion = checkupConclusion;
@@ -1582,7 +1588,23 @@ public final class BabyLogService {
                     secondary,
                     tertiary,
                     note,
+                    occurredDate,
                     occurredTime == null ? "" : occurredTime,
+                    checkupInstitution,
+                    checkupConclusion,
+                    nextCheckupDate
+            );
+        }
+
+        public BabyCareInput withOccurredDate(String occurredDate) {
+            return new BabyCareInput(
+                    eventType,
+                    primary,
+                    secondary,
+                    tertiary,
+                    note,
+                    occurredDate == null ? "" : occurredDate,
+                    occurredTime,
                     checkupInstitution,
                     checkupConclusion,
                     nextCheckupDate
@@ -1644,6 +1666,7 @@ public final class BabyLogService {
                     heightCm,
                     headCircumferenceCm,
                     note,
+                    "",
                     "",
                     checkupInstitution,
                     checkupConclusion,

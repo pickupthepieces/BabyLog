@@ -38,6 +38,9 @@ internal fun BabyCareFormScreen(
     var nextCheckupDate by rememberSaveable(action.eventType, draft?.nonce) {
         mutableStateOf(values["nextCheckupDate"].orEmpty())
     }
+    var occurredDate by rememberSaveable(action.eventType, draft?.nonce) {
+        mutableStateOf(values["occurredDate"].orEmpty())
+    }
     var occurredTime by rememberSaveable(action.eventType, draft?.nonce) {
         mutableStateOf(values["occurredTime"].orEmpty().ifBlank { currentBabyCareTimeInput() })
     }
@@ -59,9 +62,9 @@ internal fun BabyCareFormScreen(
                     checkupConclusion,
                     nextCheckupDate,
                     note
-                ).withOccurredTime(occurredTime)
+                ).withOccurredTime(occurredTime).withOccurredDate(occurredDate)
             } else {
-                buildBabyCareInput(action.eventType, primary, secondary, tertiary, note, occurredTime)
+                buildBabyCareInput(action.eventType, primary, secondary, tertiary, note, occurredTime, occurredDate)
             }
             if (!BabyLogService.hasBabyCareMinimumContent(input)) {
                 formError = "请至少填写一项记录内容"
@@ -74,6 +77,14 @@ internal fun BabyCareFormScreen(
         item { Text("常用信息", color = ChestnutPalette.Ink) }
         if (formError.isNotBlank()) {
             item { Text(formError, color = ChestnutPalette.Danger) }
+        }
+        item {
+            DateInputRow(
+                label = "发生日期（可选）",
+                value = occurredDate,
+                onValueChange = { occurredDate = it },
+                allowClear = true
+            )
         }
         item {
             TimeInputRow(

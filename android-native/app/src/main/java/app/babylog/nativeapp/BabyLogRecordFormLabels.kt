@@ -189,7 +189,8 @@ internal fun buildBabyCareInput(
     secondary: String,
     tertiary: String,
     note: String,
-    occurredTime: String = ""
+    occurredTime: String = "",
+    occurredDate: String = ""
 ): BabyLogService.BabyCareInput {
     val input = when (eventType) {
         "feed" -> BabyLogService.BabyCareInput.feed(primary, secondary, tertiary, note)
@@ -204,7 +205,7 @@ internal fun buildBabyCareInput(
         "wake", "pee", "poop" -> BabyLogService.BabyCareInput.quick(eventType, primary, secondary)
         else -> BabyLogService.BabyCareInput.feed(primary, secondary, note)
     }
-    return input.withOccurredTime(occurredTime)
+    return input.withOccurredTime(occurredTime).withOccurredDate(occurredDate)
 }
 
 internal fun buildPregnancyInput(

@@ -48,6 +48,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertTrue(fillPrompt.contains("斤→kg"));
         assertTrue(fillPrompt.contains("多事件"));
         assertTrue(fillPrompt.contains("字段值规范"));
+        assertTrue(fillPrompt.contains("occurredDate"));
         assertTrue(fillPrompt.contains("occurredTime"));
         assertTrue(fillPrompt.contains("尿 / 便 / 混合"));
         assertTrue(fillPrompt.contains("rawText 可省略"));
@@ -111,6 +112,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         feedFields.put("primary", "喂养方式，例如 母乳 / 奶瓶 / 辅食");
         feedFields.put("secondary", "奶量 ml");
         feedFields.put("tertiary", "侧别或辅食内容");
+        feedFields.put("occurredDate", "发生日期 yyyy-MM-dd");
         feedFields.put("occurredTime", "发生时间 HH:mm");
         feedFields.put("note", "备注");
         forms.put("feed", feedFields);
@@ -118,18 +120,21 @@ public final class BabyLogSmartTextClientSmokeTest {
         breastfeedFields.put("primary", "左侧时长，分钟，只填数字");
         breastfeedFields.put("secondary", "右侧时长，分钟，只填数字");
         breastfeedFields.put("tertiary", "备注");
+        breastfeedFields.put("occurredDate", "发生日期 yyyy-MM-dd");
         breastfeedFields.put("occurredTime", "发生时间 HH:mm");
         forms.put("breastfeed", breastfeedFields);
         Map<String, String> bottleFields = new LinkedHashMap<>();
         bottleFields.put("primary", "奶量 mL，只填数字");
         bottleFields.put("secondary", "品牌 / 配方，可空");
         bottleFields.put("tertiary", "备注");
+        bottleFields.put("occurredDate", "发生日期 yyyy-MM-dd");
         bottleFields.put("occurredTime", "发生时间 HH:mm");
         forms.put("bottle", bottleFields);
         Map<String, String> diaperFields = new LinkedHashMap<>();
         diaperFields.put("primary", "尿布类型：尿 / 便 / 混合");
         diaperFields.put("secondary", "尿布详情，例如 尿量 / 便量");
         diaperFields.put("tertiary", "颜色 / 性状（可选）");
+        diaperFields.put("occurredDate", "发生日期 yyyy-MM-dd");
         diaperFields.put("occurredTime", "发生时间 HH:mm");
         diaperFields.put("note", "备注");
         forms.put("diaper", diaperFields);
@@ -140,6 +145,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         childCheckupFields.put("checkupInstitution", "儿保机构");
         childCheckupFields.put("checkupConclusion", "儿保记录");
         childCheckupFields.put("nextCheckupDate", "下次儿保日期 yyyy-MM-dd");
+        childCheckupFields.put("occurredDate", "发生日期 yyyy-MM-dd");
         childCheckupFields.put("occurredTime", "发生时间 HH:mm");
         childCheckupFields.put("note", "家庭备注");
         forms.put("child_checkup", childCheckupFields);
@@ -164,6 +170,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertTrue(entryPrompt.contains("左侧时长"));
         assertTrue(entryPrompt.contains("奶量 mL"));
         assertTrue(entryPrompt.contains("尿布类型：尿 / 便 / 混合"));
+        assertTrue(entryPrompt.contains("occurredDate"));
         assertTrue(entryPrompt.contains("occurredTime"));
         assertTrue(entryPrompt.contains("child_checkup"));
         assertTrue(entryPrompt.contains("nextCheckupDate"));
@@ -197,6 +204,7 @@ public final class BabyLogSmartTextClientSmokeTest {
                 + "\\\"values\\\":{"
                 + "\\\"primary\\\":\\\"奶瓶\\\","
                 + "\\\"secondary\\\":\\\"120\\\","
+                + "\\\"occurredDate\\\":\\\"2026-05-19\\\","
                 + "\\\"occurredTime\\\":\\\"20:00\\\","
                 + "\\\"extra\\\":\\\"drop\\\"},"
                 + "\\\"warnings\\\":[\\\"单位已换算：一百二十毫升 → 120，请人工核对\\\"]}\"}}]}";
@@ -205,6 +213,7 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertEquals("feed", feed.eventType);
         assertEquals("奶瓶", feed.values.get("primary"));
         assertEquals("120", feed.values.get("secondary"));
+        assertEquals("2026-05-19", feed.values.get("occurredDate"));
         assertEquals("20:00", feed.values.get("occurredTime"));
         assertEquals(null, feed.values.get("extra"));
 

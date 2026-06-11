@@ -34,7 +34,7 @@ public final class BabyLogSmartTextClient {
             "多事件处理：如果一段原文包含多个事件，只选择信息最完整、最适合当前表单或记录类型的一个事件生成 values，"
                     + "并在 warnings 提示其余事件需要另建记录。";
     private static final String FORM_VALUE_NORMALIZATION_INSTRUCTION =
-            "字段值规范：宝宝记录的 occurredTime 使用 HH:mm；喂养 primary 优先填 母乳 / 奶瓶 / 辅食，"
+            "字段值规范：宝宝记录的 occurredDate 使用 yyyy-MM-dd，occurredTime 使用 HH:mm；喂养 primary 优先填 母乳 / 奶瓶 / 辅食，"
                     + "母乳侧别 tertiary 优先填 L / R / BOTH，辅食 tertiary 填食材或内容；"
                     + "尿布 primary 优先填 尿 / 便 / 混合，颜色性状 tertiary 可填 黄色软便、绿色偏稀等表单常用值；"
                     + "体温测量方式优先填 腋温 / 耳温 / 额温 / 口温。"
