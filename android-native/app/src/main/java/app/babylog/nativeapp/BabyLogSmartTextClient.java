@@ -33,6 +33,12 @@ public final class BabyLogSmartTextClient {
     private static final String MULTI_EVENT_INSTRUCTION =
             "多事件处理：如果一段原文包含多个事件，只选择信息最完整、最适合当前表单或记录类型的一个事件生成 values，"
                     + "并在 warnings 提示其余事件需要另建记录。";
+    private static final String FORM_VALUE_NORMALIZATION_INSTRUCTION =
+            "字段值规范：宝宝记录的 occurredTime 使用 HH:mm；喂养 primary 优先填 母乳 / 奶瓶 / 辅食，"
+                    + "母乳侧别 tertiary 优先填 L / R / BOTH，辅食 tertiary 填食材或内容；"
+                    + "尿布 primary 优先填 尿 / 便 / 混合，颜色性状 tertiary 可填 黄色软便、绿色偏稀等表单常用值；"
+                    + "体温测量方式优先填 腋温 / 耳温 / 额温 / 口温。"
+                    + "无法映射到表单常用值时保留原文并在 warnings 提醒人工核对。";
 
     private final OkHttpClient httpClient = BabyLogHttpClient.create(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
 
@@ -262,6 +268,7 @@ public final class BabyLogSmartTextClient {
                 + SPEECH_NUMBER_CORRECTION_INSTRUCTION
                 + UNIT_CONVERSION_INSTRUCTION
                 + MULTI_EVENT_INSTRUCTION
+                + FORM_VALUE_NORMALIZATION_INSTRUCTION
                 + "纠错和换算只生成候选 values 与 warnings，保存仍需用户人工确认；不要输出诊断、治疗建议或风险判定。"
                 + "rawText 可省略，省略时应用会使用用户原文兜底。";
     }

@@ -47,6 +47,9 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertTrue(fillPrompt.contains("错误切分"));
         assertTrue(fillPrompt.contains("斤→kg"));
         assertTrue(fillPrompt.contains("多事件"));
+        assertTrue(fillPrompt.contains("字段值规范"));
+        assertTrue(fillPrompt.contains("occurredTime"));
+        assertTrue(fillPrompt.contains("尿 / 便 / 混合"));
         assertTrue(fillPrompt.contains("rawText 可省略"));
 
         String response = "{"
@@ -108,8 +111,28 @@ public final class BabyLogSmartTextClientSmokeTest {
         feedFields.put("primary", "喂养方式，例如 母乳 / 奶瓶 / 辅食");
         feedFields.put("secondary", "奶量 ml");
         feedFields.put("tertiary", "侧别或辅食内容");
+        feedFields.put("occurredTime", "发生时间 HH:mm");
         feedFields.put("note", "备注");
         forms.put("feed", feedFields);
+        Map<String, String> breastfeedFields = new LinkedHashMap<>();
+        breastfeedFields.put("primary", "左侧时长，分钟，只填数字");
+        breastfeedFields.put("secondary", "右侧时长，分钟，只填数字");
+        breastfeedFields.put("tertiary", "备注");
+        breastfeedFields.put("occurredTime", "发生时间 HH:mm");
+        forms.put("breastfeed", breastfeedFields);
+        Map<String, String> bottleFields = new LinkedHashMap<>();
+        bottleFields.put("primary", "奶量 mL，只填数字");
+        bottleFields.put("secondary", "品牌 / 配方，可空");
+        bottleFields.put("tertiary", "备注");
+        bottleFields.put("occurredTime", "发生时间 HH:mm");
+        forms.put("bottle", bottleFields);
+        Map<String, String> diaperFields = new LinkedHashMap<>();
+        diaperFields.put("primary", "尿布类型：尿 / 便 / 混合");
+        diaperFields.put("secondary", "尿布详情，例如 尿量 / 便量");
+        diaperFields.put("tertiary", "颜色 / 性状（可选）");
+        diaperFields.put("occurredTime", "发生时间 HH:mm");
+        diaperFields.put("note", "备注");
+        forms.put("diaper", diaperFields);
         Map<String, String> childCheckupFields = new LinkedHashMap<>();
         childCheckupFields.put("primary", "体重 kg");
         childCheckupFields.put("secondary", "身长 cm");
@@ -138,6 +161,10 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertTrue(entryPrompt.contains("错误切分"));
         assertTrue(entryPrompt.contains("maternal_metric"));
         assertTrue(entryPrompt.contains("辅食"));
+        assertTrue(entryPrompt.contains("左侧时长"));
+        assertTrue(entryPrompt.contains("奶量 mL"));
+        assertTrue(entryPrompt.contains("尿布类型：尿 / 便 / 混合"));
+        assertTrue(entryPrompt.contains("occurredTime"));
         assertTrue(entryPrompt.contains("child_checkup"));
         assertTrue(entryPrompt.contains("nextCheckupDate"));
         assertTrue(entryPrompt.contains("\"weightKg\":\"52\""));
@@ -163,6 +190,23 @@ public final class BabyLogSmartTextClientSmokeTest {
         assertEquals(null, entry.values.get("bpdMm"));
         assertEquals(null, entry.values.get("extra"));
         assertEquals("血糖需核对测量时间", entry.warnings.get(0));
+
+        String feedResponse = "{"
+                + "\"choices\":[{\"message\":{\"content\":\"{"
+                + "\\\"eventType\\\":\\\"feed\\\","
+                + "\\\"values\\\":{"
+                + "\\\"primary\\\":\\\"奶瓶\\\","
+                + "\\\"secondary\\\":\\\"120\\\","
+                + "\\\"occurredTime\\\":\\\"20:00\\\","
+                + "\\\"extra\\\":\\\"drop\\\"},"
+                + "\\\"warnings\\\":[\\\"单位已换算：一百二十毫升 → 120，请人工核对\\\"]}\"}}]}";
+        BabyLogSmartTextClient.SmartEntryCandidate feed =
+                BabyLogSmartTextClient.parseSmartEntryResponse(feedResponse, forms, "fallback feed");
+        assertEquals("feed", feed.eventType);
+        assertEquals("奶瓶", feed.values.get("primary"));
+        assertEquals("120", feed.values.get("secondary"));
+        assertEquals("20:00", feed.values.get("occurredTime"));
+        assertEquals(null, feed.values.get("extra"));
 
         String childCheckupResponse = "{"
                 + "\"choices\":[{\"message\":{\"content\":\"{"

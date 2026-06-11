@@ -1975,49 +1975,61 @@ public final class ComposeMainActivity : ComponentActivity() {
                 "primary" to "喂养方式，例如 母乳 / 奶瓶 / 辅食",
                 "secondary" to "奶量 ml",
                 "tertiary" to "侧别或辅食内容",
+                "occurredTime" to "发生时间 HH:mm",
                 "note" to "备注"
             )
             forms["breastfeed"] = smartFormFields(
-                "primary" to "补充状态",
-                "secondary" to "备注"
+                "primary" to "左侧时长，分钟，只填数字",
+                "secondary" to "右侧时长，分钟，只填数字",
+                "tertiary" to "备注",
+                "occurredTime" to "发生时间 HH:mm"
             )
             forms["bottle"] = smartFormFields(
-                "primary" to "奶量或详情",
-                "secondary" to "备注"
+                "primary" to "奶量 mL，只填数字",
+                "secondary" to "品牌 / 配方，可空",
+                "tertiary" to "备注",
+                "occurredTime" to "发生时间 HH:mm"
             )
             forms["sleep"] = smartFormFields(
-                "primary" to "开始时间",
-                "secondary" to "结束时间",
-                "tertiary" to "时长",
+                "primary" to "开始时间 HH:mm",
+                "secondary" to "结束时间 HH:mm",
+                "tertiary" to "地点，例如 卧室",
+                "occurredTime" to "发生时间 HH:mm；通常同开始时间",
                 "note" to "备注"
             )
             forms["wake"] = smartFormFields(
                 "primary" to "醒来时间或状态",
-                "secondary" to "备注"
+                "secondary" to "备注",
+                "occurredTime" to "发生时间 HH:mm"
             )
             forms["diaper"] = smartFormFields(
-                "primary" to "尿布类型，例如 尿 / 便",
+                "primary" to "尿布类型：尿 / 便 / 混合",
                 "secondary" to "尿布详情，例如 尿量 / 便量",
                 "tertiary" to "颜色 / 性状（可选）",
+                "occurredTime" to "发生时间 HH:mm",
                 "note" to "备注"
             )
             forms["pee"] = smartFormFields(
                 "primary" to "尿量或状态",
-                "secondary" to "备注"
+                "secondary" to "备注",
+                "occurredTime" to "发生时间 HH:mm"
             )
             forms["poop"] = smartFormFields(
                 "primary" to "性状 / 颜色",
-                "secondary" to "备注"
+                "secondary" to "备注",
+                "occurredTime" to "发生时间 HH:mm"
             )
             forms["temperature"] = smartFormFields(
                 "primary" to "体温 ℃",
                 "secondary" to "测量方式",
+                "occurredTime" to "发生时间 HH:mm",
                 "note" to "备注"
             )
             forms["medication"] = smartFormFields(
                 "primary" to "药名",
                 "secondary" to "剂量",
-                "tertiary" to "原因"
+                "tertiary" to "原因",
+                "occurredTime" to "发生时间 HH:mm"
             )
             forms["growth"] = smartFormFields(
                 "primary" to "体重 kg",
