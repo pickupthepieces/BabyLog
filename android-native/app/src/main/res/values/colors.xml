@@ -8,7 +8,10 @@
     <color name="muted">#7A6250</color>
     <color name="text_3">#A48B76</color>
     <color name="primary">#8B4A24</color>
-    <color name="splash_bg">#FFEFE5</color>
+    <color name="splash_bg">#FFF0E0</color>
+    <color name="splash_gradient_top">#FFF2E6</color>
+    <color name="splash_gradient_bottom">#FFE9D6</color>
+    <color name="ic_launcher_background">#F8CABE</color>
     <color name="primary_soft">#F8E3D4</color>
     <color name="accent">#D9823B</color>
     <color name="accent_soft">#FFE8C7</color>
