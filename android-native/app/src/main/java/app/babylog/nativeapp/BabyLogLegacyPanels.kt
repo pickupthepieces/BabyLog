@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -357,7 +356,8 @@ internal fun TimelineRow(
         TimelineRowText(
             occurredAt = "${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}",
             label = BabyLogFormatters.eventLabel(event.eventType),
-            summary = BabyLogFormatters.eventSummary(event),
+            // 类型已由图标和角标表达，正文只放详情；没有详情就整行省掉。
+            summary = BabyLogFormatters.detailOnlySummary(BabyLogFormatters.eventSummary(event), event.eventType),
             attachmentLabel = if (event.attachmentIds.isEmpty()) "" else "附件 ${event.attachmentIds.size}"
         )
     }
@@ -387,9 +387,12 @@ internal fun TimelineRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 92.dp)
                 .padding(14.dp),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = if (rowText.summary.isBlank() && event.attachmentIds.isEmpty()) {
+                Alignment.CenterVertically
+            } else {
+                Alignment.Top
+            }
         ) {
             BabyLogIconTile(
                 icon = quickActionIcon(event.eventType),
@@ -418,15 +421,17 @@ internal fun TimelineRow(
                         fg = tone
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = rowText.summary,
-                    color = ChestnutPalette.Ink,
-                    fontSize = 16.sp,
-                    lineHeight = 22.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (rowText.summary.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = rowText.summary,
+                        color = ChestnutPalette.Ink,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (event.attachmentIds.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(

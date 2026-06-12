@@ -20,6 +20,7 @@ public final class BabyLogBabyDayTimelineSlotsSmokeTest {
         eventSummaryStripsTimelinePrefix();
         todayInitialFocusLooksBackTwoHours();
         pastDayInitialFocusUsesFirstSlotOrMorning();
+        nowLineOnlyAppearsOnToday();
         System.out.println("BabyLogBabyDayTimelineSlotsSmokeTest PASS");
     }
 
@@ -144,6 +145,13 @@ public final class BabyLogBabyDayTimelineSlotsSmokeTest {
                 480,
                 BabyLogBabyDayTimelineSlots.initialFocusMinute(emptySlots, "2026-05-25", "2026-05-26T15:30:00.000+0800")
         );
+    }
+
+    private static void nowLineOnlyAppearsOnToday() {
+        assertEquals(930, BabyLogBabyDayTimelineSlots.nowMinuteForDay("2026-05-25", "2026-05-25T15:30:00.000+0800"));
+        assertEquals(0, BabyLogBabyDayTimelineSlots.nowMinuteForDay("2026-05-25", "2026-05-25T00:00:00.000+0800"));
+        assertEquals(-1, BabyLogBabyDayTimelineSlots.nowMinuteForDay("2026-05-24", "2026-05-25T15:30:00.000+0800"));
+        assertEquals(-1, BabyLogBabyDayTimelineSlots.nowMinuteForDay("2026-05-26", "2026-05-25T15:30:00.000+0800"));
     }
 
     private static BabyLogDomain.BabyLogEvent sleep(String startIso, String endIso) throws Exception {

@@ -142,7 +142,7 @@ internal fun HomeScreen(
                     }
                 } else {
                     if (dayEvents.isEmpty()) {
-                        item { EmptyPanel("这一天还没有记录") }
+                        item { EmptyPanel("这一天还没有记录", hint = "点底部快捷按钮或麦克风，几秒补一笔") }
                     } else {
                         items(dayEvents, key = { it.id }) { event ->
                             TimelineRow(

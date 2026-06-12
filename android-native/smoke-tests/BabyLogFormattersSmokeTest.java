@@ -164,6 +164,12 @@ public final class BabyLogFormattersSmokeTest {
         if (BabyLogFormatters.isValidDateInput("2026-99-99")) {
             throw new AssertionError("invalid date accepted");
         }
+        assertEquals("120ml", BabyLogFormatters.detailOnlySummary("奶瓶 · 120ml", "bottle"));
+        assertEquals("", BabyLogFormatters.detailOnlySummary("母乳 · 待补充详情", "breastfeed"));
+        assertEquals("", BabyLogFormatters.detailOnlySummary("便便", "poop"));
+        assertEquals("", BabyLogFormatters.detailOnlySummary(null, "poop"));
+        assertEquals("第一次笑", BabyLogFormatters.detailOnlySummary("里程碑 · 第一次笑", "milestone"));
+        assertEquals("自定义摘要", BabyLogFormatters.detailOnlySummary("自定义摘要", "note"));
     }
 
 

@@ -26,7 +26,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +56,7 @@ private val TimelineViewportHeight = 420.dp
 private const val TIMELINE_CLUSTER_WINDOW_MINUTES = 40
 private val TimelineChipMaxWidth = 200.dp
 private val TimelineClusterBottomInset = 30.dp
+private const val NOW_LINE_REFRESH_MILLIS = 60_000L
 
 @Composable
 internal fun BabyDayTimeline(
@@ -63,6 +67,7 @@ internal fun BabyDayTimeline(
 ) {
     val isEmpty = slots.sleepSegments.isEmpty() && slots.eventPoints.isEmpty()
     val scrollState = rememberTimelineScrollState(slots, selectedDay)
+    val nowMinute by rememberNowMinute(selectedDay)
     Panel {
         Box(
             modifier = modifier
@@ -71,7 +76,7 @@ internal fun BabyDayTimeline(
                 .clip(RoundedCornerShape(ChestnutRadius.Control))
                 .background(ChestnutPalette.Surface2.copy(alpha = 0.42f))
         ) {
-            TimelineScrollableContent(slots, scrollState, onEventClick)
+            TimelineScrollableContent(slots, scrollState, nowMinute, onEventClick)
             if (isEmpty) {
                 Box(
                     modifier = Modifier
@@ -79,10 +84,21 @@ internal fun BabyDayTimeline(
                         .align(Alignment.Center)
                         .padding(start = TimelineLeftRailWidth + 12.dp, end = 18.dp)
                 ) {
-                    EmptyPanel("这一天还没有记录")
+                    EmptyPanel("这一天还没有记录", hint = "点底部快捷按钮或麦克风，几秒补一笔")
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun rememberNowMinute(selectedDay: String) = produceState(
+    initialValue = BabyLogBabyDayTimelineSlots.nowMinuteForDay(selectedDay, BabyLogFormatters.nowIso()),
+    selectedDay
+) {
+    while (true) {
+        value = BabyLogBabyDayTimelineSlots.nowMinuteForDay(selectedDay, BabyLogFormatters.nowIso())
+        delay(NOW_LINE_REFRESH_MILLIS)
     }
 }
 
@@ -112,6 +128,7 @@ private fun rememberTimelineScrollState(
 private fun TimelineScrollableContent(
     slots: BabyLogBabyDayTimelineSlots.TimelineSlots,
     scrollState: ScrollState,
+    nowMinute: Int,
     onEventClick: (String) -> Unit
 ) {
     Box(
@@ -126,6 +143,7 @@ private fun TimelineScrollableContent(
             slots.sleepSegments.forEach { segment ->
                 SleepSegmentView(segment, onClick = { onEventClick(segment.eventId) })
             }
+            NowIndicator(nowMinute)
             val clusters = remember(slots.eventPoints) {
                 clusterEventPoints(slots.eventPoints)
             }
@@ -133,6 +151,29 @@ private fun TimelineScrollableContent(
                 EventClusterView(cluster, onEventClick)
             }
         }
+    }
+}
+
+// 当前时刻线：只在查看“今天”时出现，左端圆点压在时间栏分隔线上（日历惯例）。
+@Composable
+private fun NowIndicator(nowMinute: Int) {
+    if (nowMinute < 0) return
+    val lineColor = ChestnutPalette.Rose
+    Canvas(modifier = Modifier.fillMaxWidth().height(TimelineHeight)) {
+        val y = nowMinute.coerceIn(0, 1440) / 60f * TimelineHourHeight.toPx()
+        val railX = TimelineLeftRailWidth.toPx()
+        drawLine(
+            color = lineColor,
+            start = Offset(railX, y),
+            end = Offset(size.width - 6.dp.toPx(), y),
+            strokeWidth = 2.4f,
+            cap = StrokeCap.Round
+        )
+        drawCircle(
+            color = lineColor,
+            radius = 3.6.dp.toPx(),
+            center = Offset(railX, y)
+        )
     }
 }
 
@@ -283,15 +324,8 @@ private fun EventChip(
         }
     }
     val eventLabel = BabyLogFormatters.eventLabel(point.eventType)
-    val summaryLabel = remember(point.summaryLabel, eventLabel) {
-        point.summaryLabel
-            .removePrefix(eventLabel)
-            .trim()
-            .trimStart('·', ':', '：', '-', ' ')
-            .trim()
-            // 占位文案在时间轴上没有信息量，只显示真实摘要。
-            .takeIf { it != "待补充详情" }
-            .orEmpty()
+    val summaryLabel = remember(point.summaryLabel, point.eventType) {
+        BabyLogFormatters.detailOnlySummary(point.summaryLabel, point.eventType)
     }
     Row(
         modifier = Modifier

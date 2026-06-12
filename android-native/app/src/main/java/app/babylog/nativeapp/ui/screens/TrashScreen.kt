@@ -78,13 +78,7 @@ private fun TrashRow(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        BabyLogFormatters.eventSummary(event),
-                        color = ChestnutPalette.Ink,
-                        fontSize = 16.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    TrashRowDetail(event)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -114,5 +108,24 @@ private fun TrashRow(
                 }
             }
         }
+    }
+}
+
+// 标题行已含类型名，这里只放纯详情，没有详情就不占一行。
+@Suppress("FunctionNaming")
+@Composable
+private fun TrashRowDetail(event: BabyLogDomain.BabyLogEvent) {
+    val detail = BabyLogFormatters.detailOnlySummary(
+        BabyLogFormatters.eventSummary(event),
+        event.eventType
+    )
+    if (detail.isNotBlank()) {
+        Text(
+            detail,
+            color = ChestnutPalette.Ink,
+            fontSize = 16.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

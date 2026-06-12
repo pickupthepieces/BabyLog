@@ -51,6 +51,15 @@ public final class BabyLogBabyDayTimelineSlots {
         return firstMinute >= 0 ? firstMinute : EMPTY_DAY_INITIAL_MINUTE;
     }
 
+    /** nowIso 落在 dateInput 当天时返回当天分钟数，否则返回 -1（当前时刻线只画在今天）。 */
+    public static int nowMinuteForDay(String dateInput, String nowIso) {
+        String day = BabyLogFormatters.isValidDateInput(dateInput) ? dateInput : BabyLogFormatters.todayDateInput();
+        if (!day.equals(BabyLogFormatters.recordDay(nowIso))) {
+            return -1;
+        }
+        return isoMinuteOfDay(nowIso);
+    }
+
     private static void addSleepSegment(
             BabyLogDomain.BabyLogEvent event,
             long dayStartMillis,

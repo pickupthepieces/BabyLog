@@ -222,7 +222,8 @@ fun Chip(text: String, bg: Color, fg: Color) {
 }
 
 @Composable
-fun EmptyPanel(text: String) {
+@Suppress("FunctionNaming")
+fun EmptyPanel(text: String, hint: String = "") {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -235,6 +236,16 @@ fun EmptyPanel(text: String) {
             fontSize = 13.sp,
             textAlign = TextAlign.Center
         )
+        if (hint.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = hint,
+                color = ChestnutPalette.Text3.copy(alpha = 0.8f),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

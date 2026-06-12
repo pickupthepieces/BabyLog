@@ -40,6 +40,10 @@ Thumbs.db
 # Generated archives
 *.zip
 
+# Local smoke-test compile output & debug artifacts
+android-native/smoke-tests/out*/
+artifacts/
+
 # Android Gradle / SDK
 android-native/local.properties
 android-native/.gradle/

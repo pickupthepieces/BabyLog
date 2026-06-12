@@ -685,6 +685,29 @@ public final class BabyLogFormatters {
         }
     }
 
+    /**
+     * 去掉摘要里的类型前缀与“待补充详情”占位，返回纯详情。
+     * 列表卡片的图标和角标已经表达了类型，正文重复类型名没有信息量。
+     */
+    public static String detailOnlySummary(String summary, String eventType) {
+        if (summary == null) {
+            return "";
+        }
+        String detail = summary.trim();
+        String label = eventLabel(eventType);
+        if (!label.isEmpty() && detail.startsWith(label)) {
+            detail = detail.substring(label.length()).trim();
+        }
+        while (!detail.isEmpty() && isSummarySeparator(detail.charAt(0))) {
+            detail = detail.substring(1).trim();
+        }
+        return "待补充详情".equals(detail) ? "" : detail;
+    }
+
+    private static boolean isSummarySeparator(char ch) {
+        return ch == '·' || ch == ':' || ch == '：' || ch == '-' || ch == ' ';
+    }
+
     private static String babyCareSummary(String eventType, String... parts) {
         StringBuilder summary = new StringBuilder(eventLabel(eventType));
         for (String part : parts) {
