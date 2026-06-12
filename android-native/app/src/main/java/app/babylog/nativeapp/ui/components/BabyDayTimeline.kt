@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -57,13 +59,15 @@ private const val TIMELINE_CLUSTER_WINDOW_MINUTES = 40
 private val TimelineChipMaxWidth = 200.dp
 private val TimelineClusterBottomInset = 30.dp
 private const val NOW_LINE_REFRESH_MILLIS = 60_000L
+private const val DAY_SWIPE_THRESHOLD_DP = 64
 
 @Composable
 internal fun BabyDayTimeline(
     slots: BabyLogBabyDayTimelineSlots.TimelineSlots,
     selectedDay: String,
     onEventClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSwipeDay: ((Int) -> Unit)? = null
 ) {
     val isEmpty = slots.sleepSegments.isEmpty() && slots.eventPoints.isEmpty()
     val scrollState = rememberTimelineScrollState(slots, selectedDay)
@@ -75,6 +79,7 @@ internal fun BabyDayTimeline(
                 .height(TimelineViewportHeight)
                 .clip(RoundedCornerShape(ChestnutRadius.Control))
                 .background(ChestnutPalette.Surface2.copy(alpha = 0.42f))
+                .daySwipe(selectedDay, onSwipeDay)
         ) {
             TimelineScrollableContent(slots, scrollState, nowMinute, onEventClick)
             if (isEmpty) {
@@ -88,6 +93,24 @@ internal fun BabyDayTimeline(
                 }
             }
         }
+    }
+}
+
+// 左右横扫切换前一天/后一天（右扫回看过去）；竖向滚动不受影响。
+private fun Modifier.daySwipe(selectedDay: String, onSwipeDay: ((Int) -> Unit)?): Modifier {
+    if (onSwipeDay == null) return this
+    return pointerInput(selectedDay) {
+        val threshold = DAY_SWIPE_THRESHOLD_DP.dp.toPx()
+        var dragTotal = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { dragTotal = 0f },
+            onDragEnd = {
+                when {
+                    dragTotal > threshold -> onSwipeDay(-1)
+                    dragTotal < -threshold -> onSwipeDay(1)
+                }
+            }
+        ) { _, dragAmount -> dragTotal += dragAmount }
     }
 }
 

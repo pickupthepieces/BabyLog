@@ -1,5 +1,11 @@
 package app.babylog.nativeapp
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,9 +56,6 @@ internal fun HomeScreen(
         }
     }
     var babyDayViewMode by rememberSaveable { mutableStateOf(BabyDayViewMode.Timeline) }
-    val babyTimelineSlots = remember(state.timeline, selectedBabyDay) {
-        BabyLogBabyDayTimelineSlots.compute(state.timeline, selectedBabyDay)
-    }
     val listState = rememberLazyListState()
     val currentOnQuickRailVisibilityChange by rememberUpdatedState(onQuickRailVisibilityChange)
     val railTargetVisible = remember { mutableStateOf(true) }
@@ -132,13 +135,31 @@ internal fun HomeScreen(
                 }
                 if (babyDayViewMode == BabyDayViewMode.Timeline) {
                     item {
-                        BabyDayTimeline(
-                            slots = babyTimelineSlots,
-                            selectedDay = selectedBabyDay,
-                            onEventClick = { eventId ->
-                                state.timeline.firstOrNull { it.id == eventId }?.let(onOpenDetail)
+                        // 切天时整面板横向滑动；ISO 日期可直接字典序比较方向。
+                        AnimatedContent(
+                            targetState = selectedBabyDay,
+                            transitionSpec = {
+                                val forward = targetState > initialState
+                                val enter = slideInHorizontally { width -> if (forward) width else -width } + fadeIn()
+                                val exit = slideOutHorizontally { width -> if (forward) -width else width } + fadeOut()
+                                enter togetherWith exit
+                            },
+                            label = "babyDaySwitch"
+                        ) { day ->
+                            val daySlots = remember(state.timeline, day) {
+                                BabyLogBabyDayTimelineSlots.compute(state.timeline, day)
                             }
-                        )
+                            BabyDayTimeline(
+                                slots = daySlots,
+                                selectedDay = day,
+                                onEventClick = { eventId ->
+                                    state.timeline.firstOrNull { it.id == eventId }?.let(onOpenDetail)
+                                },
+                                onSwipeDay = { delta ->
+                                    onBabyDaySelected(BabyLogFormatters.offsetDateInput(selectedBabyDay, delta))
+                                }
+                            )
+                        }
                     }
                 } else {
                     if (dayEvents.isEmpty()) {
@@ -172,7 +193,7 @@ internal fun HomeScreen(
                     .filter { isEventVisibleInHome(it, stage) }
                     .take(4)
                 if (recent.isEmpty()) {
-                    item { EmptyPanel("还没有记录") }
+                    item { EmptyPanel("还没有记录", hint = "点底部快捷按钮或麦克风，几秒补一笔") }
                 } else {
                     items(recent, key = { it.id }) { event ->
                         TimelineRow(

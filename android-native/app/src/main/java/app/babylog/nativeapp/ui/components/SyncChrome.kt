@@ -127,7 +127,8 @@ internal fun ComposeMainActivity.pullSyncNow(silent: Boolean) {
     if (syncPullRunning) return
     if (!shouldAutoPullSync()) {
         if (!silent) {
-            showInfo("同步未配置", "请先填写家庭后端地址和密钥。")
+            // 下拉刷新易误触，未配置时轻提示即可，不打断操作。
+            showToast("同步未配置，记录保存在本机")
         }
         return
     }

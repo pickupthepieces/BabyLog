@@ -252,7 +252,7 @@ internal fun PregnancySummaryPanel(
                         else -> "$it 天"
                     }
                 } ?: "未填写",
-                subtitle = nextVisitDate ?: "产检备注里写 yyyy-MM-dd",
+                subtitle = nextVisitDate ?: "产检表单里可填写",
                 tone = ChestnutPalette.Accent,
                 modifier = Modifier.weight(1f)
             )

@@ -50,7 +50,12 @@ internal fun RecordDetailScreen(
             SettingsPanel("摘要") {
                 DetailField("类型", BabyLogFormatters.eventLabel(event.eventType))
                 DetailField("时间", "${BabyLogFormatters.formatEventDay(event.occurredAt)} ${BabyLogFormatters.formatEventTime(event.occurredAt)}")
-                DetailField("内容", BabyLogFormatters.eventSummary(event))
+                // 类型行已有类型名，内容只放详情；空详情保留占位提示。
+                DetailField(
+                    "内容",
+                    BabyLogFormatters.detailOnlySummary(BabyLogFormatters.eventSummary(event), event.eventType)
+                        .ifBlank { "待补充详情" }
+                )
             }
         }
         item {
